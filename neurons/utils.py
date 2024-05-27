@@ -158,13 +158,13 @@ async def update_task_state(
     return None
 
 
-def get_coldkey_for_hotkey(self, hotkey):
+def get_coldkey_for_hotkey(metagraph, hotkey):
     """
     Look up the coldkey of the caller.
     """
-    if hotkey in self.metagraph.hotkeys:
-        index = self.metagraph.hotkeys.index(hotkey)
-        return self.metagraph.coldkeys[index]
+    if hotkey in metagraph.hotkeys:
+        index = metagraph.hotkeys.index(hotkey)
+        return metagraph.coldkeys[index]
     return None
 
 
@@ -243,6 +243,29 @@ def filter_batch_before_submission(batch: Dict[str, Any]) -> Dict[str, Any]:
     return dict(BatchSubmissionRequest(**to_return))
 
 
+def terminate_if_not_registered(metagraph, subtensor, wallet, neuron_type):
+    """
+    Handles terminating a miner or validator after deregistration.
+    """
+    try:
+        metagraph.sync(subtensor=subtensor)
+        if wallet.hotkey.ss58_address not in metagraph.hotkeys:
+            logger.info(f">>> {neuron_type} has deregistered... terminating.")
+            try:
+                _thread.interrupt_main()
+            except Exception as e:
+                logger.info(
+                    f"An error occurred trying to terminate the main thread: {e}."
+                )
+            try:
+                os.exit(0)
+            except Exception as e:
+                logger.info(f"An error occurred trying to use os._exit(): {e}.")
+            sys.exit(0)
+    except Exception as e:
+        logger.info(f">>> An unexpected error occurred syncing the metagraph: {e}")
+
+
 def upload_batches(hotkey: Keypair, api_url: str, batches: Dict):
     logger.info(f"Number of batches in queue: {len(batches)}")
     max_retries = 3
@@ -314,6 +337,169 @@ def upload_batches(hotkey: Keypair, api_url: str, batches: Dict):
             logger.info(f"Removing successful batch: {batch_id}")
             del batches[batch_id]
 
+def update_blacklists(storage_client, bucket_name, blacklist_type, hotkey_blacklist, coldkey_blacklist):
+    blacklist_for_neuron = retrieve_public_file(
+        storage_client, bucket_name, blacklist_type
+    )
+    if blacklist_for_neuron:
+        hotkey_blacklist = set(
+            [
+                k
+                for k, v in blacklist_for_neuron.items()
+                if v["type"] == "hotkey"
+            ]
+        )
+        coldkey_blacklist = set(
+            [
+                k
+                for k, v in blacklist_for_neuron.items()
+                if v["type"] == "coldkey"
+            ]
+        )
+        logger.info("Retrieved the latest blacklists.")
+
+def update_whitelists(storage_client, bucket_name, whitelist_type, hotkey_whitelist, coldkey_whitelist):
+    whitelist_for_neuron = retrieve_public_file(
+        storage_client, bucket_name, whitelist_type
+    )
+    if whitelist_for_neuron:
+        hotkey_whitelist = set(
+            [
+                k
+                for k, v in whitelist_for_neuron.items()
+                if v["type"] == "hotkey"
+            ]
+        )
+        coldkey_whitelist = set(
+            [
+                k
+                for k, v in whitelist_for_neuron.items()
+                if v["type"] == "coldkey"
+            ]
+        )
+        logger.info("Retrieved the latest whitelists.")
+
+def update_warninglists(storage_client, bucket_name, warninglist_type, hotkey_warninglist, coldkey_warninglist, wallet):
+    warninglist_for_neuron = retrieve_public_file(
+        storage_client, bucket_name, warninglist_type
+    )
+    if warninglist_for_neuron:
+        hotkey_warninglist = {
+            k: [v["reason"], v["resolve_by"]]
+            for k, v in warninglist_for_neuron.items()
+            if v["type"] == "hotkey"
+        }
+        coldkey_warninglist = {
+            k: [v["reason"], v["resolve_by"]]
+            for k, v in warninglist_for_neuron.items()
+            if v["type"] == "coldkey"
+        }
+        logger.info("Retrieved the latest warninglists.")
+        if wallet.hotkey.ss58_address in hotkey_warninglist.keys():
+            hotkey_address: str = hotkey_warninglist[
+                wallet.hotkey.ss58_address
+            ][0]
+            hotkey_warning: str = hotkey_warninglist[
+                wallet.hotkey.ss58_address
+            ][1]
+
+            colored_log(
+                f"This hotkey is on the warning list: {hotkey_address}"
+                + f" | Date for rectification: {hotkey_warning}",
+                color="red",
+            )
+        coldkey = get_coldkey_for_hotkey(metagraph, wallet.hotkey.ss58_address)
+        if coldkey in coldkey_warninglist.keys():
+            coldkey_address: str = coldkey_warninglist[coldkey][0]
+            coldkey_warning: str = coldkey_warninglist[coldkey][1]
+            colored_log(
+                f"This coldkey is on the warning list: {coldkey_address}"
+                + f" | Date for rectification: {coldkey_warning}",
+                color="red",
+            )
+
+def update_validator_weights(storage_client, bucket_name, disable_manual_validator)
+    # Update weights
+    validator_weights = retrieve_public_file(
+        self.storage_client, bucket_name, IA_VALIDATOR_WEIGHT_FILES
+    )
+
+    if (
+        "manual_reward_model" in validator_weights
+        and disable_manual_validator
+    ):
+        validator_weights["manual_reward_model"] = 0.0
+
+    if "human_reward_model" in validator_weights:
+        human_voting_weight = validator_weights[
+            "human_reward_model"
+        ] / ((256 / N_NEURONS) * 1.5)
+
+    if validator_weights:
+        weights_to_add = []
+        for rw_name in self.reward_names:
+            if rw_name in validator_weights:
+                weights_to_add.append(validator_weights[rw_name])
+
+        logger.info(f"Raw model weights: {weights_to_add}")
+
+        if weights_to_add:
+            # Normalize weights
+            if sum(weights_to_add) != 1:
+                weights_to_add = normalize_weights(weights_to_add)
+                logger.info(f"Normalized model weights: {weights_to_add}")
+
+            reward_weights = torch.tensor(
+                weights_to_add, dtype=torch.float32
+            ).to(self.device)
+            logger.info(
+                f"Retrieved the latest validator weights: {self.reward_weights}"
+            )
+
+        # self.reward_weights = torch.tensor(
+        #     [v for k, v in validator_weights.items() if "manual" not in k],
+        #     dtype=torch.float32,
+        # ).to(self.device)
+
+    return human_voting_weight, reward_weights
+
+def update_validator_weights(self.storage_client, self.request_frequency, self.query_timeout, self.manual_validator_timeout, self.async_timeout, self.epoch_length, self.config.alchemy.disable_manual_validator, self.manual_validator_timeout)
+    # Update settings
+    validator_settings: dict = retrieve_public_file(
+        storage_client,
+        bucket_name,
+        IA_VALIDATOR_SETTINGS_FILE,
+    )
+
+    if validator_settings:
+        request_frequency = validator_settings.get(
+            "request_frequency", request_frequency
+        )
+
+        query_timeout = validator_settings.get(
+            "query_timeout", query_timeout
+        )
+
+        manual_validator_timeout = validator_settings.get(
+            "manual_validator_timeout",
+            manual_validator_timeout,
+        )
+
+        async_timeout = validator_settings.get(
+            "async_timeout", async_timeout
+        )
+
+        epoch_length = validator_settings.get(
+            "epoch_length", epoch_length
+        )
+
+        if disable_manual_validator:
+            request_frequency += manual_validator_timeout
+
+        logger.info(
+            "Retrieved the latest validator settings: " + validator_settings
+        )
+        return request_frequency, query_timeout, manual_validator_timeout, async_timeout, epoch_length , request_frequency
 
 def background_loop(self, is_validator):
     """
@@ -331,23 +517,9 @@ def background_loop(self, is_validator):
 
     # Terminate the miner / validator after deregistration
     if self.background_steps % 5 == 0 and self.background_steps > 1:
-        try:
-            self.metagraph.sync(subtensor=self.subtensor)
-            if self.wallet.hotkey.ss58_address not in self.metagraph.hotkeys:
-                logger.info(f">>> {neuron_type} has deregistered... terminating.")
-                try:
-                    _thread.interrupt_main()
-                except Exception as e:
-                    logger.info(
-                        f"An error occurred trying to terminate the main thread: {e}."
-                    )
-                try:
-                    os.exit(0)
-                except Exception as e:
-                    logger.info(f"An error occurred trying to use os._exit(): {e}.")
-                sys.exit(0)
-        except Exception as e:
-            logger.info(f">>> An unexpected error occurred syncing the metagraph: {e}")
+        terminate_if_not_registered(
+            self.metagraph, self.subtensor, self.wallet, neuron_type
+        )
 
     # Send new batches to the Human Validation Bot
     try:
@@ -370,92 +542,17 @@ def background_loop(self, is_validator):
                 logger.info("Created anonymous storage client.")
 
             # Update the blacklists
-            blacklist_for_neuron = retrieve_public_file(
-                self.storage_client, bucket_name, blacklist_type
-            )
-            if blacklist_for_neuron:
-                self.hotkey_blacklist = set(
-                    [
-                        k
-                        for k, v in blacklist_for_neuron.items()
-                        if v["type"] == "hotkey"
-                    ]
-                )
-                self.coldkey_blacklist = set(
-                    [
-                        k
-                        for k, v in blacklist_for_neuron.items()
-                        if v["type"] == "coldkey"
-                    ]
-                )
-                logger.info("Retrieved the latest blacklists.")
+            update_blacklists(self.storage_client, bucket_name, blacklist_type, self.hotkey_blacklist, self.coldkey_blacklist)
 
             # Update the whitelists
-            whitelist_for_neuron = retrieve_public_file(
-                self.storage_client, bucket_name, whitelist_type
-            )
-            if whitelist_for_neuron:
-                self.hotkey_whitelist = set(
-                    [
-                        k
-                        for k, v in whitelist_for_neuron.items()
-                        if v["type"] == "hotkey"
-                    ]
-                )
-                self.coldkey_whitelist = set(
-                    [
-                        k
-                        for k, v in whitelist_for_neuron.items()
-                        if v["type"] == "coldkey"
-                    ]
-                )
-                logger.info("Retrieved the latest whitelists.")
+            update_whitelists(self.storage_client, bucket_name, whitelist_type, self.hotkey_whitelist, self.coldkey_whitelist)
 
             # Update the warning list
-            warninglist_for_neuron = retrieve_public_file(
-                self.storage_client, bucket_name, warninglist_type
-            )
-            if warninglist_for_neuron:
-                self.hotkey_warninglist = {
-                    k: [v["reason"], v["resolve_by"]]
-                    for k, v in warninglist_for_neuron.items()
-                    if v["type"] == "hotkey"
-                }
-                self.coldkey_warninglist = {
-                    k: [v["reason"], v["resolve_by"]]
-                    for k, v in warninglist_for_neuron.items()
-                    if v["type"] == "coldkey"
-                }
-                logger.info("Retrieved the latest warninglists.")
-                if self.wallet.hotkey.ss58_address in self.hotkey_warninglist.keys():
-                    hotkey_address: str = self.hotkey_warninglist[
-                        self.wallet.hotkey.ss58_address
-                    ][0]
-                    hotkey_warning: str = self.hotkey_warninglist[
-                        self.wallet.hotkey.ss58_address
-                    ][1]
-
-                    colored_log(
-                        f"This hotkey is on the warning list: {hotkey_address}"
-                        + f" | Date for rectification: {hotkey_warning}",
-                        color="red",
-                    )
-                coldkey = get_coldkey_for_hotkey(self, self.wallet.hotkey.ss58_address)
-                if coldkey in self.coldkey_warninglist.keys():
-                    coldkey_address: str = self.coldkey_warninglist[coldkey][0]
-                    coldkey_warning: str = self.coldkey_warninglist[coldkey][1]
-                    colored_log(
-                        f"This coldkey is on the warning list: {coldkey_address}"
-                        + f" | Date for rectification: {coldkey_warning}",
-                        color="red",
-                    )
+            update_warninglists(self.storage_client, bucket_name, warninglist_type, self.hotkey_warninglist, self.coldkey_warninglist)
 
             # Validator only
             if is_validator:
-                # Update weights
-                validator_weights = retrieve_public_file(
-                    self.storage_client, bucket_name, IA_VALIDATOR_WEIGHT_FILES
-                )
+                self.human_voting_weight, self.reward_weights = update_validator_weights(self.storage_client, bucket_name, self.config.alchemy.disable_manual_validator)
 
                 if "human_reward_model" in validator_weights:
                     # NOTE: Scaling factor for the human reward model
