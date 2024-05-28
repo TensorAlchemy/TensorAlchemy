@@ -54,3 +54,11 @@ Join our thriving Discord community to connect with fellow AI enthusiasts, artis
 
 **Validator guide:** [![Github icon](https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white
 )](./contrib/guides/testnet/validator.md)
+
+## Migration
+
+Please note! 
+
+We have recently moved from ImageAlchemy to TensorAlchemy to better fit our expected growth.
+
+[Please see here for a migration guide](https://github.com/Supreme-Emperor-Wang/ImageAlchemy/blob/main/README.md)

@@ -42,6 +42,16 @@ import bittensor as bt
 import wandb
 
 
+def is_valid_current_directory() -> bool:
+    # NOTE: We use Alchemy for support
+    #       of the old repository name ImageAlchemy
+    #       otherwise normally this would be TensorAlchemy
+    if "Alchemy" in os.getcwd():
+        return True
+
+    return False
+
+
 class StableValidator:
     @classmethod
     def check_config(cls, new_config: bt.config):
@@ -183,7 +193,7 @@ class StableValidator:
         # Init manual validator
         if not self.config.alchemy.disable_manual_validator:
             try:
-                if "TensorAlchemy" not in os.getcwd():
+                if not is_valid_current_directory():
                     raise Exception(
                         "Unable to load manual validator please `cd` "
                         + "into the TensorAlchemy folder before running the validator"
