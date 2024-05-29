@@ -344,11 +344,12 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                 should_drop_entries.append(1)
 
         # Update batches to be sent to the human validation platform
-        self.batches.append(
-            {
+        batch_id = str(uuid.uuid4())
+        if batch_id not in self.batches.keys():
+            self.batches[batch_id] = {
                 "prompt": prompt,
                 "computes": images,
-                "batch_id": str(uuid.uuid4()),
+                "batch_id": batch_id,
                 "nsfw_scores": event["nsfw_filter"],
                 "blacklist_scores": event["blacklist_filter"],
                 "should_drop_entries": should_drop_entries,
@@ -356,7 +357,6 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                 "miner_hotkeys": [self.metagraph.hotkeys[uid] for uid in uids],
                 "miner_coldkeys": [self.metagraph.coldkeys[uid] for uid in uids],
             }
-        )
     except Exception as e:
         logger.error(f"An unexpected error occurred appending the batch: {e}")
 

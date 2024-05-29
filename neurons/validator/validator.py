@@ -1,23 +1,17 @@
-import os
-import sys
-import copy
-import time
 import asyncio
+import copy
+import os
 import subprocess
+import sys
+import time
 import traceback
-
 from time import sleep
 
 import sentry_sdk
 import torch
 from loguru import logger
 from neurons.constants import DEV_URL, N_NEURONS, PROD_URL
-from neurons.utils import (
-    BackgroundTimer,
-    background_loop,
-    colored_log,
-    get_defaults,
-)
+from neurons.utils import BackgroundTimer, background_loop, colored_log, get_defaults
 from neurons.validator.config import add_args, check_config, config
 from neurons.validator.forward import run_step
 from neurons.validator.reward import (
@@ -310,7 +304,7 @@ class StableValidator:
         self.validator_index = self.get_validator_index()
 
         # Start the batch streaming background loop
-        self.batches = []
+        self.batches = {}
 
         # Start the generic background loop
         self.storage_client = None
