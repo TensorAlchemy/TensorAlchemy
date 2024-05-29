@@ -214,9 +214,9 @@ def background_loop(self, is_validator):
             logger.info(f"Number of batches in queue: {len(self.batches)}")
             max_retries = 3
             backoff = 5
-            batches_for_deletion = []
-            invalid_batches = []
-            for batch in self.batches:
+            batches_for_deletion = set()
+            for batch_id in self.batches.keys():
+                batch = self.batches[batch_id]
                 for attempt in range(0, max_retries):
                     try:
                         filtered_batch = filter_batch_before_submission(batch)
@@ -226,13 +226,14 @@ def background_loop(self, is_validator):
                                 "Successfully posted batch"
                                 + f" {filtered_batch['batch_id']}"
                             )
-                            batches_for_deletion.append(batch)
+                            batches_for_deletion.add(batch_id)
                             break
 
                         response_data = response.json()
                         if "code" in response_data:
                             if response_data["code"] == MINIMUM_VALID_IMAGES_ERROR:
-                                invalid_batches.append(batch)
+                                batches_for_deletion.add(batch_id)
+                                break
 
                         logger.info(f"{response_data=}")
                         raise Exception(
@@ -240,8 +241,8 @@ def background_loop(self, is_validator):
                             + f"Status code: {response.status_code}"
                         )
                     except MinimumValidImagesError as e:
-                        invalid_batches.append(batch)
-                        attempt == max_retries
+                        batches_for_deletion.add(batch_id)
+                        break
                     except Exception as e:
                         backoff *= 2  # Double the backoff for the next attempt
                         if attempt != max_retries:
@@ -258,20 +259,14 @@ def background_loop(self, is_validator):
                             + f"{attempt+1} times unsuccessfully. "
                             + f"Skipping this batch and moving to the next batch. Error: {e}"
                         )
-                        batches_for_deletion.append(batch)
+                        batches_for_deletion.add(batch_id)
                         break
 
-            # Delete any invalid batches
-            for batch in invalid_batches:
-                logger.info(f"Removing invalid batch: {batch['batch_id']}")
-                if batch in self.batches:
-                    self.batches.remove(batch)
-
-            # Delete any successful batches
-            for batch in batches_for_deletion:
-                logger.info(f"Removing successful batch: {batch['batch_id']}")
-                if batch in self.batches:
-                    self.batches.remove(batch)
+            # Delete any processed branches
+            for batch_id in batches_for_deletion:
+                if batch_id in self.batches.keys():
+                    logger.info(f"Removing successful batch: {batch_id}")
+                    del self.batches[batch_id]
 
     except Exception as e:
         logger.info(
