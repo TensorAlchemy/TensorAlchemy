@@ -15,6 +15,6 @@ if __name__ == "__main__":
 
     from validator import StableValidator
 
-    sentry_sdk.init(dsn=VALIDATOR_SENTRY_DSN, environment="local")
+    sentry_sdk.init(dsn=VALIDATOR_SENTRY_DSN)
 
     asyncio.run(StableValidator().run())
