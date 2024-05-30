@@ -75,8 +75,8 @@ def log_query_to_history(validator: "StableValidator", uids: torch.Tensor):
             validator.miner_query_history_count[
                 validator.metagraph.axons[uid].hotkey
             ] += 1
-    except Exception:
-        logger.error("Failed to log miner counts and histories")
+    except Exception as e:
+        logger.error(f"Failed to log miner counts and histories due to the following error: {e}")
 
     colored_log(
         f"{sh('Miner Counts')} -> Max: {max(validator.miner_query_history_count.values()):.2f} "
