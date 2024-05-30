@@ -5,12 +5,14 @@ import subprocess
 import sys
 import time
 import traceback
+import uuid
 from time import sleep
 
 import sentry_sdk
 import torch
 from loguru import logger
 from neurons.constants import DEV_URL, N_NEURONS, PROD_URL
+from neurons.protocol import denormalize
 from neurons.utils import BackgroundTimer, background_loop, colored_log, get_defaults
 from neurons.validator.config import add_args, check_config, config
 from neurons.validator.forward import run_step
@@ -362,10 +364,37 @@ class StableValidator:
 
                 axons = [self.metagraph.axons[uid] for uid in uids]
 
-                # Generate prompt + followup_prompt
-                prompt = generate_random_prompt_gpt(self)
+                def get_task(api_url, timeout=1):
+                    # Add logging
+                    import requests
 
-                if prompt is None:
+                    task = None
+                    for i in range(30):
+                        asyncio.sleep(1)
+                        response = requests.get(f"{api_url}/get_task", timeout=timeout)
+                        if response.status_code == 200:
+                            task = response.json()
+                            return task
+
+                    return task
+
+                task = get_task(self.api_url)
+                if task is None:
+                    task = denormalize(
+                        image_count=1,
+                        task_type="text_to_image",
+                        compute_id=str(uuid.uuid4()),
+                        guidance_scale=7.5,
+                        negative_prompt=None,
+                        prompt=generate_random_prompt_gpt(self),
+                        seed=-1,
+                        steps=30,
+                        images=1,
+                        width=1024,
+                        height=1024,
+                    )
+
+                if task["prompt"] is None:
                     logger.warning(f"The prompt was not generated successfully.")
 
                     # Prevent loop from forming if the prompt
@@ -376,7 +405,7 @@ class StableValidator:
                     continue
 
                 # Text to Image Run
-                run_step(self, prompt, axons, uids, task_type="text_to_image")
+                run_step(self, task, axons, uids, task_type="text_to_image")
                 # Re-sync with the network. Updates the metagraph.
                 try:
                     self.sync()

@@ -17,11 +17,35 @@
 # DEALINGS IN THE SOFTWARE.
 
 import typing
-from typing import Optional
+from typing import Dict, Optional
 
 import pydantic
+from pydantic import BaseModel
 
 import bittensor as bt
+
+
+def denormalize(image_count: int, task_type: str, **kwargs) -> Dict:
+    return ComputeTaskModel(
+        num_images_per_prompt=image_count,
+        generation_type=task_type,
+        **kwargs,
+    )
+
+
+class ComputeTaskModel(BaseModel):
+    compute_id: str
+    prompt: str
+    negative_prompt: Optional[str]
+    prompt_image: Optional[bt.Tensor]
+    images: Optional[typing.List[bt.Tensor]]
+    num_images_per_prompt: int
+    height: int
+    width: int
+    guidance_scale: float
+    seed: int
+    steps: int
+    task_type: str
 
 
 class IsAlive(bt.Synapse):

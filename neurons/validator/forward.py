@@ -14,7 +14,7 @@ import torchvision.transforms as T
 from loguru import logger
 from neurons.constants import MOVING_AVERAGE_ALPHA
 from neurons.protocol import ImageGeneration
-from neurons.utils import colored_log, sh
+from neurons.utils import colored_log, sh, upload_batches
 from neurons.validator.event import EventSchema
 from neurons.validator.reward import (
     filter_rewards,
@@ -184,7 +184,17 @@ def log_event_to_wandb(wandb, event: dict, prompt: str):
         logger.error(f"Unable to log event to wandb due to the following error: {e}")
 
 
-def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
+def run_step(self, task, axons, uids, task_type="text_to_image", image=None):
+    # Get task arguments
+    batch_id = task.get("Id", str(uuid.uuid))
+    prompt = task.get("prompt", "Bird in the sky")
+    guidance_scale = task.get("guidance_scale", 7.5)
+    seed = task.get("seed", -1)
+    steps = task.get("steps", 30)
+    num_images_per_prompt = task.get("num_images_per_prompt", 1)
+    width = task.get("width", 1024)
+    height = task.get("height", 1024)
+
     time_elapsed = datetime.now() - self.stats.start_time
 
     colored_log(
@@ -205,7 +215,12 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
         generation_type=task_type,
         prompt=prompt,
         prompt_image=image,
-        seed=-1,
+        seed=seed,
+        guidance_scale=guidance_scale,
+        steps=steps,
+        num_images_per_prompt=num_images_per_prompt,
+        width=width,
+        height=height,
     )
 
     synapse_info = (
@@ -344,7 +359,6 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                 should_drop_entries.append(1)
 
         # Update batches to be sent to the human validation platform
-        batch_id = str(uuid.uuid4())
         if batch_id not in self.batches.keys():
             self.batches[batch_id] = {
                 "prompt": prompt,
@@ -357,6 +371,9 @@ def run_step(self, prompt, axons, uids, task_type="text_to_image", image=None):
                 "miner_hotkeys": [self.metagraph.hotkeys[uid] for uid in uids],
                 "miner_coldkeys": [self.metagraph.coldkeys[uid] for uid in uids],
             }
+
+        # Upload the batches to the Human Validation Platform
+        upload_batches(self.batches, self.api_url)
     except Exception as e:
         logger.error(f"An unexpected error occurred appending the batch: {e}")
 

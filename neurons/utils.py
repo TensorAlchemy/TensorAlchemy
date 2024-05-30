@@ -174,6 +174,63 @@ def filter_batch_before_submission(batch: Dict[str, Any]) -> Dict[str, Any]:
     return dict(BatchSubmissionRequest(**to_return))
 
 
+def upload_batches(batches, api_url):
+    logger.info(f"Number of batches in queue: {len(batches)}")
+    max_retries = 3
+    backoff = 5
+    batches_for_deletion = set()
+    for batch_id in batches.keys():
+        batch = batches[batch_id]
+        for attempt in range(0, max_retries):
+            try:
+                filtered_batch = filter_batch_before_submission(batch)
+                response = post_batch(api_url, filtered_batch)
+                if response.status_code == 200:
+                    logger.info(
+                        "Successfully posted batch" + f" {filtered_batch['batch_id']}"
+                    )
+                    batches_for_deletion.add(batch_id)
+                    break
+
+                response_data = response.json()
+                if "code" in response_data:
+                    if response_data["code"] == MINIMUM_VALID_IMAGES_ERROR:
+                        batches_for_deletion.add(batch_id)
+                        break
+
+                logger.info(f"{response_data=}")
+                raise Exception(
+                    "Failed to post batch. " + f"Status code: {response.status_code}"
+                )
+            except MinimumValidImagesError as e:
+                batches_for_deletion.add(batch_id)
+                break
+            except Exception as e:
+                backoff *= 2  # Double the backoff for the next attempt
+                if attempt != max_retries:
+                    logger.error(
+                        f"Attempt number {attempt+1} failed to"
+                        + f" send batch {batch['batch_id']}. "
+                        + f"Retrying in {backoff} seconds. Error: {e}"
+                    )
+                    time.sleep(backoff)
+                    continue
+
+                logger.error(
+                    f"Attempted to post batch {batch['batch_id']} "
+                    + f"{attempt+1} times unsuccessfully. "
+                    + f"Skipping this batch and moving to the next batch. Error: {e}"
+                )
+                batches_for_deletion.add(batch_id)
+                break
+
+    # Delete any processed branches
+    for batch_id in batches_for_deletion:
+        if batch_id in batches.keys():
+            logger.info(f"Removing successful batch: {batch_id}")
+            del batches[batch_id]
+
+
 def background_loop(self, is_validator):
     """
     Handles terminating the miner after deregistration and
@@ -211,62 +268,7 @@ def background_loop(self, is_validator):
     # Send new batches to the Human Validation Bot
     try:
         if (self.background_steps % 1 == 0) and is_validator and (self.batches != []):
-            logger.info(f"Number of batches in queue: {len(self.batches)}")
-            max_retries = 3
-            backoff = 5
-            batches_for_deletion = set()
-            for batch_id in self.batches.keys():
-                batch = self.batches[batch_id]
-                for attempt in range(0, max_retries):
-                    try:
-                        filtered_batch = filter_batch_before_submission(batch)
-                        response = post_batch(self.api_url, filtered_batch)
-                        if response.status_code == 200:
-                            logger.info(
-                                "Successfully posted batch"
-                                + f" {filtered_batch['batch_id']}"
-                            )
-                            batches_for_deletion.add(batch_id)
-                            break
-
-                        response_data = response.json()
-                        if "code" in response_data:
-                            if response_data["code"] == MINIMUM_VALID_IMAGES_ERROR:
-                                batches_for_deletion.add(batch_id)
-                                break
-
-                        logger.info(f"{response_data=}")
-                        raise Exception(
-                            "Failed to post batch. "
-                            + f"Status code: {response.status_code}"
-                        )
-                    except MinimumValidImagesError as e:
-                        batches_for_deletion.add(batch_id)
-                        break
-                    except Exception as e:
-                        backoff *= 2  # Double the backoff for the next attempt
-                        if attempt != max_retries:
-                            logger.error(
-                                f"Attempt number {attempt+1} failed to"
-                                + f" send batch {batch['batch_id']}. "
-                                + f"Retrying in {backoff} seconds. Error: {e}"
-                            )
-                            time.sleep(backoff)
-                            continue
-
-                        logger.error(
-                            f"Attempted to post batch {batch['batch_id']} "
-                            + f"{attempt+1} times unsuccessfully. "
-                            + f"Skipping this batch and moving to the next batch. Error: {e}"
-                        )
-                        batches_for_deletion.add(batch_id)
-                        break
-
-            # Delete any processed branches
-            for batch_id in batches_for_deletion:
-                if batch_id in self.batches.keys():
-                    logger.info(f"Removing successful batch: {batch_id}")
-                    del self.batches[batch_id]
+            upload_batches(self.batches, self.api_url)
 
     except Exception as e:
         logger.info(
