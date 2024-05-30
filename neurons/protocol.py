@@ -20,19 +20,19 @@ import typing
 from typing import Dict, Optional
 
 import pydantic
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 import bittensor as bt
 
 
 def denormalize(image_count: int, **kwargs) -> Dict:
-    return ComputeTaskModel(
+    return ImageGenerationTaskModel(
         num_images_per_prompt=image_count,
         **kwargs,
     )
 
 
-class ComputeTaskModel(BaseModel):
+class ImageGenerationTaskModel(BaseModel):
     compute_id: str
     prompt: str
     negative_prompt: Optional[str]
