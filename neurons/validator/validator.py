@@ -389,12 +389,11 @@ class StableValidator:
                         prompt=generate_random_prompt_gpt(self),
                         seed=-1,
                         steps=30,
-                        images=1,
                         width=1024,
                         height=1024,
                     )
 
-                if task["prompt"] is None:
+                if task.prompt is None:
                     logger.warning(f"The prompt was not generated successfully.")
 
                     # Prevent loop from forming if the prompt
@@ -405,7 +404,7 @@ class StableValidator:
                     continue
 
                 # Text to Image Run
-                run_step(self, task, axons, uids, task_type="text_to_image")
+                run_step(self, task, axons, uids)
                 # Re-sync with the network. Updates the metagraph.
                 try:
                     self.sync()

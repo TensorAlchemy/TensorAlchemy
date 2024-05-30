@@ -267,7 +267,7 @@ def background_loop(self, is_validator):
 
     # Send new batches to the Human Validation Bot
     try:
-        if (self.background_steps % 1 == 0) and is_validator and (self.batches != []):
+        if (self.background_steps % 1 == 0) and is_validator and (self.batches != {}):
             upload_batches(self.batches, self.api_url)
 
     except Exception as e:

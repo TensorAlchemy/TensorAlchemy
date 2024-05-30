@@ -25,10 +25,9 @@ from pydantic import BaseModel
 import bittensor as bt
 
 
-def denormalize(image_count: int, task_type: str, **kwargs) -> Dict:
+def denormalize(image_count: int, **kwargs) -> Dict:
     return ComputeTaskModel(
         num_images_per_prompt=image_count,
-        generation_type=task_type,
         **kwargs,
     )
 

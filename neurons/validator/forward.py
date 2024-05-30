@@ -184,16 +184,11 @@ def log_event_to_wandb(wandb, event: dict, prompt: str):
         logger.error(f"Unable to log event to wandb due to the following error: {e}")
 
 
-def run_step(self, task, axons, uids, task_type="text_to_image", image=None):
-    # Get task arguments
-    batch_id = task.get("Id", str(uuid.uuid))
-    prompt = task.get("prompt", "Bird in the sky")
-    guidance_scale = task.get("guidance_scale", 7.5)
-    seed = task.get("seed", -1)
-    steps = task.get("steps", 30)
-    num_images_per_prompt = task.get("num_images_per_prompt", 1)
-    width = task.get("width", 1024)
-    height = task.get("height", 1024)
+def run_step(self, task, axons, uids):
+    # Get Arguments
+    prompt = task.prompt
+    task_type = task.task_type
+    batch_id = task.compute_id
 
     time_elapsed = datetime.now() - self.stats.start_time
 
@@ -212,15 +207,15 @@ def run_step(self, task, axons, uids, task_type="text_to_image", image=None):
 
     # Set seed to -1 so miners will use a random seed by default
     synapse = ImageGeneration(
-        generation_type=task_type,
         prompt=prompt,
-        prompt_image=image,
-        seed=seed,
-        guidance_scale=guidance_scale,
-        steps=steps,
-        num_images_per_prompt=num_images_per_prompt,
-        width=width,
-        height=height,
+        generation_type=task_type,
+        prompt_image=task.images,
+        seed=task.seed,
+        guidance_scale=task.guidance_scale,
+        steps=task.steps,
+        num_images_per_prompt=task.num_images_per_prompt,
+        width=task.width,
+        height=task.height,
     )
 
     synapse_info = (
@@ -374,6 +369,7 @@ def run_step(self, task, axons, uids, task_type="text_to_image", image=None):
 
         # Upload the batches to the Human Validation Platform
         upload_batches(self.batches, self.api_url)
+
     except Exception as e:
         logger.error(f"An unexpected error occurred appending the batch: {e}")
 
