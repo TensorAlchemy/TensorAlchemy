@@ -23,6 +23,18 @@ import bittensor as bt
 import wandb
 
 
+# Get tasks from the client server
+async def get_task(api_url, timeout=1):
+    task = None
+    for i in range(30):
+        asyncio.sleep(1)
+        response = requests.get(f"{api_url}/get_task", timeout=timeout)
+        if response.status_code == 200:
+            task = response.json()
+            return task
+
+    return task
+
 def _ttl_hash_gen(seconds: int):
     start_time = time.time()
     while True:

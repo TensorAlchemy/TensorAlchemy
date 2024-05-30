@@ -26,6 +26,7 @@ from neurons.validator.utils import (
     generate_random_prompt_gpt,
     get_device_name,
     get_random_uids,
+    get_task,
     init_wandb,
     reinit_wandb,
     ttl_get_block,
@@ -364,21 +365,7 @@ class StableValidator:
 
                 axons = [self.metagraph.axons[uid] for uid in uids]
 
-                def get_task(api_url, timeout=1):
-                    # Add logging
-                    import requests
-
-                    task = None
-                    for i in range(30):
-                        asyncio.sleep(1)
-                        response = requests.get(f"{api_url}/get_task", timeout=timeout)
-                        if response.status_code == 200:
-                            task = response.json()
-                            return task
-
-                    return task
-
-                task = get_task(self.api_url)
+                task = await get_task(self.api_url)
                 if task is None:
                     task = denormalize(
                         image_count=1,
