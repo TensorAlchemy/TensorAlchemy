@@ -31,7 +31,6 @@ async def get_task(api_url, timeout=1):
         response = requests.get(f"{api_url}/tasks", timeout=timeout)
         if response.status_code == 200:
             task = response.json()
-            print(task)
             return denormalize(**task)
 
     return task
