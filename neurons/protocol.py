@@ -26,7 +26,7 @@ import bittensor as bt
 
 
 class ImageGenerationTaskModel(BaseModel):
-    compute_id: str
+    task_id: str
     prompt: str
     negative_prompt: Optional[str]
     prompt_image: Optional[bt.Tensor]
@@ -40,8 +40,9 @@ class ImageGenerationTaskModel(BaseModel):
     task_type: str
 
 
-def denormalize(image_count: int, **kwargs) -> ImageGenerationTaskModel:
+def denormalize(id: str, image_count: int, **kwargs) -> ImageGenerationTaskModel:
     return ImageGenerationTaskModel(
+        task_id=id,
         num_images_per_prompt=image_count,
         **kwargs,
     )

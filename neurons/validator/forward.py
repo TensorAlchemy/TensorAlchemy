@@ -76,7 +76,9 @@ def log_query_to_history(validator: "StableValidator", uids: torch.Tensor):
                 validator.metagraph.axons[uid].hotkey
             ] += 1
     except Exception as e:
-        logger.error(f"Failed to log miner counts and histories due to the following error: {e}")
+        logger.error(
+            f"Failed to log miner counts and histories due to the following error: {e}"
+        )
 
     colored_log(
         f"{sh('Miner Counts')} -> Max: {max(validator.miner_query_history_count.values()):.2f} "
@@ -188,7 +190,7 @@ def run_step(self, task, axons, uids):
     # Get Arguments
     prompt = task.prompt
     task_type = task.task_type
-    batch_id = task.compute_id
+    batch_id = task.task_id
 
     time_elapsed = datetime.now() - self.stats.start_time
 

@@ -370,7 +370,7 @@ class StableValidator:
                     task = denormalize(
                         image_count=1,
                         task_type="text_to_image",
-                        compute_id=str(uuid.uuid4()),
+                        task_id=str(uuid.uuid4()),
                         guidance_scale=7.5,
                         negative_prompt=None,
                         prompt=generate_random_prompt_gpt(self),
