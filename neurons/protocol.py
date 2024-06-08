@@ -25,13 +25,6 @@ from pydantic import BaseModel, Field
 import bittensor as bt
 
 
-def denormalize(image_count: int, **kwargs) -> Dict:
-    return ImageGenerationTaskModel(
-        num_images_per_prompt=image_count,
-        **kwargs,
-    )
-
-
 class ImageGenerationTaskModel(BaseModel):
     compute_id: str
     prompt: str
@@ -45,6 +38,13 @@ class ImageGenerationTaskModel(BaseModel):
     seed: int
     steps: int
     task_type: str
+
+
+def denormalize(image_count: int, **kwargs) -> ImageGenerationTaskModel:
+    return ImageGenerationTaskModel(
+        num_images_per_prompt=image_count,
+        **kwargs,
+    )
 
 
 class IsAlive(bt.Synapse):
