@@ -1,4 +1,5 @@
 import _thread
+import asyncio
 import json
 import os
 import shutil
@@ -32,6 +33,7 @@ from neurons.constants import (
     WANDB_VALIDATOR_PATH,
 )
 from neurons.exceptions import MinimumValidImagesError
+from neurons.validator.backend.client import TensorAlchemyBackendClient
 from neurons.validator.utils import init_wandb
 from pydantic import BaseModel
 
@@ -99,16 +101,6 @@ def get_coldkey_for_hotkey(self, hotkey):
     return None
 
 
-def post_batch(api_url: str, batch: dict):
-    response = requests.post(
-        f"{api_url}/batch",
-        data=json.dumps(batch),
-        headers={"Content-Type": "application/json"},
-        timeout=30,
-    )
-    return response
-
-
 MINIMUM_VALID_IMAGES_ERROR: str = "MINIMUM_VALID_IMAGES_ERROR"
 
 
@@ -174,7 +166,7 @@ def filter_batch_before_submission(batch: Dict[str, Any]) -> Dict[str, Any]:
     return dict(BatchSubmissionRequest(**to_return))
 
 
-def upload_batches(batches, api_url):
+async def upload_batches(backend_client: TensorAlchemyBackendClient, batches: Dict):
     logger.info(f"Number of batches in queue: {len(batches)}")
     max_retries = 3
     backoff = 5
@@ -184,7 +176,7 @@ def upload_batches(batches, api_url):
         for attempt in range(0, max_retries):
             try:
                 filtered_batch = filter_batch_before_submission(batch)
-                response = post_batch(api_url, filtered_batch)
+                response = await backend_client.post_batch(filtered_batch)
                 if response.status_code == 200:
                     logger.info(
                         "Successfully posted batch" + f" {filtered_batch['batch_id']}"
@@ -268,7 +260,7 @@ def background_loop(self, is_validator):
     # Send new batches to the Human Validation Bot
     try:
         if (self.background_steps % 1 == 0) and is_validator and (self.batches != {}):
-            upload_batches(self.batches, self.api_url)
+            asyncio.run(upload_batches(self.backend_client, self.batches))
 
     except Exception as e:
         logger.info(

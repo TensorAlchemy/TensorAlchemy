@@ -8,6 +8,8 @@ import pandas as pd
 import requests
 import torch
 from loguru import logger
+
+from neurons.validator.backend.exceptions import PostWeightsError
 from neurons.validator.utils import ttl_get_block
 
 import bittensor as bt
@@ -29,34 +31,15 @@ import bittensor as bt
 # Utils for weights setting on chain.
 
 
-def post_weights(api_url: str, hotkeys: List[str], raw_weights: torch.Tensor):
-    response = requests.post(
-        f"{api_url}/validator/weights",
-        json={
-            "weights": {
-                hotkey: moving_average.item()
-                for hotkey, moving_average in zip(hotkeys, raw_weights)
-            }
-        },
-        headers={"Content-Type": "application/json"},
-        timeout=30,
-    )
-    return response
-
-
-def set_weights(self):
+async def set_weights(self):
     # Calculate the average reward for each uid across non-zero values.
     # Replace any NaN values with 0.
     raw_weights = torch.nn.functional.normalize(self.moving_average_scores, p=1, dim=0)
 
     try:
-        response = post_weights(self.api_url, self.hotkeys, raw_weights)
-        if response.status_code != 200:
-            logger.info("Error logging weights to the Weights API")
-        else:
-            logger.info("Successfully logged weights to the Weights API")
-    except Exception:
-        logger.info("Error logging weights to the Weights API")
+        await self.backend_client.post_weights(self.hotkeys, raw_weights)
+    except PostWeightsError as e:
+        logger.error("error logging weights to the weights api: {e}")
 
     # print("raw_weights", raw_weights)
     # print("top10 values", raw_weights.sort()[0])

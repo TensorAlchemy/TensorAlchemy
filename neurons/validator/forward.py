@@ -1,6 +1,7 @@
 import base64
 import copy
 import time
+import traceback
 import uuid
 from asyncio import AbstractEventLoop
 from dataclasses import asdict
@@ -13,8 +14,10 @@ import torch
 import torchvision.transforms as T
 from loguru import logger
 from neurons.constants import MOVING_AVERAGE_ALPHA
-from neurons.protocol import ImageGeneration
+from neurons.protocol import ImageGeneration, ImageGenerationTaskModel
 from neurons.utils import colored_log, sh, upload_batches
+from neurons.validator.backend.client import TensorAlchemyBackendClient
+from neurons.validator.backend.exceptions import PostMovingAveragesError
 from neurons.validator.event import EventSchema
 from neurons.validator.reward import (
     filter_rewards,
@@ -127,32 +130,6 @@ def save_images_data_for_manual_validation(
         f.write(prompt)
 
 
-def post_moving_averages(
-    api_url: str, hotkeys: List[str], moving_average_scores: torch.Tensor
-):
-    try:
-        response = requests.post(
-            f"{api_url}/validator/averages",
-            json={
-                "averages": {
-                    hotkey: moving_average.item()
-                    for hotkey, moving_average in zip(hotkeys, moving_average_scores)
-                }
-            },
-            headers={"Content-Type": "application/json"},
-            timeout=30,
-        )
-        if response.status_code != 200:
-            logger.info("Error logging moving averages to the Averages API")
-            return False
-        else:
-            logger.info("Successfully logged moving averages to the Averages API")
-            return True
-    except Exception:
-        logger.info("Error logging moving averages to the Averages API")
-        return False
-
-
 def log_event_to_wandb(wandb, event: dict, prompt: str):
     logger.info(f"Events: {str(event)}")
     logger.log("EVENTS", "events", **event)
@@ -186,9 +163,15 @@ def log_event_to_wandb(wandb, event: dict, prompt: str):
         logger.error(f"Unable to log event to wandb due to the following error: {e}")
 
 
-def run_step(self, task, axons, uids):
+async def run_step(
+    self,
+    task: ImageGenerationTaskModel,
+    axons: List[AxonInfo],
+    uids: torch.LongTensor,
+):
     # Get Arguments
     prompt = task.prompt
+
     task_type = task.task_type
     batch_id = task.task_id
 
@@ -208,9 +191,13 @@ def run_step(self, task, axons, uids):
     )
 
     # Set seed to -1 so miners will use a random seed by default
+
+    # TODO: temporary fix to make sure miners will still get tasks
+    # they handling "text_to_image" task in lowercase
+    task_type_for_miner = task_type.lower()
     synapse = ImageGeneration(
         prompt=prompt,
-        generation_type=task_type,
+        generation_type=task_type_for_miner,
         prompt_image=task.images,
         seed=task.seed,
         guidance_scale=task.guidance_scale,
@@ -277,11 +264,11 @@ def run_step(self, task, axons, uids):
     # Save images for manual validator
     if not self.config.alchemy.disable_manual_validator:
         save_images_data_for_manual_validation(responses, prompt)
-    scattered_rewards, event, rewards = get_automated_rewards(
+    scattered_rewards, event, rewards = await get_automated_rewards(
         self, responses, uids, task_type
     )
 
-    scattered_rewards_adjusted = get_human_rewards(self, scattered_rewards)
+    scattered_rewards_adjusted = await get_human_rewards(self, scattered_rewards)
 
     scattered_rewards_adjusted = filter_rewards(
         self.isalive_dict, self.isalive_threshold, scattered_rewards_adjusted
@@ -292,7 +279,12 @@ def run_step(self, task, axons, uids):
     )
 
     # Save moving averages scores on backend
-    post_moving_averages(self.api_url, self.hotkeys, self.moving_average_scores)
+    try:
+        await self.backend_client.post_moving_averages(
+            self.hotkeys, self.moving_average_scores
+        )
+    except PostMovingAveragesError as e:
+        logger.error(f"failed to post moving averages: {e}")
 
     try:
         for i, average in enumerate(self.moving_average_scores):
@@ -370,10 +362,13 @@ def run_step(self, task, axons, uids):
             }
 
         # Upload the batches to the Human Validation Platform
-        upload_batches(self.batches, self.api_url)
+        await upload_batches(self.backend_client, self.batches)
 
     except Exception as e:
-        logger.error(f"An unexpected error occurred appending the batch: {e}")
+        logger.error(
+            f"An unexpected error occurred appending the batch: {e}\n"
+            f"{traceback.format_exc()}"
+        )
 
     log_event_to_wandb(self.wandb, event, prompt)
 

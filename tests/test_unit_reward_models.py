@@ -22,7 +22,7 @@ def setup() -> None:
     nsfw_reward_model = NSFWRewardModel()
 
 
-def test_black_image():
+async def test_black_image():
     responses = [
         ImageGeneration(
             generation_type="text_to_image",
@@ -41,14 +41,14 @@ def test_black_image():
             ],
         ),
     ]
-    rewards = blacklist_reward_model.get_rewards(
+    rewards = await blacklist_reward_model.get_rewards(
         responses, rewards=torch.ones(len(responses))
     )
     assert rewards[0].item() == 1
     assert rewards[1].item() == 0
 
 
-def test_incorrect_image_size():
+async def test_incorrect_image_size():
     responses = [
         ImageGeneration(
             generation_type="text_to_image",
@@ -67,14 +67,14 @@ def test_incorrect_image_size():
             ],
         ),
     ]
-    rewards = blacklist_reward_model.get_rewards(
+    rewards = await blacklist_reward_model.get_rewards(
         responses, rewards=torch.ones(len(responses))
     )
     assert rewards[0].item() == 1
     assert rewards[1].item() == 0
 
 
-def test_nsfw_image():
+async def test_nsfw_image():
     nsfw_image_url = "https://image.civitai.com/xG1nkqKTMzGDvpLrqFT7WA/a05eaa75-ac8c-4460-b6b0-b7eb47e06987/width=1024/00027-4120052916.jpeg"
     transform = transforms.Compose([transforms.PILToTensor()])
     response_nsfw = ImageGeneration(
@@ -96,7 +96,7 @@ def test_nsfw_image():
         images=[bt.Tensor.serialize(transform(Image.open(r"tests/non_nsfw.jpeg")))],
     )
     responses = [response_nsfw, response_no_nsfw]
-    rewards = nsfw_reward_model.get_rewards(
+    rewards = await nsfw_reward_model.get_rewards(
         responses, rewards=torch.ones(len(responses))
     )
     assert rewards[0].item() == 0

@@ -144,7 +144,7 @@ def setup() -> None:
     validator.background_timer.cancel()
 
 
-def test_human_rewards_score_increase():
+async def test_human_rewards_score_increase():
     test_uid_index = (
         (
             validator.moving_average_scores
@@ -156,7 +156,7 @@ def test_human_rewards_score_increase():
         .item()
     )
     previous_score = validator.moving_average_scores[test_uid_index]
-    scores = get_human_rewards(
+    scores = await get_human_rewards(
         validator,
         validator.moving_average_scores,
         mock=True,
@@ -166,7 +166,7 @@ def test_human_rewards_score_increase():
     assert current_score > previous_score
 
 
-def test_human_weights_increase():
+async def test_human_weights_increase():
     test_uid_index = (
         (
             validator.moving_average_scores
@@ -179,7 +179,7 @@ def test_human_weights_increase():
     )
     weights = torch.nn.functional.normalize(validator.moving_average_scores, p=1, dim=0)
     previous_weight = weights[test_uid_index]
-    scores = get_human_rewards(
+    scores = await get_human_rewards(
         validator,
         validator.moving_average_scores,
         mock=True,
@@ -189,7 +189,7 @@ def test_human_weights_increase():
     assert current_weight > previous_weight
 
 
-def test_human_rewards_score_decrease():
+async def test_human_rewards_score_decrease():
     reference_uid_index = 0
     mock_loser_index = (
         (
@@ -217,7 +217,7 @@ def test_human_rewards_score_decrease():
     )
     for i in range(0, 100):
         scores = validator.moving_average_scores
-        scores = get_human_rewards(
+        scores = await get_human_rewards(
             validator,
             scores,
             mock=True,
@@ -252,7 +252,7 @@ def test_human_weights_decrease():
     previous_weight = torch.nn.functional.normalize(
         validator.moving_average_scores, p=1, dim=0
     )[mock_loser_index]
-    scores = get_human_rewards(
+    scores = await get_human_rewards(
         validator,
         validator.moving_average_scores,
         mock=True,

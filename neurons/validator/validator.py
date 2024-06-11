@@ -8,12 +8,19 @@ import traceback
 import uuid
 from time import sleep
 
+import bittensor as bt
 import sentry_sdk
 import torch
+import wandb
 from loguru import logger
-from neurons.constants import DEV_URL, N_NEURONS, PROD_URL
-from neurons.protocol import denormalize
+from openai import OpenAI
+from passwordgenerator import pwgenerator
+
+from neurons.constants import N_NEURONS
+from neurons.protocol import denormalize_image_model, ImageGenerationTaskModel
 from neurons.utils import BackgroundTimer, background_loop, colored_log, get_defaults
+from neurons.validator.backend.client import TensorAlchemyBackendClient
+from neurons.validator.backend.exceptions import GetTaskError
 from neurons.validator.config import add_args, check_config, config
 from neurons.validator.forward import run_step
 from neurons.validator.reward import (
@@ -26,17 +33,11 @@ from neurons.validator.utils import (
     generate_random_prompt_gpt,
     get_device_name,
     get_random_uids,
-    get_task,
     init_wandb,
     reinit_wandb,
     ttl_get_block,
 )
 from neurons.validator.weights import set_weights
-from openai import OpenAI
-from passwordgenerator import pwgenerator
-
-import bittensor as bt
-import wandb
 
 
 class StableValidator:
@@ -123,11 +124,7 @@ class StableValidator:
         except Exception:
             logger.error("Failed to set sentry context")
 
-        self.api_url = DEV_URL if self.subtensor.network == "test" else PROD_URL
-        if self.config.alchemy.force_prod:
-            self.api_url = PROD_URL
-
-        logger.info(f"Using server {self.api_url}")
+        self.backend_client = TensorAlchemyBackendClient(self.config)
 
         # Init wallet.
         self.wallet = bt.wallet(config=self.config)
@@ -177,68 +174,8 @@ class StableValidator:
         # Init reward function
         self.reward_functions = [ImageRewardModel()]
 
-        # Init manual validator
         if not self.config.alchemy.disable_manual_validator:
-            try:
-                if "TensorAlchemy" not in os.getcwd():
-                    raise Exception(
-                        "Unable to load manual validator please `cd` "
-                        + "into the TensorAlchemy folder before running the validator"
-                    )
-
-                logger.info("Setup streamlit credentials")
-
-                if not os.path.exists("streamlit_credentials.txt"):
-                    hashkey = pwgenerator.generate()
-                    password = pwgenerator.generate()
-                    username = self.wallet.hotkey.ss58_address
-                    with open("streamlit_credentials.txt", "w") as f:
-                        f.write(
-                            f"hashkey={hashkey}\nusername={username}\npassword={password}"
-                        )
-                else:
-                    credentials = open("streamlit_credentials.txt", "r").read()
-                    credentials_split = credentials.split("\n")
-                    if (
-                        ("hashkey" not in credentials_split[0])
-                        or ("username" not in credentials_split[0])
-                        or ("password" not in credentials_split[0])
-                    ):
-                        hashkey = pwgenerator.generate()
-                        password = pwgenerator.generate()
-                        username = self.wallet.hotkey.ss58_address
-                        with open("streamlit_credentials.txt", "w") as f:
-                            f.write(
-                                f"hashkey={hashkey}\nusername={username}\npassword={password}"
-                            )
-                # Sleep until the credentials file is written
-                sleep(5)
-                logger.info("Loading Manual Validator")
-                subprocess.Popen(
-                    [
-                        "streamlit",
-                        "run",
-                        os.path.join(
-                            os.getcwd(),
-                            "neurons",
-                            "validator",
-                            "app.py",
-                        ),
-                        (
-                            "--server.port"
-                            if self.config.alchemy.streamlit_port is not None
-                            else ""
-                        ),
-                        (
-                            f"{self.config.alchemy.streamlit_port}"
-                            if self.config.alchemy.streamlit_port is not None
-                            else ""
-                        ),
-                    ]
-                )
-            except Exception as e:
-                logger.error(f"Failed to Load Manual Validator due to error: {e}")
-                self.config.alchemy.disable_manual_validator = True
+            self.init_manual_validator()
 
         # Init reward function
         self.reward_weights = torch.tensor(
@@ -258,7 +195,7 @@ class StableValidator:
         self.human_voting_scores = torch.zeros((self.metagraph.n)).to(self.device)
         self.human_voting_weight = 0.10 / 32
         self.human_voting_reward_model = HumanValidationRewardModel(
-            self.metagraph, self.api_url
+            self.metagraph, self.backend_client
         )
 
         # Init masking function
@@ -365,23 +302,10 @@ class StableValidator:
 
                 axons = [self.metagraph.axons[uid] for uid in uids]
 
-                task = await get_task(self.api_url)
-                if task is None:
-                    task = denormalize(
-                        image_count=1,
-                        task_type="text_to_image",
-                        task_id=str(uuid.uuid4()),
-                        guidance_scale=7.5,
-                        negative_prompt=None,
-                        prompt=generate_random_prompt_gpt(self),
-                        seed=-1,
-                        steps=30,
-                        width=1024,
-                        height=1024,
-                    )
+                task = await self.get_image_generation_task()
 
-                if task.prompt is None:
-                    logger.warning(f"The prompt was not generated successfully.")
+                if task is None:
+                    logger.warning(f"image task was not created")
 
                     # Prevent loop from forming if the prompt
                     # error occurs on the first step
@@ -391,7 +315,8 @@ class StableValidator:
                     continue
 
                 # Text to Image Run
-                run_step(self, task, axons, uids)
+                await run_step(self, task, axons, uids)
+
                 # Re-sync with the network. Updates the metagraph.
                 try:
                     self.sync()
@@ -430,7 +355,41 @@ class StableValidator:
                 logger.warning("Keyboard interrupt detected. Exiting validator.")
                 sys.exit(1)
 
-    def sync(self):
+    async def get_image_generation_task(self) -> ImageGenerationTaskModel | None:
+        """
+        Fetch new image generation task from backend or generate new one
+
+        Returns task or None if task cannot be generated
+        """
+        task = None
+        try:
+            task = await self.backend_client.get_task()
+        except GetTaskError as e:
+            logger.error(f"failed to get image generation task: {e}")
+
+        if task is None:
+            generated_prompt = generate_random_prompt_gpt(self)
+
+            if not generated_prompt:
+                logger.error("failed to create prompt for image generation")
+                return None
+
+            return denormalize_image_model(
+                id=str(uuid.uuid4()),
+                image_count=1,
+                task_type="text_to_image",
+                guidance_scale=7.5,
+                negative_prompt=None,
+                prompt=generated_prompt,
+                seed=-1,
+                steps=30,
+                width=1024,
+                height=1024,
+            )
+
+        return task
+
+    async def sync(self):
         """
         Wrapper for synchronizing the state of the network for the given miner or validator.
         """
@@ -441,7 +400,7 @@ class StableValidator:
             self.resync_metagraph()
 
         if self.should_set_weights():
-            set_weights(self)
+            await set_weights(self)
             self.prev_block = ttl_get_block(self)
 
     def get_validator_index(self):
@@ -635,3 +594,66 @@ class StableValidator:
 
         except Exception as e:
             logger.error(f"Failed to create Axon initialize with exception: {e}")
+
+    def init_manual_validator(self):
+        # Init manual validator
+        try:
+            if "TensorAlchemy" not in os.getcwd():
+                raise Exception(
+                    "Unable to load manual validator please `cd` "
+                    + "into the TensorAlchemy folder before running the validator"
+                )
+
+            logger.info("Setup streamlit credentials")
+
+            if not os.path.exists("streamlit_credentials.txt"):
+                hashkey = pwgenerator.generate()
+                password = pwgenerator.generate()
+                username = self.wallet.hotkey.ss58_address
+                with open("streamlit_credentials.txt", "w") as f:
+                    f.write(
+                        f"hashkey={hashkey}\nusername={username}\npassword={password}"
+                    )
+            else:
+                credentials = open("streamlit_credentials.txt", "r").read()
+                credentials_split = credentials.split("\n")
+                if (
+                    ("hashkey" not in credentials_split[0])
+                    or ("username" not in credentials_split[0])
+                    or ("password" not in credentials_split[0])
+                ):
+                    hashkey = pwgenerator.generate()
+                    password = pwgenerator.generate()
+                    username = self.wallet.hotkey.ss58_address
+                    with open("streamlit_credentials.txt", "w") as f:
+                        f.write(
+                            f"hashkey={hashkey}\nusername={username}\npassword={password}"
+                        )
+            # Sleep until the credentials file is written
+            sleep(5)
+            logger.info("Loading Manual Validator")
+            subprocess.Popen(
+                [
+                    "streamlit",
+                    "run",
+                    os.path.join(
+                        os.getcwd(),
+                        "neurons",
+                        "validator",
+                        "app.py",
+                    ),
+                    (
+                        "--server.port"
+                        if self.config.alchemy.streamlit_port is not None
+                        else ""
+                    ),
+                    (
+                        f"{self.config.alchemy.streamlit_port}"
+                        if self.config.alchemy.streamlit_port is not None
+                        else ""
+                    ),
+                ]
+            )
+        except Exception as e:
+            logger.error(f"Failed to Load Manual Validator due to error: {e}")
+            self.config.alchemy.disable_manual_validator = True
