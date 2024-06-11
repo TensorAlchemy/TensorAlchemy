@@ -14,7 +14,9 @@ from neurons.validator.backend.exceptions import (
     GetTaskError,
     PostMovingAveragesError,
     PostWeightsError,
+    UpdateTaskError,
 )
+from neurons.validator.backend.models import TaskState
 
 
 class TensorAlchemyBackendClient:
@@ -51,6 +53,12 @@ class TensorAlchemyBackendClient:
             )
 
         return None
+
+    async def task_reject(self, task_id: str) -> None:
+        return await self._update_task_state(task_id, TaskState.REJECTED)
+
+    async def task_fail(self, task_id: str) -> None:
+        return await self._update_task_state(task_id, TaskState.FAILED)
 
     async def get_votes(self, timeout=3) -> Dict:
         """Get human votes from backend"""
@@ -119,3 +127,23 @@ class TensorAlchemyBackendClient:
                     f"failed to post moving averages with status_code "
                     f"{response.status_code}: {response.text}"
                 )
+
+    async def _update_task_state(
+        self, task_id: str, state: TaskState, timeout=3
+    ) -> None:
+        endpoint = f"{self.api_url}/tasks/{task_id}"
+
+        if state == TaskState.FAILED:
+            endpoint = f"{endpoint}/fail"
+        elif endpoint == TaskState.REJECTED:
+            endpoint = f"{endpoint}/reject"
+
+        async with httpx.AsyncClient() as client:
+            response = await client.get(endpoint, timeout=timeout)
+            if response.status_code != 200:
+                raise UpdateTaskError(
+                    f"updating task state failed with status_code "
+                    f"{response.status_code}: {response.text}"
+                )
+
+        return None

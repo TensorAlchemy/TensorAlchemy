@@ -6,6 +6,10 @@ class GetTaskError(Exception):
     pass
 
 
+class UpdateTaskError(Exception):
+    pass
+
+
 class PostMovingAveragesError(Exception):
     pass
 
