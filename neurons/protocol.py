@@ -76,7 +76,7 @@ class ImageGeneration(bt.Synapse):
     # Required request input, filled by sending dendrite caller.
     prompt: str = pydantic.Field("Bird in the sky", allow_mutation=False)
     negative_prompt: str = pydantic.Field(None, allow_mutation=False)
-    prompt_image: Optional[bt.Tensor]
+    prompt_image: bt.Tensor | None
     images: typing.List[bt.Tensor] = []
     num_images_per_prompt: int = pydantic.Field(1, allow_mutation=False)
     height: int = pydantic.Field(1024, allow_mutation=False)

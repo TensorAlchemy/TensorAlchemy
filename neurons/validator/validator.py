@@ -172,7 +172,9 @@ class StableValidator:
         self.uid = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
         logger.info("Loaded metagraph")
 
-        self.scores = torch.zeros_like(self.metagraph.stake, dtype=torch.float32)
+        self.scores = torch.zeros_like(
+            torch.tensor(self.metagraph.stake), dtype=torch.float32
+        )
 
         # Init Weights.
         self.moving_average_scores = torch.zeros((self.metagraph.n)).to(self.device)
@@ -188,9 +190,9 @@ class StableValidator:
         )
 
         # Init weights
-        self.weights = torch.ones_like(self.metagraph.uids, dtype=torch.float32).to(
-            self.device
-        )
+        self.weights = torch.ones_like(
+            torch.tensor(self.metagraph.uids), dtype=torch.float32
+        ).to(self.device)
 
         # Init prev_block and step
         self.prev_block = ttl_get_block(self)
