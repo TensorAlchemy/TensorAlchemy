@@ -411,7 +411,8 @@ def call_corcel(self, prompt):
         response = response.json()[0]["choices"][0]["delta"]["content"]
     except requests.exceptions.ReadTimeout as e:
         logger.info(
-            f"Corcel request timed out after 15 seconds... falling back to OpenAI..."
+            "Corcel request timed out after 15 seconds..."
+            + " falling back to OpenAI..."
         )
 
     if response:
@@ -455,7 +456,13 @@ def get_random_creature():
             "turtle",
             "fox",
             "owl",
-            "human being",
+            "human",
+            "man",
+            "woman",
+            "girl",
+            "boy",
+            "robot",
+            "drone",
         ]
     )
 
@@ -516,6 +523,7 @@ def get_random_adjective():
             "ethereal",
             "vibrant",
             "serene",
+            "bustling",
             "whimsical",
             "luminous",
             "enigmatic",

@@ -542,13 +542,13 @@ class BaseMiner(ABC):
                     # Output metrics
                     log = (
                         f"Step: {step} | "
-                        f"Block: {self.metagraph.block.item()} | "
-                        f"Stake: {self.metagraph.S[self.miner_index]:.2f} | "
-                        f"Rank: {self.metagraph.R[self.miner_index]:.2f} | "
-                        f"Trust: {self.metagraph.T[self.miner_index]:.2f} | "
-                        f"Consensus: {self.metagraph.C[self.miner_index]:.2f} | "
-                        f"Incentive: {self.metagraph.I[self.miner_index]:.2f} | "
-                        f"Emission: {self.metagraph.E[self.miner_index]:.2f}"
+                        f"| Block: {self.metagraph.block.item()} "
+                        f"| Stake: {self.metagraph.S[self.miner_index]:.2f} "
+                        f"| Rank: {self.metagraph.R[self.miner_index]:.2f} "
+                        f"| Trust: {self.metagraph.T[self.miner_index]:.2f} "
+                        f"| Consensus: {self.metagraph.C[self.miner_index]:.2f} "
+                        f"| Incentive: {self.metagraph.I[self.miner_index]:.2f} "
+                        f"| Emission: {self.metagraph.E[self.miner_index]:.2f}"
                     )
                     colored_log(log, color="green")
 
