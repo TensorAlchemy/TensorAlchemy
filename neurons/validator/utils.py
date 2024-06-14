@@ -20,6 +20,10 @@ import bittensor as bt
 from loguru import logger
 
 from neurons.protocol import IsAlive, denormalize_image_model
+from neurons.validator.services.openai.service import (
+    get_openai_service,
+    OpenAIRequestFailed,
+)
 from neurons.validator.signed_requests import SignedRequests
 from neurons.constants import (
     N_NEURONS_TO_QUERY,
@@ -354,28 +358,6 @@ def corcel_parse_response(text):
     return split
 
 
-def call_openai(client, model, prompt):
-    response = client.chat.completions.create(
-        model=model,
-        messages=[
-            {
-                "role": "system",
-                "content": prompt,
-            },
-        ],
-        temperature=1,
-        max_tokens=256,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0,
-    )
-    logger.info(f"OpenAI response object: {response}")
-    response = response.choices[0].message.content
-    if response:
-        logger.info(f"Prompt generated with OpenAI: {response}")
-    return response
-
-
 def call_corcel(self, prompt):
     HEADERS = {
         "Content-Type": "application/json",
@@ -665,11 +647,16 @@ def generate_story_prompt() -> str:
     return to_return
 
 
-def generate_random_prompt_gpt(
+async def generate_random_prompt_gpt(
     self,
     model: str = "gpt-4",
     prompt: Optional[str] = None,
 ):
+    """Generates random prompt for image generation
+
+    Returns None if there was some error during generation
+    (i.e OpenAI request failed etc.)
+    """
     response = None
     if not prompt:
         prompt = generate_story_prompt()
@@ -689,22 +676,11 @@ def generate_random_prompt_gpt(
             logger.error("Falling back to OpenAI if available...")
 
     if not response:
-        if self.openai_client:
-            for _ in range(2):
-                try:
-                    response = call_openai(self.openai_client, model, prompt)
-                except Exception as e:
-                    logger.error(f"An unexpected error occurred calling OpenAI: {e}")
-                    logger.error("Sleeping for 10 seconds and retrying once...")
-                    time.sleep(10)
-
-                if response:
-                    break
-        else:
-            logger.warning(
-                "Attempted to use OpenAI as a fallback "
-                + "but the OPENAI_API_KEY is not set."
-            )
+        openai_service = get_openai_service()
+        try:
+            response = await openai_service.create_completion_request(model, prompt)
+        except OpenAIRequestFailed as e:
+            logger.info(f"error during creation of completion prompt: {e}")
 
     # Remove any double quotes from the output
     if response:

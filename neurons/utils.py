@@ -14,6 +14,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from threading import Timer
 from typing import Any, Dict, List
+
+import openai
 from substrateinterface import Keypair
 
 import requests

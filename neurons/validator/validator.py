@@ -30,6 +30,7 @@ from neurons.validator.reward import (
     ImageRewardModel,
     NSFWRewardModel,
 )
+from neurons.validator.services.openai.service import get_openai_service
 from neurons.validator.utils import (
     generate_random_prompt_gpt,
     get_device_name,
@@ -107,22 +108,10 @@ class StableValidator:
         # Init device.
         self.device = torch.device(self.config.alchemy.device)
 
-        self.openai_client = None
-
-        openai_api_key = os.environ.get("OPENAI_API_KEY")
         self.corcel_api_key = os.environ.get("CORCEL_API_KEY")
 
-        if not openai_api_key:
-            logger.error("Please set the OPENAI_API_KEY environment variable.")
-        else:
-            self.openai_client = OpenAI(api_key=openai_api_key)
-
-        if not self.corcel_api_key and not openai_api_key:
-            raise ValueError(
-                "You must set either the CORCEL_API_KEY or "
-                + "OPENAI_API_KEY environment variables. "
-                + "It is preferable to use both."
-            )
+        # Init external API services
+        self.openai_service = get_openai_service()
 
         wandb.login(anonymous="must")
 
@@ -320,8 +309,10 @@ class StableValidator:
                 # before going on and creating a synthetic task
                 task = await get_task(self)
 
+                prompt = None
+
                 # No organic task found
-                if task is None:
+                if task is None and (prompt := await generate_random_prompt_gpt(self)):
                     # NOTE: Generate synthetic request
                     task = denormalize_image_model(
                         id=str(uuid.uuid4()),
@@ -329,19 +320,19 @@ class StableValidator:
                         task_type="TEXT_TO_IMAGE",
                         guidance_scale=7.5,
                         negative_prompt=None,
-                        prompt=generate_random_prompt_gpt(self),
+                        prompt=prompt,
                         seed=-1,
                         steps=50,
                         width=1024,
                         height=1024,
                     )
 
-                # Task has been found for oragnic request
+                # Task has been found for organic request
                 else:
-                    # If the task has some NSFW text in the prompt
-                    # TODO: We should replace this with OpenAI
-                    is_bad_prompt: bool = task.prompt != clean_nsfw_from_prompt(
-                        task.prompt
+                    prompt = task.prompt
+
+                    is_bad_prompt = await self.openai_service.check_prompt_for_nsfw(
+                        prompt
                     )
 
                     if is_bad_prompt:
@@ -357,15 +348,15 @@ class StableValidator:
                                 task.task_id,
                                 TaskState.REJECTED,
                             )
-                        except Exception:
+                        except Exception as e:
                             logger.info(
                                 f"Failed to post {task.task_id} to the"
-                                + f" {TaskState.REJECTED.value} endpoint"
+                                + f" {TaskState.REJECTED.value} endpoint: {e}"
                             )
                         finally:
                             continue
 
-                if task.prompt is None:
+                if prompt is None:
                     logger.warning("The prompt was not generated successfully.")
 
                     # Prevent loop from forming if the prompt
