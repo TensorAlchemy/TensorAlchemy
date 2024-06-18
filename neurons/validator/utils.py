@@ -5,7 +5,7 @@ import os
 import random
 import time
 import traceback
-from functools import lru_cache, update_wrapper
+from functools import lru_cache, update_wrapper, wraps
 from math import floor
 from typing import Any, Callable, List, Optional
 
@@ -807,3 +807,33 @@ def get_device_name(device: torch.device):
     except Exception as e:
         logger.error(f"failed to get device name: {e}")
         return "n/a"
+
+
+def measure_time(func):
+    """This decorator logs time of function execution"""
+
+    @wraps(func)
+    def sync_measure_time_wrapper(*args, **kwargs):
+        start_time = time.perf_counter()
+        result = func(*args, **kwargs)
+        end_time = time.perf_counter()
+        total_time = end_time - start_time
+        logger.warning(
+            f"[measure_time] function {func.__name__} took {total_time:.2f} seconds"
+        )
+        return result
+
+    async def async_measure_time_wrapper(*args, **kwargs):
+        start_time = time.perf_counter()
+        result = await func(*args, **kwargs)
+        end_time = time.perf_counter()
+        total_time = end_time - start_time
+        logger.warning(
+            f"[measure_time] async function {func.__name__} took {total_time:.2f} seconds"
+        )
+        return result
+
+    if asyncio.iscoroutinefunction(func):
+        return async_measure_time_wrapper
+    else:
+        return sync_measure_time_wrapper

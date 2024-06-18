@@ -12,8 +12,6 @@ from tenacity import (
     stop_after_delay,
     wait_fixed,
     retry_if_result,
-    AsyncRetrying,
-    RetryError,
 )
 
 from neurons.constants import DEV_URL, PROD_URL
@@ -26,6 +24,7 @@ from neurons.validator.backend.exceptions import (
     UpdateTaskError,
 )
 from neurons.validator.backend.models import TaskState
+from neurons.validator.schemas import Batch
 
 
 class TensorAlchemyBackendClient:
@@ -146,11 +145,11 @@ class TensorAlchemyBackendClient:
                 f"{response.status_code}: {self._error_response_text(response)}"
             )
 
-    async def post_batch(self, batch: dict, timeout: int = 10) -> Response:
+    async def post_batch(self, batch: Batch, timeout: int = 10) -> Response:
         """Post batch of images"""
         response = await self.client.post(
-            f"{self.api_url}/batches",
-            json=batch,
+            f"{self.api_url}/batch",
+            json=batch.json(),
             timeout=timeout,
         )
         return response

@@ -27,7 +27,7 @@ from neurons.safety import StableDiffusionSafetyChecker
 from neurons.utils import clean_nsfw_from_prompt, get_defaults
 from neurons.validator import config as validator_config
 from neurons.validator.backend.client import TensorAlchemyBackendClient
-from neurons.validator.utils import cosine_distance
+from neurons.validator.utils import cosine_distance, measure_time
 from pydantic import BaseModel
 from sklearn.metrics.pairwise import cosine_similarity
 from tenacity import AsyncRetrying, RetryError, stop_after_attempt, wait_fixed
@@ -145,8 +145,7 @@ class DefaultRewardFrameworkConfig:
 class BaseRewardModel:
     @property
     @abstractmethod
-    def name(self) -> str:
-        ...
+    def name(self) -> str: ...
 
     def __str__(self) -> str:
         return str(self.name)
@@ -155,8 +154,7 @@ class BaseRewardModel:
         return str(self.name)
 
     @abstractmethod
-    async def get_rewards(self, responses: List, rewards) -> torch.FloatTensor:
-        ...
+    async def get_rewards(self, responses: List, rewards) -> torch.FloatTensor: ...
 
     def __init__(self) -> None:
         self.count = 0
@@ -906,33 +904,40 @@ async def apply_masking_functions(
     return rewards, event
 
 
-async def get_automated_rewards(self, responses, uids, task_type, synapse):
+@measure_time
+async def get_automated_rewards(
+    validator: "StableValidator",
+    responses: list,
+    uids: torch.Tensor,
+    task_type,
+    synapse,
+):
     event = {"task_type": task_type}
 
     # Initialise rewards tensor
     rewards: torch.FloatTensor = torch.zeros(len(responses), dtype=torch.float32).to(
-        self.device
+        validator.device
     )
 
     rewards, reward_event = await apply_reward_functions(
-        self.model_type,
-        self.reward_weights,
-        self.reward_models,
+        validator.model_type,
+        validator.reward_weights,
+        validator.reward_models,
         responses,
         rewards,
-        self.device,
+        validator.device,
         synapse,
     )
     event.update(reward_event)
 
     rewards, masking_event = await apply_masking_functions(
-        self.masking_functions, responses, rewards, self.device
+        validator.masking_functions, responses, rewards, validator.device
     )
     event.update(masking_event)
 
-    scattered_rewards: torch.FloatTensor = self.moving_average_scores.scatter(
+    scattered_rewards: torch.FloatTensor = validator.moving_average_scores.scatter(
         0, uids, rewards
-    ).to(self.device)
+    ).to(validator.device)
 
     return scattered_rewards, event, rewards
 

@@ -5,6 +5,7 @@ import sys
 import time
 import traceback
 import uuid
+from asyncio import Queue
 from typing import Dict
 
 import bittensor as bt
@@ -37,6 +38,7 @@ from neurons.validator.reward import (
     ModelDiversityRewardModel,
     NSFWRewardModel,
 )
+from neurons.validator.schemas import Batch
 from neurons.validator.services.openai.service import get_openai_service
 from neurons.validator.utils import (
     generate_random_prompt_gpt,
@@ -251,7 +253,8 @@ class StableValidator:
         self.validator_index = self.get_validator_index()
 
         # Start the batch streaming background loop
-        self.batches = {}
+        # self.batches = {}
+        self.batches_upload_queue: Queue[Batch] = Queue()
 
         # Start the generic background loop
         self.storage_client = None

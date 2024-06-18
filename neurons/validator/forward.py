@@ -1,10 +1,11 @@
+import asyncio
 import base64
 import copy
 import time
 from dataclasses import asdict
 from datetime import datetime
 from io import BytesIO
-from typing import List
+from typing import List, AsyncGenerator, AsyncIterator, Optional
 
 import bittensor as bt
 import torch
@@ -12,10 +13,12 @@ import torchvision.transforms as T
 import wandb as wandb_lib
 from bittensor import AxonInfo
 from loguru import logger
+from pydantic import BaseModel
 
 from neurons.constants import MOVING_AVERAGE_ALPHA
 from neurons.protocol import ImageGeneration, ImageGenerationTaskModel
-from neurons.utils import colored_log, sh, upload_batches
+from neurons.utils import colored_log, sh
+from neurons.validator.backend.client import TensorAlchemyBackendClient
 from neurons.validator.backend.exceptions import PostMovingAveragesError
 from neurons.validator.event import EventSchema
 from neurons.validator.reward import (
@@ -23,6 +26,7 @@ from neurons.validator.reward import (
     get_automated_rewards,
     get_human_rewards,
 )
+from neurons.validator.schemas import Batch
 from neurons.validator.utils import ttl_get_block
 from substrateinterface import Keypair, KeypairType
 
@@ -59,6 +63,53 @@ async def query_axons(
         synapse,
         timeout=query_timeout,
     )
+
+
+class ImageGenerationResponse(BaseModel):
+    axon: AxonInfo
+    synapse: ImageGeneration
+    time: float
+    uid: Optional[int] = None
+
+    def has_images(self) -> bool:
+        return len(self.images) > 0
+
+    @property
+    def images(self):
+        return self.synapse.images
+
+
+async def query_single_axon(
+    dendrite: bt.dendrite,
+    axon: AxonInfo,
+    synapse: bt.Synapse,
+    query_timeout: int,
+) -> ImageGenerationResponse:
+    start_time = time.time()
+    responses = await dendrite(
+        [axon],
+        synapse,
+        timeout=query_timeout,
+    )
+    total_time = time.time() - start_time
+    return ImageGenerationResponse(axon=axon, synapse=responses[0], time=total_time)
+
+
+async def query_axons_async(
+    dendrite: bt.dendrite,
+    axons: List[AxonInfo],
+    uids: torch.LongTensor,
+    synapse: bt.Synapse,
+    query_timeout: int,
+) -> AsyncIterator[ImageGenerationResponse]:
+    routines = [
+        query_single_axon(dendrite, axon, synapse, query_timeout) for axon in axons
+    ]
+    uid_by_axon = {id(axon): uid for uid, axon in zip(uids, axons)}
+    for future in asyncio.as_completed(routines):
+        result: ImageGenerationResponse = await future
+        result.uid = uid_by_axon[id(result.axon)]
+        yield result
 
 
 def log_query_to_history(validator: "StableValidator", uids: torch.Tensor):
@@ -141,6 +192,64 @@ def log_event_to_wandb(wandb, event: dict, prompt: str):
         logger.error(f"Unable to log event to wandb due to the following error: {e}")
 
 
+async def create_batch_for_upload(
+    validator: "StableValidator",
+    batch_id: str,
+    prompt: str,
+    responses: List[ImageGenerationResponse],
+    rewards: List[float],
+):
+    uids = [response.uid for response in responses]
+
+    should_drop_entries = []
+    images = []
+    for response, reward in zip(responses, rewards):
+        if response.has_images() and reward != 0:
+            im_file = BytesIO()
+            T.transforms.ToPILImage()(bt.Tensor.deserialize(response.images[0])).save(
+                im_file, format="PNG"
+            )
+            # im_bytes: image in binary format.
+            im_bytes = im_file.getvalue()
+            im_b64 = base64.b64encode(im_bytes)
+            images.append(im_b64.decode())
+            should_drop_entries.append(0)
+        else:
+            im_file = BytesIO()
+            T.transforms.ToPILImage()(
+                torch.full([3, 1024, 1024], 255, dtype=torch.float)
+            ).save(im_file, format="PNG")
+            # im_bytes: image in binary format.
+            im_bytes = im_file.getvalue()
+            im_b64 = base64.b64encode(im_bytes)
+            images.append(im_b64.decode())
+            should_drop_entries.append(1)
+
+    # Update batches to be sent to the human validation platform
+    # if batch_id not in validator.batches.keys():
+    return Batch(
+        prompt=prompt,
+        computes=images,
+        batch_id=batch_id,
+        nsfw_scores=[0] * len(images),
+        blacklist_scores=[0] * len(images),
+        # TODO: get nsfw/blacklist scores from somewhere
+        # "nsfw_scores": event["nsfw_filter"],
+        # "blacklist_scores": event["blacklist_filter"],
+        should_drop_entries=should_drop_entries,
+        validator_hotkey=str(validator.wallet.hotkey.ss58_address),
+        miner_hotkeys=[validator.metagraph.hotkeys[uid] for uid in uids],
+        miner_coldkeys=[validator.metagraph.coldkeys[uid] for uid in uids],
+    )
+
+
+# Upload the batches to the Human Validation Platform
+# validator.batches = await upload_batches(
+#     validator.backend_client,
+#     validator.batches,
+# )
+
+
 async def run_step(
     validator,
     task: ImageGenerationTaskModel,
@@ -195,29 +304,55 @@ async def run_step(
         f"| Width: {synapse.width}"
     )
 
-    responses = await query_axons(
-        validator.dendrite, axons, synapse, validator.query_timeout
-    )
+    # responses = await query_axons(
+    #     validator.dendrite, axons, synapse, validator.query_timeout
+    # )
+
+    responses = []
+    async for response in query_axons_async(
+        validator.dendrite, axons, uids, synapse, validator.query_timeout
+    ):
+        logger.info(
+            f"axon={response.axon} uid={response.uid} time={response.time:.2f} images={response.synapse.images}"
+        )
+        rewards = await get_automated_rewards(
+            validator,
+            [response.synapse],
+            torch.tensor([response.uid]).to(validator.device),
+            task_type,
+            synapse,
+        )
+        batch_for_upload = await create_batch_for_upload(
+            validator, batch_id, prompt, [response], rewards
+        )
+        validator.batches_upload_queue.put_nowait(batch_for_upload)
+        logger.info(f"batch_for_upload = {batch_for_upload.batch_id}")
+        responses.append(response)
 
     log_query_to_history(validator, uids)
 
+    # Responses with images should be first in list
+    responses = sorted(responses, key=lambda r: r.has_images(), reverse=True)
+    uids = torch.tensor([response.uid for response in responses]).to(validator.device)
+    responses = [r.synapse for r in responses]
+
     # Sort responses
-    responses_empty_flag = [
-        #
-        1 if not response.images else 0
-        for response in responses
-    ]
+    # responses_empty_flag = [
+    #     #
+    #     1 if not response.images else 0
+    #     for response in responses
+    # ]
 
-    sorted_index = [
-        item[0]
-        for item in sorted(
-            list(zip(range(0, len(responses_empty_flag)), responses_empty_flag)),
-            key=lambda x: x[1],
-        )
-    ]
+    # sorted_index = [
+    #     item[0]
+    #     for item in sorted(
+    #         list(zip(range(0, len(responses_empty_flag)), responses_empty_flag)),
+    #         key=lambda x: x[1],
+    #     )
+    # ]
 
-    uids = torch.tensor([uids[index] for index in sorted_index]).to(validator.device)
-    responses = [responses[index] for index in sorted_index]
+    # uids = torch.tensor([uids[index] for index in sorted_index]).to(validator.device)
+    # responses = [responses[index] for index in sorted_index]
 
     colored_log(f"{sh('Info')} -> {synapse_info}", color="magenta")
     colored_log(
@@ -301,53 +436,53 @@ async def run_step(
     except Exception as err:
         logger.error(f"Error updating event dict: {err}")
 
-    try:
-        should_drop_entries = []
-        images = []
-        for response, reward in zip(responses, rewards.tolist()):
-            if (response.images != []) and (reward != 0):
-                im_file = BytesIO()
-                T.transforms.ToPILImage()(
-                    bt.Tensor.deserialize(response.images[0])
-                ).save(im_file, format="PNG")
-                # im_bytes: image in binary format.
-                im_bytes = im_file.getvalue()
-                im_b64 = base64.b64encode(im_bytes)
-                images.append(im_b64.decode())
-                should_drop_entries.append(0)
-            else:
-                im_file = BytesIO()
-                T.transforms.ToPILImage()(
-                    torch.full([3, 1024, 1024], 255, dtype=torch.float)
-                ).save(im_file, format="PNG")
-                # im_bytes: image in binary format.
-                im_bytes = im_file.getvalue()
-                im_b64 = base64.b64encode(im_bytes)
-                images.append(im_b64.decode())
-                should_drop_entries.append(1)
+    # try:
+    #     should_drop_entries = []
+    #     images = []
+    #     for response, reward in zip(responses, rewards.tolist()):
+    #         if (response.images != []) and (reward != 0):
+    #             im_file = BytesIO()
+    #             T.transforms.ToPILImage()(
+    #                 bt.Tensor.deserialize(response.images[0])
+    #             ).save(im_file, format="PNG")
+    #             # im_bytes: image in binary format.
+    #             im_bytes = im_file.getvalue()
+    #             im_b64 = base64.b64encode(im_bytes)
+    #             images.append(im_b64.decode())
+    #             should_drop_entries.append(0)
+    #         else:
+    #             im_file = BytesIO()
+    #             T.transforms.ToPILImage()(
+    #                 torch.full([3, 1024, 1024], 255, dtype=torch.float)
+    #             ).save(im_file, format="PNG")
+    #             # im_bytes: image in binary format.
+    #             im_bytes = im_file.getvalue()
+    #             im_b64 = base64.b64encode(im_bytes)
+    #             images.append(im_b64.decode())
+    #             should_drop_entries.append(1)
+    #
+    #     # Update batches to be sent to the human validation platform
+    #     if batch_id not in validator.batches.keys():
+    #         validator.batches[batch_id] = {
+    #             "prompt": prompt,
+    #             "computes": images,
+    #             "batch_id": batch_id,
+    #             "nsfw_scores": event["nsfw_filter"],
+    #             "blacklist_scores": event["blacklist_filter"],
+    #             "should_drop_entries": should_drop_entries,
+    #             "validator_hotkey": str(validator.wallet.hotkey.ss58_address),
+    #             "miner_hotkeys": [validator.metagraph.hotkeys[uid] for uid in uids],
+    #             "miner_coldkeys": [validator.metagraph.coldkeys[uid] for uid in uids],
+    #         }
+    #
+    #     # Upload the batches to the Human Validation Platform
+    #     validator.batches = await upload_batches(
+    #         validator.backend_client,
+    #         validator.batches,
+    #     )
 
-        # Update batches to be sent to the human validation platform
-        if batch_id not in validator.batches.keys():
-            validator.batches[batch_id] = {
-                "prompt": prompt,
-                "computes": images,
-                "batch_id": batch_id,
-                "nsfw_scores": event["nsfw_filter"],
-                "blacklist_scores": event["blacklist_filter"],
-                "should_drop_entries": should_drop_entries,
-                "validator_hotkey": str(validator.wallet.hotkey.ss58_address),
-                "miner_hotkeys": [validator.metagraph.hotkeys[uid] for uid in uids],
-                "miner_coldkeys": [validator.metagraph.coldkeys[uid] for uid in uids],
-            }
-
-        # Upload the batches to the Human Validation Platform
-        validator.batches = await upload_batches(
-            validator.backend_client,
-            validator.batches,
-        )
-
-    except Exception as e:
-        logger.error(f"An unexpected error occurred appending the batch: {e}")
+    # except Exception as e:
+    #     logger.error(f"An unexpected error occurred appending the batch: {e}")
 
     log_event_to_wandb(validator.wandb, event, prompt)
 
