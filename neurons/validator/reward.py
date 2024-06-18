@@ -5,10 +5,9 @@ import time
 from abc import abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 
 import ImageReward as RM
-import bittensor as bt
 import numpy as np
 import sentry_sdk
 import torch
@@ -22,8 +21,16 @@ from diffusers import (
     DPMSolverMultistepScheduler,
 )
 from loguru import logger
+from neurons.miners.StableMiner.utils import colored_log, nsfw_image_filter, sh, warm_up
+from neurons.protocol import ImageGeneration, ModelType
+from neurons.safety import StableDiffusionSafetyChecker
+from neurons.utils import clean_nsfw_from_prompt, get_defaults
+from neurons.validator import config as validator_config
+from neurons.validator.backend.client import TensorAlchemyBackendClient
+from neurons.validator.utils import cosine_distance
+from pydantic import BaseModel
 from sklearn.metrics.pairwise import cosine_similarity
-from tenacity import AsyncRetrying, stop_after_attempt, wait_fixed, RetryError
+from tenacity import AsyncRetrying, RetryError, stop_after_attempt, wait_fixed
 from torch import Tensor
 from transformers import (
     AutoFeatureExtractor,
@@ -32,18 +39,7 @@ from transformers import (
     CLIPImageProcessor,
 )
 
-from neurons.miners.StableMiner.utils import (
-    colored_log,
-    nsfw_image_filter,
-    sh,
-    warm_up,
-)
-from neurons.protocol import ImageGeneration
-from neurons.safety import StableDiffusionSafetyChecker
-from neurons.utils import get_defaults, clean_nsfw_from_prompt
-from neurons.validator import config as validator_config
-from neurons.validator.backend.client import TensorAlchemyBackendClient
-from neurons.validator.utils import cosine_distance
+import bittensor as bt
 
 transform = T.Compose([T.PILToTensor()])
 
@@ -54,116 +50,7 @@ class RewardModelType(Enum):
     human = "human_reward_model"
     blacklist = "blacklist_filter"
     nsfw = "nsfw_filter"
-
-
-async def apply_reward_functions(
-    reward_weights: list,
-    reward_functions: list,
-    responses: list,
-    rewards: torch.Tensor,
-    device: torch.device,
-) -> tuple[torch.Tensor, dict]:
-    event = {}
-    for weight_i, reward_fn_i in zip(reward_weights, reward_functions):
-        reward_i, reward_i_normalized = await reward_fn_i.apply(responses, rewards)
-        rewards += weight_i * reward_i_normalized.to(device)
-        event[reward_fn_i.name] = reward_i.tolist()
-        event[reward_fn_i.name + "_normalized"] = reward_i_normalized.tolist()
-        logger.info(f"{reward_fn_i.name}, {reward_i_normalized.tolist()}")
-    return rewards, event
-
-
-async def apply_masking_functions(
-    masking_functions: list,
-    responses: list,
-    rewards: torch.Tensor,
-    device: torch.device,
-) -> tuple[torch.Tensor, dict]:
-    event = {}
-    for masking_fn_i in masking_functions:
-        mask_i, mask_i_normalized = await masking_fn_i.apply(responses, rewards)
-        rewards *= mask_i_normalized.to(device)
-        event[masking_fn_i.name] = mask_i.tolist()
-        event[masking_fn_i.name + "_normalized"] = mask_i_normalized.tolist()
-        logger.info(f"{masking_fn_i.name} {mask_i_normalized.tolist()}")
-    return rewards, event
-
-
-async def get_automated_rewards(self, responses, uids, task_type):
-    event = {"task_type": task_type}
-
-    # Initialise rewards tensor
-    rewards: torch.FloatTensor = torch.zeros(len(responses), dtype=torch.float32).to(
-        self.device
-    )
-
-    rewards, reward_event = await apply_reward_functions(
-        self.reward_weights, self.reward_functions, responses, rewards, self.device
-    )
-    event.update(reward_event)
-
-    rewards, masking_event = await apply_masking_functions(
-        self.masking_functions, responses, rewards, self.device
-    )
-    event.update(masking_event)
-
-    scattered_rewards: torch.FloatTensor = self.moving_average_scores.scatter(
-        0, uids, rewards
-    ).to(self.device)
-
-    return scattered_rewards, event, rewards
-
-
-async def get_human_voting_scores(
-    human_voting_reward_model,
-    hotkeys: str,
-    mock: bool,
-    mock_winner: str = None,
-    mock_loser: str = None,
-) -> torch.Tensor:
-    _, human_voting_scores_normalised = await human_voting_reward_model.get_rewards(
-        hotkeys, mock, mock_winner, mock_loser
-    )
-    return human_voting_scores_normalised
-
-
-def apply_human_voting_weight(
-    rewards: torch.Tensor, human_voting_scores: torch.Tensor, human_voting_weight: float
-) -> torch.Tensor:
-    scattered_rewards_adjusted = rewards + (human_voting_weight * human_voting_scores)
-    return scattered_rewards_adjusted
-
-
-async def get_human_rewards(
-    validator: "StableValidator",
-    rewards: torch.Tensor,
-    mock: bool = False,
-    mock_winner: str = None,
-    mock_loser: str = None,
-) -> torch.Tensor:
-    human_voting_scores = await get_human_voting_scores(
-        validator.human_voting_reward_model,
-        validator.hotkeys,
-        mock,
-        mock_winner,
-        mock_loser,
-    )
-
-    scattered_rewards_adjusted = apply_human_voting_weight(
-        rewards, human_voting_scores, validator.human_voting_weight
-    )
-
-    return scattered_rewards_adjusted
-
-
-def filter_rewards(
-    isalive_dict: Dict[int, int], isalive_threshold: int, rewards: torch.Tensor
-) -> torch.Tensor:
-    for uid, count in isalive_dict.items():
-        if count >= isalive_threshold:
-            rewards[uid] = 0
-
-    return rewards
+    model_diversity = "model_diversity_reward_model"
 
 
 @dataclass(frozen=True)
@@ -258,7 +145,8 @@ class DefaultRewardFrameworkConfig:
 class BaseRewardModel:
     @property
     @abstractmethod
-    def name(self) -> str: ...
+    def name(self) -> str:
+        ...
 
     def __str__(self) -> str:
         return str(self.name)
@@ -267,7 +155,8 @@ class BaseRewardModel:
         return str(self.name)
 
     @abstractmethod
-    async def get_rewards(self, responses: List, rewards) -> torch.FloatTensor: ...
+    async def get_rewards(self, responses: List, rewards) -> torch.FloatTensor:
+        ...
 
     def __init__(self) -> None:
         self.count = 0
@@ -329,9 +218,7 @@ class BaseRewardModel:
         return rewards
 
     async def apply(
-        self,
-        responses: List[bt.Synapse],
-        rewards,
+        self, responses: List[bt.Synapse], rewards, synapse=None
     ) -> torch.FloatTensor:
         """Applies the reward model across each call. Unsuccessful responses are zeroed."""
         # Get indices of correctly responding calls.
@@ -347,7 +234,9 @@ class BaseRewardModel:
             responses[idx] for idx in successful_generations_indices
         ]
         # Reward each completion.
-        successful_rewards = await self.get_rewards(successful_generations, rewards)
+        successful_rewards = await self.get_rewards(
+            successful_generations, rewards, synapse
+        )
 
         # Softmax rewards across samples.
         successful_rewards_normalized = self.normalize_rewards(successful_rewards)
@@ -408,7 +297,7 @@ class BlacklistFilter(BaseRewardModel):
                 return 0.0
         return 1.0
 
-    async def get_rewards(self, responses, rewards) -> torch.FloatTensor:
+    async def get_rewards(self, responses, rewards, synapse=None) -> torch.FloatTensor:
         return torch.tensor(
             [
                 self.reward(response) if reward != 0.0 else 0.0
@@ -463,7 +352,7 @@ class NSFWRewardModel(BaseRewardModel):
 
         return 1.0
 
-    async def get_rewards(self, responses, rewards) -> torch.FloatTensor:
+    async def get_rewards(self, responses, rewards, synapse=None) -> torch.FloatTensor:
         return torch.tensor(
             [
                 self.reward(response) if reward != 0.0 else 0.0
@@ -494,7 +383,6 @@ class HumanValidationRewardModel(BaseRewardModel):
     async def get_rewards(
         self, hotkeys, mock=False, mock_winner=None, mock_loser=None
     ) -> tuple[Tensor, Tensor | Any]:
-
         logger.info("Extracting human votes...")
 
         human_voting_scores = None
@@ -577,7 +465,7 @@ class ImageRewardModel(BaseRewardModel):
             logger.error("ImageReward score is 0. No image in response.")
             return 0.0
 
-    async def get_rewards(self, responses, rewards) -> torch.FloatTensor:
+    async def get_rewards(self, responses, rewards, synapse=None) -> torch.FloatTensor:
         return torch.tensor(
             [self.reward(response) for response in responses],
             dtype=torch.float32,
@@ -629,7 +517,7 @@ class DiversityRewardModel(BaseRewardModel):
 
         return pp
 
-    async def get_rewards(self, responses, rewards) -> torch.FloatTensor:
+    async def get_rewards(self, responses, rewards, synapse=None) -> torch.FloatTensor:
         extract_fn = self.extract_embeddings(self.model.to(self.device))
 
         images = [
@@ -695,7 +583,13 @@ class ModelDiversityRewardModel(BaseRewardModel):
         argp.add_argument("--miner.seed", type=int, default=seed)
 
         argp.add_argument(
-            "--miner.model",
+            "--miner.custom_model",
+            type=str,
+            default="stabilityai/stable-diffusion-xl-base-1.0",
+        )
+
+        argp.add_argument(
+            "--miner.alchemy_model",
             type=str,
             default="stabilityai/stable-diffusion-xl-base-1.0",
         )
@@ -752,7 +646,7 @@ class ModelDiversityRewardModel(BaseRewardModel):
     def load_models(self):
         # Load the text-to-image model
         self.t2i_model = AutoPipelineForText2Image.from_pretrained(
-            self.config.miner.model,
+            self.config.miner.alchemy_model,
             torch_dtype=torch.float16,
             use_safetensors=True,
             variant="fp16",
@@ -778,8 +672,14 @@ class ModelDiversityRewardModel(BaseRewardModel):
 
         # Set up mapping for the different synapse types
         self.mapping = {
-            "TEXT_TO_IMAGE": {"args": self.t2i_args, "model": self.t2i_model},
-            "IMAGE_TO_IMAGE": {"args": self.i2i_args, "model": self.i2i_model},
+            f"text_to_image": {
+                "args": self.t2i_args,
+                "model": self.t2i_model,
+            },
+            f"image_to_image": {
+                "args": self.i2i_args,
+                "model": self.i2i_model,
+            },
         }
 
     def optimize_models(self):
@@ -825,7 +725,7 @@ class ModelDiversityRewardModel(BaseRewardModel):
         start_time = time.perf_counter()
 
         # Set up args
-        local_args = copy.deepcopy(self.mapping[synapse.generation_type]["args"])
+        local_args = copy.deepcopy(self.mapping[f"{synapse.generation_type}"]["args"])
         local_args["prompt"] = [clean_nsfw_from_prompt(synapse.prompt)]
         local_args["width"] = synapse.width
         local_args["height"] = synapse.height
@@ -846,8 +746,7 @@ class ModelDiversityRewardModel(BaseRewardModel):
             logger.error("Values for steps were not provided.")
 
         # Get the model
-        model = self.mapping[synapse.generation_type]["model"]
-
+        model = self.mapping[f"{synapse.generation_type}"]["model"]
         if synapse.generation_type == "IMAGE_TO_IMAGE":
             local_args["image"] = T.transforms.ToPILImage()(
                 bt.Tensor.deserialize(synapse.prompt_image)
@@ -855,7 +754,7 @@ class ModelDiversityRewardModel(BaseRewardModel):
         # Generate images & serialize
         for attempt in range(3):
             try:
-                seed = synapse.seed if synapse.seed != -1 else self.config.miner.seed
+                seed = synapse.seed
                 local_args["generator"] = [
                     torch.Generator(device=self.config.miner.device).manual_seed(seed)
                 ]
@@ -919,7 +818,9 @@ class ModelDiversityRewardModel(BaseRewardModel):
                 ]
             }
         )
-
+        validator_image = T.transforms.ToPILImage()(
+            bt.Tensor.deserialize(validator_synapse.images[0])
+        )
         scores = []
         exact_scores = []
         for i, image in enumerate(images):
@@ -936,3 +837,150 @@ class ModelDiversityRewardModel(BaseRewardModel):
 
     def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
         return rewards
+
+
+def get_reward_function(
+    reward_function: str,
+    reward_weights: Dict[str, BaseRewardModel],
+    reward_models: Dict[str, float],
+) -> BaseRewardModel:
+    if not reward_function in reward_models:
+        raise ValueError()
+
+    if not reward_function in reward_weights:
+        raise ValueError()
+
+    return (reward_weights[reward_function], reward_models[reward_function])
+
+
+def get_reward_functions(
+    model_type: ModelType,
+    reward_weights: Dict[str, BaseRewardModel],
+    reward_models: Dict[str, float],
+) -> List:
+    if model_type == ModelType.ALCHEMY.value.lower():
+        return [
+            get_reward_function("ImageRewardModel", reward_weights, reward_models),
+            get_reward_function(
+                "ModelDiversityRewardModel", reward_weights, reward_models
+            ),
+        ]
+
+    return [
+        get_reward_function("ImageRewardModel", reward_weights, reward_models),
+    ]
+
+
+async def apply_reward_functions(
+    model_type: ModelType,
+    reward_weights: list,
+    reward_models: list,
+    responses: list,
+    rewards: torch.Tensor,
+    device: torch.device,
+    synapse: bt.synapse,
+) -> tuple[torch.Tensor, dict]:
+    event = {}
+    reward_functions = get_reward_functions(model_type, reward_weights, reward_models)
+    for weight_i, reward_fn_i in reward_functions:
+        reward_i, reward_i_normalized = await reward_fn_i.apply(
+            responses, rewards, synapse
+        )
+        rewards += weight_i * reward_i_normalized.to(device)
+        event[reward_fn_i.name] = reward_i.tolist()
+        event[reward_fn_i.name + "_normalized"] = reward_i_normalized.tolist()
+        logger.info(f"{reward_fn_i.name}, {reward_i_normalized.tolist()}")
+    return rewards, event
+
+
+async def apply_masking_functions(
+    masking_functions: list,
+    responses: list,
+    rewards: torch.Tensor,
+    device: torch.device,
+) -> tuple[torch.Tensor, dict]:
+    event = {}
+    for masking_fn_i in masking_functions:
+        mask_i, mask_i_normalized = await masking_fn_i.apply(responses, rewards)
+        rewards *= mask_i_normalized.to(device)
+        event[masking_fn_i.name] = mask_i.tolist()
+        event[masking_fn_i.name + "_normalized"] = mask_i_normalized.tolist()
+        logger.info(f"{masking_fn_i.name} {mask_i_normalized.tolist()}")
+    return rewards, event
+
+
+async def get_automated_rewards(self, responses, uids, task_type, synapse):
+    event = {"task_type": task_type}
+
+    # Initialise rewards tensor
+    rewards: torch.FloatTensor = torch.zeros(len(responses), dtype=torch.float32).to(
+        self.device
+    )
+
+    rewards, reward_event = await apply_reward_functions(
+        self.model_type,
+        self.reward_weights,
+        self.reward_models,
+        responses,
+        rewards,
+        self.device,
+        synapse,
+    )
+    event.update(reward_event)
+
+    rewards, masking_event = await apply_masking_functions(
+        self.masking_functions, responses, rewards, self.device
+    )
+    event.update(masking_event)
+
+    scattered_rewards: torch.FloatTensor = self.moving_average_scores.scatter(
+        0, uids, rewards
+    ).to(self.device)
+
+    return scattered_rewards, event, rewards
+
+
+async def get_human_voting_scores(
+    human_voting_reward_model,
+    hotkeys: str,
+    mock: bool,
+    mock_winner: str = None,
+    mock_loser: str = None,
+) -> torch.Tensor:
+    _, human_voting_scores_normalised = await human_voting_reward_model.get_rewards(
+        hotkeys, mock, mock_winner, mock_loser
+    )
+    return human_voting_scores_normalised
+
+
+def apply_human_voting_weight(
+    rewards: torch.Tensor, human_voting_scores: torch.Tensor, human_voting_weight: float
+) -> torch.Tensor:
+    scattered_rewards_adjusted = rewards + (human_voting_weight * human_voting_scores)
+    return scattered_rewards_adjusted
+
+
+async def get_human_rewards(
+    self,
+    rewards: torch.Tensor,
+    mock: bool = False,
+    mock_winner: str = None,
+    mock_loser: str = None,
+) -> torch.Tensor:
+    human_voting_scores = await get_human_voting_scores(
+        self.human_voting_reward_model, self.hotkeys, mock, mock_winner, mock_loser
+    )
+    scattered_rewards_adjusted = apply_human_voting_weight(
+        rewards, human_voting_scores, self.human_voting_weight
+    )
+    return scattered_rewards_adjusted
+
+
+def filter_rewards(
+    isalive_dict: Dict[int, int], isalive_threshold: int, rewards: torch.Tensor
+) -> torch.Tensor:
+    for uid, count in isalive_dict.items():
+        if count >= isalive_threshold:
+            rewards[uid] = 0
+
+    return rewards

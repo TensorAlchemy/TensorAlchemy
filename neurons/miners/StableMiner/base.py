@@ -14,7 +14,7 @@ import torchvision.transforms as transforms
 import torchvision.transforms as T
 from loguru import logger
 from neurons.constants import VPERMIT_TAO
-from neurons.protocol import ImageGeneration, IsAlive
+from neurons.protocol import ImageGeneration, IsAlive, ModelType
 from neurons.utils import (
     BackgroundTimer,
     background_loop,
@@ -161,7 +161,13 @@ class BaseMiner(ABC):
         argp.add_argument("--miner.seed", type=int, default=seed)
 
         argp.add_argument(
-            "--miner.model",
+            "--miner.custom_model",
+            type=str,
+            default="stabilityai/stable-diffusion-xl-base-1.0",
+        )
+
+        argp.add_argument(
+            "--miner.alchemy_model",
             type=str,
             default="stabilityai/stable-diffusion-xl-base-1.0",
         )
@@ -271,7 +277,16 @@ class BaseMiner(ABC):
         start_time = time.perf_counter()
 
         # Set up args
-        local_args = copy.deepcopy(self.mapping[synapse.generation_type]["args"])
+        if synapse.model_type is not None:
+            local_args = copy.deepcopy(
+                self.mapping[f"{synapse.generation_type}{synapse.model_type}"]["args"]
+            )
+        else:
+            local_args = copy.deepcopy(
+                self.mapping[
+                    f"{synapse.generation_type}{ModelType.ALCHEMY.value.lower()}"
+                ]["args"]
+            )
         local_args["prompt"] = [clean_nsfw_from_prompt(synapse.prompt)]
         local_args["width"] = synapse.width
         local_args["height"] = synapse.height
@@ -290,9 +305,15 @@ class BaseMiner(ABC):
             local_args["num_inference_steps"] = synapse.steps
         except AttributeError:
             logger.info("Values for steps were not provided.")
-
         # Get the model
-        model = self.mapping[synapse.generation_type]["model"]
+        if synapse.model_type is not None:
+            model = self.mapping[f"{synapse.generation_type}{synapse.model_type}"][
+                "model"
+            ]
+        else:
+            model = self.mapping[
+                f"{synapse.generation_type}{ModelType.ALCHEMY.value.lower()}"
+            ]["model"]
 
         if synapse.generation_type == "image_to_image":
             local_args["image"] = T.transforms.ToPILImage()(
@@ -305,7 +326,7 @@ class BaseMiner(ABC):
         # Generate images & serialize
         for attempt in range(3):
             try:
-                seed = synapse.seed if synapse.seed != -1 else self.config.miner.seed
+                seed = synapse.seed
                 local_args["generator"] = [
                     torch.Generator(device=self.config.miner.device).manual_seed(seed)
                 ]
@@ -397,7 +418,7 @@ class BaseMiner(ABC):
         return priority
 
     def _base_blacklist(
-        self, synapse, vpermit_tao_limit=VPERMIT_TAO, rate_limit=1
+        self, synapse, vpermit_tao_limit=0.001, rate_limit=1
     ) -> typing.Tuple[bool, str]:
         try:
             # Get the name of the synapse

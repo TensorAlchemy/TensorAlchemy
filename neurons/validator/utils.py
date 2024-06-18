@@ -711,8 +711,8 @@ def init_wandb(self, reinit=False):
     if self.config.mock:
         tags.append("mock")
 
-    for fn in self.reward_functions:
-        tags.append(str(fn.name))
+    for fn in self.reward_models:
+        tags.append(str(fn))
 
     wandb_config = {
         key: copy.deepcopy(self.config.get(key, None))

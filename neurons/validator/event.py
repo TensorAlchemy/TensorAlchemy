@@ -14,6 +14,7 @@ class EventSchema:
     prompt_t2i: str
     prompt_i2i: str
     step_length: float
+    model_type: str
 
     # Reward data
     rewards: List[float]
@@ -46,6 +47,7 @@ class EventSchema:
 
         return EventSchema(
             task_type=event_dict["task_type"],
+            model_type=event_dict["model_type"],
             block=event_dict["block"],
             uids=event_dict["uids"],
             hotkeys=event_dict["hotkeys"],

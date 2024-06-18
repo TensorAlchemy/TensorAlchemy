@@ -29,7 +29,6 @@ from neurons.validator.backend.models import TaskState
 
 
 class TensorAlchemyBackendClient:
-
     def __init__(self, config: bt.config):
         self.config = config
 
@@ -55,18 +54,24 @@ class TensorAlchemyBackendClient:
     # Get tasks from the client server
     async def poll_task(self, timeout: int = 60, backoff: int = 1):
         """Performs polling for new task. If no new task found within `timeout`, returns None."""
-        try:
-            async for attempt in AsyncRetrying(
-                stop=stop_after_delay(timeout),
-                wait=wait_fixed(backoff),
-                # Retry if task is not found (returns None)
-                retry=retry_if_result(lambda r: r is None),
-            ):
-                with attempt:
-                    return await self.get_task(timeout=1)
-        except RetryError:
-            logger.info(f"there is no pending task")
-            return None
+
+        @retry(
+            stop=stop_after_delay(timeout),
+            wait=wait_fixed(backoff),
+            # Retry if task is not found (returns None)
+            retry=retry_if_result(lambda r: r is None),
+            # Returns None after timeout (no task is found)
+            retry_error_callback=lambda _: None,
+        )
+        async def _poll_task_with_retry():
+            try:
+                return_value = await self.get_task(timeout=1)
+            except GetTaskError as e:
+                logger.error(f"poll task error: {e}")
+                return None
+            return return_value
+
+        return await _poll_task_with_retry()
 
     async def get_task(self, timeout: int = 3) -> ImageGenerationTaskModel | None:
         """Fetch new task from backend.

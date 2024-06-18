@@ -5,6 +5,7 @@ import sys
 import time
 import traceback
 import uuid
+from typing import Dict
 
 import bittensor as bt
 import sentry_sdk
@@ -13,7 +14,11 @@ import wandb
 from loguru import logger
 
 from neurons.constants import DEV_URL, N_NEURONS, PROD_URL
-from neurons.protocol import denormalize_image_model, ImageGenerationTaskModel
+from neurons.protocol import (
+    denormalize_image_model,
+    ImageGenerationTaskModel,
+    ModelType,
+)
 from neurons.utils import (
     BackgroundTimer,
     background_loop,
@@ -25,9 +30,11 @@ from neurons.validator.backend.models import TaskState
 from neurons.validator.config import add_args, check_config, config
 from neurons.validator.forward import run_step
 from neurons.validator.reward import (
+    BaseRewardModel,
     BlacklistFilter,
     HumanValidationRewardModel,
     ImageRewardModel,
+    ModelDiversityRewardModel,
     NSFWRewardModel,
 )
 from neurons.validator.services.openai.service import get_openai_service
@@ -181,23 +188,17 @@ class StableValidator:
         self.prev_block = ttl_get_block(self)
         self.step = 0
 
-        # Init reward function
-        self.reward_functions = [ImageRewardModel()]
+        # Init Reward Models
+        self.reward_models: Dict[str, BaseRewardModel] = {
+            "ImageRewardModel": ImageRewardModel(),
+            "ModelDiversityRewardModel": ModelDiversityRewardModel(),
+        }
 
-        # Init reward function
-        self.reward_weights = torch.tensor(
-            [
-                1.0,
-                0,
-            ],
-            dtype=torch.float32,
-        ).to(self.device)
-
-        self.reward_weights = self.reward_weights / self.reward_weights.sum(
-            dim=-1
-        ).unsqueeze(-1)
-
-        self.reward_names = ["image_reward_model"]
+        # Init Reward Weights
+        self.reward_weights: Dict[str, float] = {
+            "ImageRewardModel": 0.8,
+            "ModelDiversityRewardModel": 0.2,
+        }
 
         self.human_voting_scores = torch.zeros((self.metagraph.n)).to(self.device)
         self.human_voting_weight = 0.10 / 32
@@ -285,6 +286,7 @@ class StableValidator:
             }
         except Exception:
             pass
+        self.model_type = ModelType.ALCHEMY.value
 
     async def run(self):
         # Main Validation Loop
@@ -314,7 +316,7 @@ class StableValidator:
                     continue
 
                 # Text to Image Run
-                await run_step(self, task, axons, uids)
+                await run_step(self, task, axons, uids, self.model_type)
                 # Re-sync with the network. Updates the metagraph.
                 try:
                     self.sync()
@@ -372,6 +374,10 @@ class StableValidator:
 
         # No organic task found
         if task is None:
+            if self.step % 2 == 0:
+                self.model_type = ModelType.ALCHEMY.value.lower()
+            else:
+                self.model_type = ModelType.CUSTOM.value.lower()
             prompt = await generate_random_prompt_gpt(self)
             if not prompt:
                 logger.error("failed to generate prompt for synthetic task")

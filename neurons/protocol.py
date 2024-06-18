@@ -17,12 +17,18 @@
 # DEALINGS IN THE SOFTWARE.
 
 import typing
+from enum import Enum
 from typing import Dict, Optional
 
 import pydantic
 from pydantic import BaseModel, Field
 
 import bittensor as bt
+
+
+class ModelType(Enum):
+    ALCHEMY = "ALCHEMY"
+    CUSTOM = "CUSTOM"
 
 
 class ImageGenerationTaskModel(BaseModel):
@@ -38,6 +44,7 @@ class ImageGenerationTaskModel(BaseModel):
     seed: int
     steps: int
     task_type: str
+    model_type: Optional[str]
 
 
 def denormalize_image_model(
@@ -85,3 +92,4 @@ class ImageGeneration(bt.Synapse):
     guidance_scale: float = pydantic.Field(7.5, allow_mutation=False)
     seed: int = pydantic.Field(1024, allow_mutation=False)
     steps: int = pydantic.Field(50, allow_mutation=False)
+    model_type: str = pydantic.Field(ModelType.ALCHEMY, allow_mutation=False)
