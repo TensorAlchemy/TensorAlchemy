@@ -46,7 +46,8 @@ class TensorAlchemyBackendClient:
             event_hooks={
                 "request": [
                     # Add signature to request
-                    self._sign_request
+                    self._sign_request,
+                    self._include_validator_version,
                 ]
             }
         )
@@ -148,7 +149,7 @@ class TensorAlchemyBackendClient:
     async def post_batch(self, batch: dict, timeout: int = 10) -> Response:
         """Post batch of images"""
         response = await self.client.post(
-            f"{self.api_url}/batch",
+            f"{self.api_url}/batches",
             json=batch,
             timeout=timeout,
         )
@@ -221,9 +222,14 @@ class TensorAlchemyBackendClient:
                 f"Exception raised while signing request: {e}; sending plain old request"
             )
 
-        # Print the modified request for debugging
-        # logger.info(f"modified request={request}")
-        # logger.info(f"modified request headers={request.headers}")
+    async def _include_validator_version(self, request: httpx.Request):
+        """Put validator's version in request headers"""
+        try:
+            from neurons.validator.utils import get_validator_version
+
+            request.headers.update({"X-Validator-Version": get_validator_version()})
+        except Exception:
+            logger.error(f"Exception raised while including validator's version")
 
     def _sign_message(self, message: str):
         """Sign message using validator's hotkey"""
