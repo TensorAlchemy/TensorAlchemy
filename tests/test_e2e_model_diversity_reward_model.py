@@ -1,7 +1,7 @@
 import pytest
 import torch
 from neurons.protocol import ImageGeneration, ModelType
-from neurons.validator.reward import ModelDiversityRewardModel
+from neurons.validator.rewards.reward import ModelDiversityRewardModel
 from neurons.validator.utils import get_promptdb_backup
 
 reward_model = ModelDiversityRewardModel()

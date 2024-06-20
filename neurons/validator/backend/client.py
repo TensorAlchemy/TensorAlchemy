@@ -65,7 +65,7 @@ class TensorAlchemyBackendClient:
         )
         async def _poll_task_with_retry():
             try:
-                return_value = await self.get_task(timeout=1)
+                return_value = await self.get_task(timeout=2)
             except GetTaskError as e:
                 logger.error(f"poll task error: {e}")
                 return None

@@ -30,14 +30,12 @@ from neurons.validator.backend.client import TensorAlchemyBackendClient
 from neurons.validator.backend.models import TaskState
 from neurons.validator.config import add_args, check_config, config
 from neurons.validator.forward import run_step
-from neurons.validator.reward import (
-    BaseRewardModel,
-    BlacklistFilter,
-    HumanValidationRewardModel,
-    ImageRewardModel,
-    ModelDiversityRewardModel,
-    NSFWRewardModel,
-)
+from neurons.validator.rewards.models.blacklist import BlacklistFilter
+from neurons.validator.rewards.models.diversity import ModelDiversityRewardModel
+from neurons.validator.rewards.models.human import HumanValidationRewardModel
+from neurons.validator.rewards.models.image_reward import ImageRewardModel
+from neurons.validator.rewards.models.nsfw import NSFWRewardModel
+from neurons.validator.rewards.reward import BaseRewardModel, RewardProcessor
 from neurons.validator.schemas import Batch
 from neurons.validator.services.openai.service import get_openai_service
 from neurons.validator.utils import (
@@ -190,26 +188,12 @@ class StableValidator:
         self.prev_block = ttl_get_block(self)
         self.step = 0
 
-        # Init Reward Models
-        self.reward_models: Dict[str, BaseRewardModel] = {
-            "ImageRewardModel": ImageRewardModel(),
-            "ModelDiversityRewardModel": ModelDiversityRewardModel(),
-        }
-
-        # Init Reward Weights
-        self.reward_weights: Dict[str, float] = {
-            "ImageRewardModel": 0.8,
-            "ModelDiversityRewardModel": 0.2,
-        }
-
-        self.human_voting_scores = torch.zeros((self.metagraph.n)).to(self.device)
-        self.human_voting_weight = 0.10 / 32
-        self.human_voting_reward_model = HumanValidationRewardModel(
-            self.metagraph, self.backend_client
+        # Rewards calculation
+        self.reward_processor = RewardProcessor(
+            metagraph=self.metagraph,
+            device=self.device,
+            backend_client=self.backend_client,
         )
-
-        # Init masking function
-        self.masking_functions = [BlacklistFilter(), NSFWRewardModel()]
 
         # Set validator variables
         self.request_frequency = 35
@@ -289,6 +273,7 @@ class StableValidator:
             }
         except Exception:
             pass
+
         self.model_type = ModelType.ALCHEMY.value
 
     async def run(self):
@@ -319,7 +304,14 @@ class StableValidator:
                     continue
 
                 # Text to Image Run
-                await run_step(self, task, axons, uids, self.model_type)
+                await run_step(
+                    validator=self,
+                    reward_processor=self.reward_processor,
+                    task=task,
+                    axons=axons,
+                    uids=uids,
+                    model_type=self.model_type,
+                )
                 # Re-sync with the network. Updates the metagraph.
                 try:
                     self.sync()

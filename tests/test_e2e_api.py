@@ -12,7 +12,7 @@ from substrateinterface import Keypair
 from neurons.constants import DEV_URL, PROD_URL
 from neurons.validator.backend.client import TensorAlchemyBackendClient
 from neurons.validator.config import add_args, check_config, config
-from neurons.validator.reward import HumanValidationRewardModel
+from neurons.validator.rewards.reward import HumanValidationRewardModel
 
 
 class Neuron:

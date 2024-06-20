@@ -1,11 +1,9 @@
 import copy
-import time
 
 import torch
-import pytest
 
 from neurons.validator import config
-from neurons.validator.reward import (
+from neurons.validator.rewards.reward import (
     apply_human_voting_weight,
 )
 

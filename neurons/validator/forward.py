@@ -5,7 +5,7 @@ import time
 from dataclasses import asdict
 from datetime import datetime
 from io import BytesIO
-from typing import List, AsyncGenerator, AsyncIterator, Optional
+from typing import List, AsyncIterator, Optional
 
 import bittensor as bt
 import torch
@@ -18,17 +18,11 @@ from pydantic import BaseModel
 from neurons.constants import MOVING_AVERAGE_ALPHA
 from neurons.protocol import ImageGeneration, ImageGenerationTaskModel
 from neurons.utils import colored_log, sh
-from neurons.validator.backend.client import TensorAlchemyBackendClient
 from neurons.validator.backend.exceptions import PostMovingAveragesError
 from neurons.validator.event import EventSchema
-from neurons.validator.reward import (
-    filter_rewards,
-    get_automated_rewards,
-    get_human_rewards,
-)
+from neurons.validator.rewards.interface import AbstractRewardProcessor
 from neurons.validator.schemas import Batch
 from neurons.validator.utils import ttl_get_block
-from substrateinterface import Keypair, KeypairType
 
 transform = T.Compose([T.PILToTensor()])
 
@@ -197,7 +191,7 @@ async def create_batch_for_upload(
     batch_id: str,
     prompt: str,
     responses: List[ImageGenerationResponse],
-    rewards: List[float],
+    rewards: torch.Tensor,
 ):
     uids = [response.uid for response in responses]
 
@@ -251,7 +245,8 @@ async def create_batch_for_upload(
 
 
 async def run_step(
-    validator,
+    validator: "StableValidator",
+    reward_processor: AbstractRewardProcessor,
     task: ImageGenerationTaskModel,
     axons: List[AxonInfo],
     uids: torch.LongTensor,
@@ -315,15 +310,16 @@ async def run_step(
         logger.info(
             f"axon={response.axon} uid={response.uid} time={response.time:.2f} images={response.synapse.images}"
         )
-        rewards = await get_automated_rewards(
+        automated_rewards = await reward_processor.get_automated_rewards(
             validator,
+            validator.model_type,
             [response.synapse],
-            torch.tensor([response.uid]).to(validator.device),
+            [response.uid],
             task_type,
             synapse,
         )
         batch_for_upload = await create_batch_for_upload(
-            validator, batch_id, prompt, [response], rewards
+            validator, batch_id, prompt, [response], automated_rewards.rewards
         )
         validator.batches_upload_queue.put_nowait(batch_for_upload)
         logger.info(f"batch_for_upload = {batch_for_upload.batch_id}")
@@ -333,30 +329,12 @@ async def run_step(
 
     # Responses with images should be first in list
     responses = sorted(responses, key=lambda r: r.has_images(), reverse=True)
-    uids = torch.tensor([response.uid for response in responses]).to(validator.device)
+    uids = [response.uid for response in responses]
     responses = [r.synapse for r in responses]
-
-    # Sort responses
-    # responses_empty_flag = [
-    #     #
-    #     1 if not response.images else 0
-    #     for response in responses
-    # ]
-
-    # sorted_index = [
-    #     item[0]
-    #     for item in sorted(
-    #         list(zip(range(0, len(responses_empty_flag)), responses_empty_flag)),
-    #         key=lambda x: x[1],
-    #     )
-    # ]
-
-    # uids = torch.tensor([uids[index] for index in sorted_index]).to(validator.device)
-    # responses = [responses[index] for index in sorted_index]
 
     colored_log(f"{sh('Info')} -> {synapse_info}", color="magenta")
     colored_log(
-        f"{sh('UIDs')} -> {' | '.join([str(uid) for uid in uids.tolist()])}",
+        f"{sh('UIDs')} -> {' | '.join([str(uid) for uid in uids])}",
         color="yellow",
     )
 
@@ -378,13 +356,15 @@ async def run_step(
     # Log the results for monitoring purposes.
     log_responses(responses, prompt)
 
-    scattered_rewards, event, rewards = await get_automated_rewards(
-        validator, responses, uids, task_type, synapse
+    scattered_rewards, event, rewards = await reward_processor.get_automated_rewards(
+        validator, validator.model_type, responses, uids, task_type, synapse
     )
 
-    scattered_rewards_adjusted = await get_human_rewards(validator, scattered_rewards)
+    scattered_rewards_adjusted = await reward_processor.get_human_rewards(
+        validator.hotkeys, scattered_rewards
+    )
 
-    scattered_rewards_adjusted = filter_rewards(
+    scattered_rewards_adjusted = await reward_processor.filter_rewards(
         validator.isalive_dict, validator.isalive_threshold, scattered_rewards_adjusted
     )
 
@@ -418,7 +398,7 @@ async def run_step(
                 "step_length": time.time() - start_time,
                 "prompt_t2i": prompt if task_type == "TEXT_TO_IMAGE" else None,
                 "prompt_i2i": prompt if task_type == "IMAGE_TO_IMAGE" else None,
-                "uids": uids.tolist(),
+                "uids": uids,
                 "hotkeys": [validator.metagraph.axons[uid].hotkey for uid in uids],
                 "images": [
                     (

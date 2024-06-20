@@ -9,7 +9,8 @@ from PIL import Image
 import bittensor as bt
 
 from neurons.protocol import ImageGeneration, ModelType
-from neurons.validator.reward import BlacklistFilter, NSFWRewardModel
+from neurons.validator.rewards.models.blacklist import BlacklistFilter
+from neurons.validator.rewards.models.nsfw import NSFWRewardModel
 
 blacklist_reward_model: BlacklistFilter = None
 nsfw_reward_model: NSFWRewardModel = None
@@ -28,7 +29,7 @@ async def test_black_image():
         ImageGeneration(
             generation_type="TEXT_TO_IMAGE",
             seed=-1,
-            model_type=ModelType.ALCHEMY,
+            model_type=ModelType.ALCHEMY.value,
             images=[
                 bt.Tensor.serialize(torch.full([3, 1024, 1024], 254, dtype=torch.float))
             ],
@@ -36,7 +37,7 @@ async def test_black_image():
         ImageGeneration(
             generation_type="TEXT_TO_IMAGE",
             seed=-1,
-            model_type=ModelType.ALCHEMY,
+            model_type=ModelType.ALCHEMY.value,
             images=[
                 bt.Tensor.serialize(torch.full([3, 1024, 1024], 0, dtype=torch.float))
             ],
@@ -54,7 +55,7 @@ async def test_incorrect_image_size():
         ImageGeneration(
             generation_type="TEXT_TO_IMAGE",
             seed=-1,
-            model_type=ModelType.ALCHEMY,
+            model_type=ModelType.ALCHEMY.value,
             images=[
                 bt.Tensor.serialize(torch.full([3, 1024, 1024], 254, dtype=torch.float))
             ],
@@ -62,7 +63,7 @@ async def test_incorrect_image_size():
         ImageGeneration(
             generation_type="TEXT_TO_IMAGE",
             seed=-1,
-            model_type=ModelType.ALCHEMY,
+            model_type=ModelType.ALCHEMY.value,
             images=[
                 bt.Tensor.serialize(torch.full([3, 100, 1024], 254, dtype=torch.float))
             ],
@@ -81,7 +82,7 @@ async def test_nsfw_image():
     response_nsfw = ImageGeneration(
         generation_type="TEXT_TO_IMAGE",
         seed=-1,
-        model_type=ModelType.ALCHEMY,
+        model_type=ModelType.ALCHEMY.value,
         prompt="An nsfw woman.",
         images=[
             bt.Tensor.serialize(
@@ -92,7 +93,7 @@ async def test_nsfw_image():
     response_no_nsfw = ImageGeneration(
         generation_type="TEXT_TO_IMAGE",
         seed=-1,
-        model_type=ModelType.ALCHEMY,
+        model_type=ModelType.ALCHEMY.value,
         prompt="A majestic lion jumping from a big stone at night",
         images=[bt.Tensor.serialize(transform(Image.open(r"tests/non_nsfw.jpeg")))],
     )

@@ -700,22 +700,22 @@ def generate_followup_prompt_gpt(
     return None
 
 
-def init_wandb(self, reinit=False):
+def init_wandb(validator: "StableValidator", reinit=False):
     """Starts a new wandb run."""
     tags = [
-        self.wallet.hotkey.ss58_address,
+        validator.wallet.hotkey.ss58_address,
         get_validator_version(),
-        f"netuid_{self.metagraph.netuid}",
+        f"netuid_{validator.metagraph.netuid}",
     ]
 
-    if self.config.mock:
+    if validator.config.mock:
         tags.append("mock")
 
-    for fn in self.reward_models:
+    for fn in validator.reward_processor.reward_models:
         tags.append(str(fn))
 
     wandb_config = {
-        key: copy.deepcopy(self.config.get(key, None))
+        key: copy.deepcopy(validator.config.get(key, None))
         for key in ("neuron", "alchemy", "reward", "netuid", "wandb")
     }
     wandb_config["alchemy"].pop("full_path", None)
@@ -725,10 +725,10 @@ def init_wandb(self, reinit=False):
 
     project = "ImageAlchemyTest"
 
-    if self.config.netuid == 26:
+    if validator.config.netuid == 26:
         project = "ImageAlchemy"
 
-    self.wandb = wandb.init(
+    validator.wandb = wandb.init(
         anonymous="allow",
         reinit=reinit,
         project=project,
@@ -737,7 +737,7 @@ def init_wandb(self, reinit=False):
         dir=WANDB_VALIDATOR_PATH,
         tags=tags,
     )
-    logger.success(f"Started a new wandb run called {self.wandb.name}.")
+    logger.success(f"Started a new wandb run called {validator.wandb.name}.")
 
 
 def reinit_wandb(self):
