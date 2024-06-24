@@ -6,7 +6,6 @@ import time
 import traceback
 import uuid
 from asyncio import Queue
-from typing import Dict
 
 import bittensor as bt
 import sentry_sdk

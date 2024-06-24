@@ -3,9 +3,6 @@ import copy
 import torch
 
 from neurons.validator import config
-from neurons.validator.rewards.reward import (
-    apply_human_voting_weight,
-)
 
 
 def test_apply_human_voting_weight():

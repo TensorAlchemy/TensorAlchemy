@@ -37,7 +37,7 @@ from neurons.validator.rewards.types import RewardModelType
 class DiversityRewardModel(BaseRewardModel):
     @property
     def name(self) -> str:
-        return RewardModelType.diversity.value
+        return RewardModelType.DIVERSITY.value
 
     def __init__(self):
         super().__init__()

@@ -8,7 +8,6 @@ from neurons.validator.rewards.types import AutomatedRewards, MaskedRewards
 
 
 class AbstractRewardProcessor(ABC):
-
     @abstractmethod
     async def get_automated_rewards(
         self,
@@ -16,7 +15,6 @@ class AbstractRewardProcessor(ABC):
         responses: List[bt.Synapse],
         uids: List[int],
         task_type,
-        synapse,
         device: torch.device = None,
     ) -> AutomatedRewards:
         pass

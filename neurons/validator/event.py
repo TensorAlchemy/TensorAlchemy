@@ -37,11 +37,11 @@ class EventSchema:
         """Converts a dictionary to an EventSchema object."""
 
         rewards = {
-            "blacklist_filter": event_dict.get(RewardModelType.blacklist.value),
-            "nsfw_filter": event_dict.get(RewardModelType.nsfw.value),
-            "diversity_reward_model": event_dict.get(RewardModelType.diversity.value),
-            "image_reward_model": event_dict.get(RewardModelType.image.value),
-            "human_reward_model": event_dict.get(RewardModelType.human.value),
+            "blacklist_filter": event_dict.get(RewardModelType.BLACKLIST.value),
+            "nsfw_filter": event_dict.get(RewardModelType.NSFW.value),
+            "diversity_reward_model": event_dict.get(RewardModelType.DIVERSITY.value),
+            "image_reward_model": event_dict.get(RewardModelType.IMAGE.value),
+            "human_reward_model": event_dict.get(RewardModelType.HUMAN.value),
         }
 
         return EventSchema(

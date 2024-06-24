@@ -5,11 +5,11 @@ from pydantic import BaseModel
 
 
 class RewardModelType(Enum):
-    diversity = "diversity_reward_model"
-    image = "image_reward_model"
-    human = "human_reward_model"
-    blacklist = "blacklist_filter"
-    nsfw = "nsfw_filter"
+    DIVERSITY = "DIVERSITY_REWARD_MODEL"
+    IMAGE = "IMAGE_REWARD_MODEL"
+    HUMAN = "HUMAN_REWARD_MODEL"
+    BLACKLIST = "BLACKLIST_FILTER"
+    NSFW = "NSFW_FILTER"
 
 
 class AutomatedRewards(BaseModel):

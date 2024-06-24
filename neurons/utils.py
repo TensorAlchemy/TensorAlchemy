@@ -11,7 +11,7 @@ from asyncio import QueueEmpty
 from dataclasses import dataclass
 from datetime import datetime
 from threading import Timer
-from typing import Any, Dict, List
+from typing import List
 
 import requests
 import sentry_sdk

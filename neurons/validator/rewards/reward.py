@@ -1,4 +1,4 @@
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 import bittensor as bt
 import torch
@@ -18,7 +18,7 @@ from neurons.validator.rewards.types import (
 
 
 class RewardProcessor(AbstractRewardProcessor):
-
+    # FIXME: Needs unit tests
     def __init__(
         self,
         metagraph: "bt.metagraph.Metagraph",
@@ -93,7 +93,6 @@ class RewardProcessor(AbstractRewardProcessor):
         responses: List[bt.Synapse],
         uids: List[int],
         task_type,
-        synapse,
         device: torch.device = None,
     ) -> AutomatedRewards:
         if not device:
@@ -152,10 +151,11 @@ class RewardProcessor(AbstractRewardProcessor):
         self,
         hotkeys: List[str],
     ) -> torch.Tensor:
-        _, human_voting_scores_normalised = (
-            await self.human_voting_reward_model.get_rewards(
-                hotkeys,
-            )
+        (
+            _,
+            human_voting_scores_normalised,
+        ) = await self.human_voting_reward_model.get_rewards(
+            hotkeys,
         )
         return human_voting_scores_normalised
 
@@ -174,15 +174,9 @@ class RewardProcessor(AbstractRewardProcessor):
         self,
         hotkeys: List[str],
         rewards: torch.Tensor,
-        # mock: bool = False,
-        # mock_winner: str = None,
-        # mock_loser: str = None,
     ) -> torch.Tensor:
         human_voting_scores = await self.get_human_voting_scores(
             hotkeys,
-            # mock,
-            # mock_winner,
-            # mock_loser,
         )
         scattered_rewards_adjusted = self.apply_human_voting_weight(
             rewards, human_voting_scores, self.human_voting_weight

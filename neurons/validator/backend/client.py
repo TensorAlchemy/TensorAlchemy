@@ -28,7 +28,6 @@ from neurons.validator.schemas import Batch
 
 
 class TensorAlchemyBackendClient:
-
     def __init__(self, config: bt.config):
         self.config = config
 
@@ -67,7 +66,7 @@ class TensorAlchemyBackendClient:
         )
         async def _poll_task_with_retry():
             try:
-                return_value = await self.get_task(timeout=3)
+                return_value = await self.get_task(timeout=4)
             except GetTaskError as e:
                 logger.error(f"poll task error: {e}")
                 return None
@@ -94,7 +93,7 @@ class TensorAlchemyBackendClient:
             try:
                 if response.json().get("code") == "NO_TASKS_FOUND":
                     return None
-            except Exception as e:
+            except Exception:
                 pass
 
         raise GetTaskError(

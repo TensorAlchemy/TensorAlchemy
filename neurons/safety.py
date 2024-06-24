@@ -63,6 +63,7 @@ class StableDiffusionSafetyChecker(PreTrainedModel):
             # increase this value to create a stronger `nfsw` filter
             # at the cost of increasing the possibility of filtering benign images
             adjustment = 1.0
+
             for concept_idx in range(len(special_cos_dist[0])):
                 concept_cos = special_cos_dist[i][concept_idx]
                 concept_threshold = self.special_care_embeds_weights[concept_idx].item()

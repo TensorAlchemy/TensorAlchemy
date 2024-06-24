@@ -51,30 +51,51 @@ class DefaultRewardFrameworkConfig:
             }
 
             # increase this value to create a stronger `nfsw` filter
-            # at the cost of increasing the possibility of filtering benign images
+            # at the cost of increasing the possibility
+            # of filtering benign images
             adjustment = 1.0
 
+            # Process special safety concepts
+            # These are likely sensitive or complex concepts
+            # that require careful evaluation
             for concept_idx in range(len(special_cos_dist[0])):
                 concept_cos = special_cos_dist[i][concept_idx]
                 concept_threshold = self.special_care_embeds_weights[concept_idx].item()
+                # Calculate the adjusted safety score for this special concept
+                # The adjustment factor fine-tunes the threshold sensitivity
                 result_img["special_scores"][concept_idx] = round(
                     concept_cos - (concept_threshold * adjustment), 3
                 )
+                # If the adjusted score is positive, it indicates the presence
+                # of a sensitive concept that requires special handling
+                # or additional review
                 if result_img["special_scores"][concept_idx] > 0:
                     result_img["special_care"].append(
                         {concept_idx, result_img["special_scores"][concept_idx]}
                     )
 
+            # Process standard NSFW and safety concepts
+            # These are likely common NSFW or otherwise
+            # problematic elements to check for
             for concept_idx in range(len(cos_dist[0])):
                 concept_cos = cos_dist[i][concept_idx]
                 concept_threshold = self.concept_embeds_weights[concept_idx].item()
+
+                # Calculate the adjusted safety score for this NSFW/safety concept
                 result_img["concept_scores"][concept_idx] = round(
                     concept_cos - (concept_threshold * adjustment), 3
                 )
+
+                # If the adjusted score is positive, it indicates the
+                # presence of an NSFW or unsafe concept This concept
+                # is then flagged and its score contributes to the
+                #   overall safety violation score
                 if result_img["concept_scores"][concept_idx] > 0:
                     result_img["bad_concepts"].append(concept_idx)
                     result_img["bad_score"] += result_img["concept_scores"][concept_idx]
 
+            # After evaluating all safety concepts for this image
+            # add the result to the overall results list
             result.append(result_img)
 
         has_nsfw_concepts = [
@@ -105,7 +126,8 @@ class DefaultRewardFrameworkConfig:
 class BaseRewardModel:
     @property
     @abstractmethod
-    def name(self) -> str: ...
+    def name(self) -> str:
+        ...
 
     def __str__(self) -> str:
         return str(self.name)
@@ -114,7 +136,8 @@ class BaseRewardModel:
         return str(self.name)
 
     @abstractmethod
-    async def get_rewards(self, responses: List, rewards) -> torch.FloatTensor: ...
+    async def get_rewards(self, responses: List, rewards) -> torch.FloatTensor:
+        ...
 
     def __init__(self) -> None:
         self.count = 0

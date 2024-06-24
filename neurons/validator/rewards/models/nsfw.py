@@ -14,7 +14,7 @@ from neurons.validator.rewards.types import RewardModelType
 class NSFWRewardModel(BaseRewardModel):
     @property
     def name(self) -> str:
-        return RewardModelType.nsfw.value
+        return RewardModelType.NSFW.value
 
     def __init__(self):
         super().__init__()

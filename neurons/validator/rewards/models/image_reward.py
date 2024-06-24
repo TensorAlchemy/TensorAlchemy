@@ -12,7 +12,7 @@ from neurons.validator.rewards.types import RewardModelType
 class ImageRewardModel(BaseRewardModel):
     @property
     def name(self) -> str:
-        return RewardModelType.image.value
+        return RewardModelType.IMAGE.value
 
     def __init__(self):
         super().__init__()
@@ -34,7 +34,7 @@ class ImageRewardModel(BaseRewardModel):
 
                 return mean_image_scores
 
-        except Exception as e:
+        except Exception:
             logger.error("ImageReward score is 0. No image in response.")
             return 0.0
 

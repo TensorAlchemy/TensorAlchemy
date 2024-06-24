@@ -17,7 +17,7 @@
 # DEALINGS IN THE SOFTWARE.
 
 import typing
-from typing import Dict, Optional
+from typing import Optional
 
 import pydantic
 from pydantic import BaseModel, Field

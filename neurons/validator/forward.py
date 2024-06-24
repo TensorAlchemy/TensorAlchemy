@@ -286,13 +286,6 @@ async def create_batch_for_upload(
     )
 
 
-# Upload the batches to the Human Validation Platform
-# validator.batches = await upload_batches(
-#     validator.backend_client,
-#     validator.batches,
-# )
-
-
 def display_run_info(stats: Stats, task_type: str, prompt: str):
     time_elapsed = datetime.now() - stats.start_time
 
@@ -386,15 +379,24 @@ async def run_step(
 
     # Calculate rewards
     automated_rewards: AutomatedRewards = await reward_processor.get_automated_rewards(
-        validator, responses, uids, task_type, synapse
+        #
+        validator,
+        responses,
+        uids,
+        task_type,
     )
 
     scattered_rewards_adjusted = await reward_processor.get_human_rewards(
-        validator.hotkeys, automated_rewards.scattered_rewards
+        #
+        validator.hotkeys,
+        automated_rewards.scattered_rewards,
     )
 
     scattered_rewards_adjusted = reward_processor.filter_rewards(
-        validator.isalive_dict, validator.isalive_threshold, scattered_rewards_adjusted
+        #
+        validator.isalive_dict,
+        validator.isalive_threshold,
+        scattered_rewards_adjusted,
     )
 
     # Update moving averages
