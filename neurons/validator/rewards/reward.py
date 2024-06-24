@@ -18,7 +18,6 @@ from neurons.validator.rewards.types import (
     RewardModelType,
     MaskedRewards,
 )
-from neurons.validator.utils import measure_time
 
 
 class RewardProcessor(AbstractRewardProcessor):
@@ -73,7 +72,6 @@ class RewardProcessor(AbstractRewardProcessor):
 
         return reward_models[reward_function], reward_weights[reward_function]
 
-    @measure_time
     def _get_reward_functions(
         self,
         model_type: ModelType,
@@ -135,7 +133,6 @@ class RewardProcessor(AbstractRewardProcessor):
             logger.info(f"{masking_fn_i.name} {mask_i_normalized.tolist()}")
         return rewards, event
 
-    @measure_time
     async def get_automated_rewards(
         self,
         validator: "StableValidator",

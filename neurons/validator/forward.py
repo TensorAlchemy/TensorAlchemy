@@ -112,7 +112,7 @@ async def query_axons_async(
     uid_by_axon = {id(axon): uid for uid, axon in zip(uids, axons)}
     for future in asyncio.as_completed(routines):
         result: ImageGenerationResponse = await future
-        result.uid = uid_by_axon[id(result.axon)]
+        result.uid = int(uid_by_axon[id(result.axon)])
         yield result
 
 
@@ -130,7 +130,8 @@ async def query_axons_and_process_responses(
         validator.dendrite, axons, uids, synapse, query_timeout
     ):
         logger.info(
-            f"axon={response.axon} uid={response.uid} time={response.time:.2f} images={response.synapse.images}"
+            f"axon={response.axon.hotkey} uid={response.uid}"
+            f" responded in {response.time:.2f}s"
         )
         masked_rewards = await validator.reward_processor.get_masked_rewards(
             responses=[response.synapse],
@@ -147,7 +148,6 @@ async def query_axons_and_process_responses(
             masked_rewards=masked_rewards,
         )
         validator.batches_upload_queue.put_nowait(batch_for_upload)
-        logger.info(f"batch_for_upload = {batch_for_upload.batch_id}")
         responses.append(response)
 
     # Responses with images should be first in list

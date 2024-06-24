@@ -2,7 +2,7 @@ import argparse
 import copy
 import random
 import time
-from typing import Dict, List
+from typing import Dict
 
 import bittensor as bt
 import sentry_sdk
@@ -26,13 +26,12 @@ from transformers import (
 )
 
 from neurons.miners.StableMiner.utils import colored_log, nsfw_image_filter, sh, warm_up
-from neurons.protocol import ImageGeneration, ModelType
+from neurons.protocol import ImageGeneration
 from neurons.safety import StableDiffusionSafetyChecker
 from neurons.utils import clean_nsfw_from_prompt, get_defaults
 from neurons.validator import config as validator_config
 from neurons.validator.rewards.models.base import BaseRewardModel
 from neurons.validator.rewards.types import RewardModelType
-from neurons.validator.utils import measure_time
 
 
 class DiversityRewardModel(BaseRewardModel):
@@ -277,7 +276,6 @@ class ModelDiversityRewardModel(BaseRewardModel):
 
         return pp
 
-    @measure_time
     def generate_image(self, synapse: ImageGeneration) -> ImageGeneration:
         """
         Image generation logic shared between both text-to-image and image-to-image
@@ -360,7 +358,6 @@ class ModelDiversityRewardModel(BaseRewardModel):
         self.stats.generation_time += generation_time
         return synapse
 
-    @measure_time
     async def get_rewards(self, responses, rewards, synapse) -> torch.FloatTensor:
         extract_fn = self.extract_embeddings(self.model.to(self.device))
 

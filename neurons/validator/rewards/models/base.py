@@ -8,7 +8,7 @@ import torch
 import torchvision.transforms as T
 from loguru import logger
 
-from neurons.validator.utils import cosine_distance, measure_time
+from neurons.validator.utils import cosine_distance
 
 transform = T.Compose([T.PILToTensor()])
 
@@ -175,7 +175,6 @@ class BaseRewardModel:
 
         return rewards
 
-    @measure_time
     async def apply(
         self, responses: List[bt.Synapse], rewards, synapse=None
     ) -> torch.FloatTensor:

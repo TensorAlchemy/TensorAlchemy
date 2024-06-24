@@ -170,6 +170,10 @@ def background_loop(self, is_validator):
         if (self.background_steps % 1 == 0) and is_validator:
             try:
                 while batch := self.batches_upload_queue.get_nowait():
+                    logger.info(
+                        f"uploading ({len(batch.computes)} compute "
+                        f"for batch {batch.batch_id} ..."
+                    )
                     asyncio.run(self.backend_client.post_batch(batch))
             except QueueEmpty:
                 pass

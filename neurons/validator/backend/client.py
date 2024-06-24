@@ -40,8 +40,9 @@ class TensorAlchemyBackendClient:
 
         logger.info(f"Using backend server {self.api_url}")
 
-        # Setup hooks for all requests to backend
-        self.client = httpx.AsyncClient(
+    def _client(self):
+        """Create client"""
+        return httpx.AsyncClient(
             event_hooks={
                 "request": [
                     # Add signature to request
@@ -79,7 +80,8 @@ class TensorAlchemyBackendClient:
         Returns task or None if there is no pending task
         """
         try:
-            response = await self.client.get(f"{self.api_url}/tasks", timeout=timeout)
+            async with self._client() as client:
+                response = await client.get(f"{self.api_url}/tasks", timeout=timeout)
         except httpx.ReadTimeout as ex:
             raise GetTaskError(f"/tasks read timeout ({timeout}s)") from ex
 
@@ -102,7 +104,8 @@ class TensorAlchemyBackendClient:
     async def get_votes(self, timeout: int = 3) -> Dict:
         """Get human votes from backend"""
         try:
-            response = await self.client.get(f"{self.api_url}/votes", timeout=timeout)
+            async with self._client() as client:
+                response = await client.get(f"{self.api_url}/votes", timeout=timeout)
         except httpx.ReadTimeout:
             raise GetVotesError(f"/votes read timeout({timeout}s)")
 
@@ -121,19 +124,20 @@ class TensorAlchemyBackendClient:
     ) -> None:
         """Post moving averages"""
         try:
-            response = await self.client.post(
-                f"{self.api_url}/validator/averages",
-                json={
-                    "averages": {
-                        hotkey: moving_average.item()
-                        for hotkey, moving_average in zip(
-                            hotkeys, moving_average_scores
-                        )
-                    }
-                },
-                headers={"Content-Type": "application/json"},
-                timeout=timeout,
-            )
+            async with self._client() as client:
+                response = await client.post(
+                    f"{self.api_url}/validator/averages",
+                    json={
+                        "averages": {
+                            hotkey: moving_average.item()
+                            for hotkey, moving_average in zip(
+                                hotkeys, moving_average_scores
+                            )
+                        }
+                    },
+                    headers={"Content-Type": "application/json"},
+                    timeout=timeout,
+                )
         except httpx.ReadTimeout:
             raise PostMovingAveragesError(
                 f"failed to post moving averages - read timeout ({timeout}s)"
@@ -147,11 +151,12 @@ class TensorAlchemyBackendClient:
 
     async def post_batch(self, batch: Batch, timeout: int = 10) -> Response:
         """Post batch of images"""
-        response = await self.client.post(
-            f"{self.api_url}/batch",
-            json=batch.json(),
-            timeout=timeout,
-        )
+        async with self._client() as client:
+            response = await client.post(
+                f"{self.api_url}/batch",
+                json=batch.json(),
+                timeout=timeout,
+            )
         return response
 
     async def post_weights(
@@ -159,16 +164,17 @@ class TensorAlchemyBackendClient:
     ) -> None:
         """Post weights"""
         try:
-            response = await self.client.post(
-                f"{self.api_url}/validator/weights",
-                json={
-                    "weights": {
-                        hotkey: moving_average.item()
-                        for hotkey, moving_average in zip(hotkeys, raw_weights)
-                    }
-                },
-                timeout=timeout,
-            )
+            async with self._client() as client:
+                response = await client.post(
+                    f"{self.api_url}/validator/weights",
+                    json={
+                        "weights": {
+                            hotkey: moving_average.item()
+                            for hotkey, moving_average in zip(hotkeys, raw_weights)
+                        }
+                    },
+                    timeout=timeout,
+                )
         except httpx.ReadTimeout:
             raise PostWeightsError(
                 f"failed to post weights - read timeout ({timeout}s)"
@@ -196,7 +202,8 @@ class TensorAlchemyBackendClient:
 
         endpoint = f"{self.api_url}/tasks/{task_id}/{suffix}"
 
-        response = await self.client.post(endpoint, timeout=timeout)
+        async with self._client() as client:
+            response = await client.post(endpoint, timeout=timeout)
         if response.status_code != 200:
             raise UpdateTaskError(
                 f"updating task state failed with status_code "
