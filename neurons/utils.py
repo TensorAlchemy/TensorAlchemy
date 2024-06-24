@@ -6,8 +6,8 @@ import re
 import shutil
 import subprocess
 import sys
-import time
 import traceback
+from asyncio import QueueEmpty
 from dataclasses import dataclass
 from datetime import datetime
 from threading import Timer
@@ -18,7 +18,6 @@ import sentry_sdk
 import torch
 from google.cloud import storage
 from loguru import logger
-from pydantic import BaseModel
 
 from neurons.constants import (
     IA_BUCKET_NAME,
@@ -39,8 +38,7 @@ from neurons.constants import (
 )
 from neurons.exceptions import MinimumValidImagesError
 from neurons.validator.backend.client import TensorAlchemyBackendClient
-from neurons.validator.backend.exceptions import UpdateTaskError
-from neurons.validator.backend.models import TaskState
+from neurons.validator.schemas import Batch
 from neurons.validator.utils import init_wandb
 
 
@@ -133,144 +131,6 @@ def get_coldkey_for_hotkey(self, hotkey):
     return None
 
 
-MINIMUM_VALID_IMAGES_ERROR: str = "MINIMUM_VALID_IMAGES_ERROR"
-
-
-class BatchSubmissionRequest(BaseModel):
-    batch_id: str
-    # Results
-    prompt: str
-    computes: List[str]
-
-    # Filtering
-    nsfw_scores: List[float]
-    blacklist_scores: List[int] = []
-    should_drop_entries: List[int] = []
-
-    # Miner
-    miner_hotkeys: List[str]
-    miner_coldkeys: List[str]
-
-    # Validator
-    validator_hotkey: str
-
-
-def filter_batch_before_submission(batch: Dict[str, Any]) -> Dict[str, Any]:
-    to_return: Dict[str, Any] = {
-        "batch_id": batch["batch_id"],
-        "prompt": batch["prompt"],
-        # Compute specific stuff
-        "computes": [],
-        "miner_hotkeys": [],
-        "miner_coldkeys": [],
-        "validator_hotkey": batch["validator_hotkey"],
-        "nsfw_scores": [],
-        "blacklist_scores": [],
-        "should_drop_entries": [],
-    }
-
-    for idx, compute in enumerate(batch["computes"]):
-        should_drop_entry = batch["should_drop_entries"][idx]
-        if should_drop_entry > 0:
-            logger.info("Dropped one submitted image")
-            continue
-
-        blacklist_score = batch["blacklist_scores"][idx]
-        if blacklist_score < 1:
-            logger.info("Dropped one blacklisted image")
-            continue
-
-        nsfw_score = batch["nsfw_scores"][idx]
-        if nsfw_score < 1:
-            logger.info("Dropped one NSFW image")
-            continue
-
-        to_return["computes"].append(compute)
-        to_return["blacklist_scores"].append(batch["blacklist_scores"][idx])
-        to_return["miner_coldkeys"].append(batch["miner_coldkeys"][idx])
-        to_return["nsfw_scores"].append(batch["nsfw_scores"][idx])
-        to_return["should_drop_entries"].append(batch["should_drop_entries"][idx])
-        to_return["miner_hotkeys"].append(batch["miner_hotkeys"][idx])
-
-    if len(to_return["computes"]) < MINIMUM_COMPUTES_FOR_SUBMIT:
-        raise MinimumValidImagesError()
-
-    return dict(BatchSubmissionRequest(**to_return))
-
-
-async def upload_batches(
-    backend_client: TensorAlchemyBackendClient, batches: Dict
-) -> Dict:
-    logger.info(f"Number of batches in queue: {len(batches)}")
-    max_retries = 3
-    backoff = 5
-    batches_for_deletion = set()
-
-    for batch_id in batches.keys():
-        batch = batches[batch_id]
-        for attempt in range(0, max_retries):
-            try:
-                filtered_batch = filter_batch_before_submission(batch)
-                response = await backend_client.post_batch(filtered_batch)
-                if response.status_code == 200:
-                    logger.info(
-                        "Successfully posted batch" + f" {filtered_batch['batch_id']}"
-                    )
-                    batches_for_deletion.add(batch_id)
-                    break
-
-                response_data = response.json()
-                if "code" in response_data:
-                    if response_data["code"] == MINIMUM_VALID_IMAGES_ERROR:
-                        batches_for_deletion.add(batch_id)
-                        break
-
-                logger.info(f"{response_data=}")
-                raise Exception(
-                    "Failed to post batch. " + f"Status code: {response.status_code}"
-                )
-            except MinimumValidImagesError as e:
-                batches_for_deletion.add(batch_id)
-                try:
-                    await backend_client.update_task_state(
-                        batch_id,
-                        TaskState.FAILED,
-                    )
-                except UpdateTaskError:
-                    logger.error(
-                        f"Failed to post {batch_id} to the {TaskState.FAILED.value} endpoint"
-                    )
-
-                break
-            except Exception as e:
-                backoff *= 2  # Double the backoff for the next attempt
-                if attempt != max_retries:
-                    logger.error(
-                        f"Attempt number {attempt+1} failed to"
-                        + f" send batch {batch['batch_id']}. "
-                        + f"Retrying in {backoff} seconds. Error: {e}"
-                    )
-                    time.sleep(backoff)
-                    continue
-
-                logger.error(
-                    f"Attempted to post batch {batch['batch_id']} "
-                    + f"{attempt+1} times unsuccessfully. "
-                    + f"Skipping this batch and moving to the next batch. Error: {e}"
-                )
-                batches_for_deletion.add(batch_id)
-                break
-
-    # Delete any processed branches
-    new_batches: Dict = {}
-
-    for batch_id, batch in batches.items():
-        if batch_id not in batches_for_deletion:
-            new_batches[batch_id] = batch
-
-    return new_batches
-
-
 def background_loop(self, is_validator):
     """
     Handles terminating the miner after deregistration and
@@ -307,10 +167,17 @@ def background_loop(self, is_validator):
 
     # Send new batches to the Human Validation Bot
     try:
-        if (self.background_steps % 1 == 0) and is_validator and (self.batches != {}):
-            self.batches = asyncio.run(
-                upload_batches(self.backend_client, self.batches)
-            )
+        if (self.background_steps % 1 == 0) and is_validator:
+            try:
+                while batch := self.batches_upload_queue.get_nowait():
+                    logger.info(
+                        f"uploading {len(batch.computes)} compute "
+                        f"for batch {batch.batch_id} ..."
+                    )
+                    asyncio.run(self.backend_client.post_batch(batch))
+            except QueueEmpty:
+                pass
+        logger.info("finished uploading batches")
 
     except Exception as e:
         logger.info(
@@ -446,7 +313,7 @@ def background_loop(self, is_validator):
 
                 if validator_weights:
                     weights_to_add = []
-                    for rw_name in self.reward_names:
+                    for rw_name in self.reward_processor.reward_names:
                         if rw_name in validator_weights:
                             weights_to_add.append(validator_weights[rw_name])
 
@@ -499,7 +366,7 @@ def background_loop(self, is_validator):
                     )
 
         except Exception as e:
-            logger.info(
+            logger.error(
                 f"An error occurred trying to update settings from the cloud: {e}."
             )
 

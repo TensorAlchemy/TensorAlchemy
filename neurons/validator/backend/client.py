@@ -12,8 +12,6 @@ from tenacity import (
     stop_after_delay,
     wait_fixed,
     retry_if_result,
-    AsyncRetrying,
-    RetryError,
 )
 
 from neurons.constants import DEV_URL, PROD_URL
@@ -26,6 +24,7 @@ from neurons.validator.backend.exceptions import (
     UpdateTaskError,
 )
 from neurons.validator.backend.models import TaskState
+from neurons.validator.schemas import Batch
 
 
 class TensorAlchemyBackendClient:
@@ -42,12 +41,14 @@ class TensorAlchemyBackendClient:
 
         logger.info(f"Using backend server {self.api_url}")
 
-        # Setup hooks for all requests to backend
-        self.client = httpx.AsyncClient(
+    def _client(self):
+        """Create client"""
+        return httpx.AsyncClient(
             event_hooks={
                 "request": [
                     # Add signature to request
-                    self._sign_request
+                    self._sign_request,
+                    self._include_validator_version,
                 ]
             }
         )
@@ -55,18 +56,24 @@ class TensorAlchemyBackendClient:
     # Get tasks from the client server
     async def poll_task(self, timeout: int = 60, backoff: int = 1):
         """Performs polling for new task. If no new task found within `timeout`, returns None."""
-        try:
-            async for attempt in AsyncRetrying(
-                stop=stop_after_delay(timeout),
-                wait=wait_fixed(backoff),
-                # Retry if task is not found (returns None)
-                retry=retry_if_result(lambda r: r is None),
-            ):
-                with attempt:
-                    return await self.get_task(timeout=1)
-        except RetryError:
-            logger.info(f"there is no pending task")
-            return None
+
+        @retry(
+            stop=stop_after_delay(timeout),
+            wait=wait_fixed(backoff),
+            # Retry if task is not found (returns None)
+            retry=retry_if_result(lambda r: r is None),
+            # Returns None after timeout (no task is found)
+            retry_error_callback=lambda _: None,
+        )
+        async def _poll_task_with_retry():
+            try:
+                return_value = await self.get_task(timeout=3)
+            except GetTaskError as e:
+                logger.error(f"poll task error: {e}")
+                return None
+            return return_value
+
+        return await _poll_task_with_retry()
 
     async def get_task(self, timeout: int = 3) -> ImageGenerationTaskModel | None:
         """Fetch new task from backend.
@@ -74,7 +81,8 @@ class TensorAlchemyBackendClient:
         Returns task or None if there is no pending task
         """
         try:
-            response = await self.client.get(f"{self.api_url}/tasks", timeout=timeout)
+            async with self._client() as client:
+                response = await client.get(f"{self.api_url}/tasks", timeout=timeout)
         except httpx.ReadTimeout as ex:
             raise GetTaskError(f"/tasks read timeout ({timeout}s)") from ex
 
@@ -97,7 +105,8 @@ class TensorAlchemyBackendClient:
     async def get_votes(self, timeout: int = 3) -> Dict:
         """Get human votes from backend"""
         try:
-            response = await self.client.get(f"{self.api_url}/votes", timeout=timeout)
+            async with self._client() as client:
+                response = await client.get(f"{self.api_url}/votes", timeout=timeout)
         except httpx.ReadTimeout:
             raise GetVotesError(f"/votes read timeout({timeout}s)")
 
@@ -116,19 +125,20 @@ class TensorAlchemyBackendClient:
     ) -> None:
         """Post moving averages"""
         try:
-            response = await self.client.post(
-                f"{self.api_url}/validator/averages",
-                json={
-                    "averages": {
-                        hotkey: moving_average.item()
-                        for hotkey, moving_average in zip(
-                            hotkeys, moving_average_scores
-                        )
-                    }
-                },
-                headers={"Content-Type": "application/json"},
-                timeout=timeout,
-            )
+            async with self._client() as client:
+                response = await client.post(
+                    f"{self.api_url}/validator/averages",
+                    json={
+                        "averages": {
+                            hotkey: moving_average.item()
+                            for hotkey, moving_average in zip(
+                                hotkeys, moving_average_scores
+                            )
+                        }
+                    },
+                    headers={"Content-Type": "application/json"},
+                    timeout=timeout,
+                )
         except httpx.ReadTimeout:
             raise PostMovingAveragesError(
                 f"failed to post moving averages - read timeout ({timeout}s)"
@@ -140,13 +150,14 @@ class TensorAlchemyBackendClient:
                 f"{response.status_code}: {self._error_response_text(response)}"
             )
 
-    async def post_batch(self, batch: dict, timeout: int = 10) -> Response:
+    async def post_batch(self, batch: Batch, timeout: int = 10) -> Response:
         """Post batch of images"""
-        response = await self.client.post(
-            f"{self.api_url}/batch",
-            json=batch,
-            timeout=timeout,
-        )
+        async with self._client() as client:
+            response = await client.post(
+                f"{self.api_url}/batch",
+                json=batch.json(),
+                timeout=timeout,
+            )
         return response
 
     async def post_weights(
@@ -154,16 +165,17 @@ class TensorAlchemyBackendClient:
     ) -> None:
         """Post weights"""
         try:
-            response = await self.client.post(
-                f"{self.api_url}/validator/weights",
-                json={
-                    "weights": {
-                        hotkey: moving_average.item()
-                        for hotkey, moving_average in zip(hotkeys, raw_weights)
-                    }
-                },
-                timeout=timeout,
-            )
+            async with self._client() as client:
+                response = await client.post(
+                    f"{self.api_url}/validator/weights",
+                    json={
+                        "weights": {
+                            hotkey: moving_average.item()
+                            for hotkey, moving_average in zip(hotkeys, raw_weights)
+                        }
+                    },
+                    timeout=timeout,
+                )
         except httpx.ReadTimeout:
             raise PostWeightsError(
                 f"failed to post weights - read timeout ({timeout}s)"
@@ -191,7 +203,8 @@ class TensorAlchemyBackendClient:
 
         endpoint = f"{self.api_url}/tasks/{task_id}/{suffix}"
 
-        response = await self.client.post(endpoint, timeout=timeout)
+        async with self._client() as client:
+            response = await client.post(endpoint, timeout=timeout)
         if response.status_code != 200:
             raise UpdateTaskError(
                 f"updating task state failed with status_code "
@@ -216,9 +229,14 @@ class TensorAlchemyBackendClient:
                 f"Exception raised while signing request: {e}; sending plain old request"
             )
 
-        # Print the modified request for debugging
-        # logger.info(f"modified request={request}")
-        # logger.info(f"modified request headers={request.headers}")
+    async def _include_validator_version(self, request: httpx.Request):
+        """Put validator's version in request headers"""
+        try:
+            from neurons.validator.utils import get_validator_version
+
+            request.headers.update({"X-Validator-Version": get_validator_version()})
+        except Exception:
+            logger.error(f"Exception raised while including validator's version")
 
     def _sign_message(self, message: str):
         """Sign message using validator's hotkey"""

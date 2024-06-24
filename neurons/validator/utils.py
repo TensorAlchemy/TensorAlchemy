@@ -5,7 +5,7 @@ import os
 import random
 import time
 import traceback
-from functools import lru_cache, update_wrapper
+from functools import lru_cache, update_wrapper, wraps
 from math import floor
 from typing import Any, Callable, List, Optional
 
@@ -700,22 +700,22 @@ def generate_followup_prompt_gpt(
     return None
 
 
-def init_wandb(self, reinit=False):
+def init_wandb(validator: "StableValidator", reinit=False):
     """Starts a new wandb run."""
     tags = [
-        self.wallet.hotkey.ss58_address,
+        validator.wallet.hotkey.ss58_address,
         get_validator_version(),
-        f"netuid_{self.metagraph.netuid}",
+        f"netuid_{validator.metagraph.netuid}",
     ]
 
-    if self.config.mock:
+    if validator.config.mock:
         tags.append("mock")
 
-    for fn in self.reward_functions:
-        tags.append(str(fn.name))
+    for fn in validator.reward_processor.reward_functions:
+        tags.append(str(fn))
 
     wandb_config = {
-        key: copy.deepcopy(self.config.get(key, None))
+        key: copy.deepcopy(validator.config.get(key, None))
         for key in ("neuron", "alchemy", "reward", "netuid", "wandb")
     }
     wandb_config["alchemy"].pop("full_path", None)
@@ -725,10 +725,10 @@ def init_wandb(self, reinit=False):
 
     project = "ImageAlchemyTest"
 
-    if self.config.netuid == 26:
+    if validator.config.netuid == 26:
         project = "ImageAlchemy"
 
-    self.wandb = wandb.init(
+    validator.wandb = wandb.init(
         anonymous="allow",
         reinit=reinit,
         project=project,
@@ -737,7 +737,7 @@ def init_wandb(self, reinit=False):
         dir=WANDB_VALIDATOR_PATH,
         tags=tags,
     )
-    logger.success(f"Started a new wandb run called {self.wandb.name}.")
+    logger.success(f"Started a new wandb run called {validator.wandb.name}.")
 
 
 def reinit_wandb(self):
@@ -807,3 +807,33 @@ def get_device_name(device: torch.device):
     except Exception as e:
         logger.error(f"failed to get device name: {e}")
         return "n/a"
+
+
+def measure_time(func):
+    """This decorator logs time of function execution"""
+
+    @wraps(func)
+    def sync_measure_time_wrapper(*args, **kwargs):
+        start_time = time.perf_counter()
+        result = func(*args, **kwargs)
+        end_time = time.perf_counter()
+        total_time = end_time - start_time
+        logger.warning(
+            f"[measure_time] function {func.__name__} took {total_time:.2f} seconds"
+        )
+        return result
+
+    async def async_measure_time_wrapper(*args, **kwargs):
+        start_time = time.perf_counter()
+        result = await func(*args, **kwargs)
+        end_time = time.perf_counter()
+        total_time = end_time - start_time
+        logger.warning(
+            f"[measure_time] async function {func.__name__} took {total_time:.2f} seconds"
+        )
+        return result
+
+    if asyncio.iscoroutinefunction(func):
+        return async_measure_time_wrapper
+    else:
+        return sync_measure_time_wrapper

@@ -5,6 +5,8 @@ import sys
 import time
 import traceback
 import uuid
+from asyncio import Queue
+from typing import Dict
 
 import bittensor as bt
 import sentry_sdk
@@ -24,12 +26,13 @@ from neurons.validator.backend.client import TensorAlchemyBackendClient
 from neurons.validator.backend.models import TaskState
 from neurons.validator.config import add_args, check_config, config
 from neurons.validator.forward import run_step
-from neurons.validator.reward import (
-    BlacklistFilter,
-    HumanValidationRewardModel,
-    ImageRewardModel,
-    NSFWRewardModel,
-)
+from neurons.validator.rewards.models.blacklist import BlacklistFilter
+from neurons.validator.rewards.models.diversity import ModelDiversityRewardModel
+from neurons.validator.rewards.models.human import HumanValidationRewardModel
+from neurons.validator.rewards.models.image_reward import ImageRewardModel
+from neurons.validator.rewards.models.nsfw import NSFWRewardModel
+from neurons.validator.rewards.reward import BaseRewardModel, RewardProcessor
+from neurons.validator.schemas import Batch
 from neurons.validator.services.openai.service import get_openai_service
 from neurons.validator.utils import (
     generate_random_prompt_gpt,
@@ -181,32 +184,12 @@ class StableValidator:
         self.prev_block = ttl_get_block(self)
         self.step = 0
 
-        # Init reward function
-        self.reward_functions = [ImageRewardModel()]
-
-        # Init reward function
-        self.reward_weights = torch.tensor(
-            [
-                1.0,
-                0,
-            ],
-            dtype=torch.float32,
-        ).to(self.device)
-
-        self.reward_weights = self.reward_weights / self.reward_weights.sum(
-            dim=-1
-        ).unsqueeze(-1)
-
-        self.reward_names = ["image_reward_model"]
-
-        self.human_voting_scores = torch.zeros((self.metagraph.n)).to(self.device)
-        self.human_voting_weight = 0.10 / 32
-        self.human_voting_reward_model = HumanValidationRewardModel(
-            self.metagraph, self.backend_client
+        # Rewards calculation
+        self.reward_processor = RewardProcessor(
+            metagraph=self.metagraph,
+            device=self.device,
+            backend_client=self.backend_client,
         )
-
-        # Init masking function
-        self.masking_functions = [BlacklistFilter(), NSFWRewardModel()]
 
         # Set validator variables
         self.request_frequency = 35
@@ -250,7 +233,8 @@ class StableValidator:
         self.validator_index = self.get_validator_index()
 
         # Start the batch streaming background loop
-        self.batches = {}
+        # self.batches = {}
+        self.batches_upload_queue: Queue[Batch] = Queue()
 
         # Start the generic background loop
         self.storage_client = None
@@ -314,10 +298,17 @@ class StableValidator:
                     continue
 
                 # Text to Image Run
-                await run_step(self, task, axons, uids)
+                await run_step(
+                    validator=self,
+                    reward_processor=self.reward_processor,
+                    task=task,
+                    axons=axons,
+                    uids=uids,
+                    stats=self.stats,
+                )
                 # Re-sync with the network. Updates the metagraph.
                 try:
-                    self.sync()
+                    await self.sync()
                 except Exception as e:
                     logger.error(
                         "An unexpected error occurred"

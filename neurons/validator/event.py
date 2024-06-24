@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import List, Optional
 
-from neurons.validator.reward import RewardModelType
+from neurons.validator.rewards.types import RewardModelType
 
 
 @dataclass

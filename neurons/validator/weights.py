@@ -30,7 +30,6 @@ async def set_weights(validator: "StableValidator"):
     )
     logger.info("processed_weights", processed_weights)
     logger.info("processed_weight_uids", processed_weight_uids)
-    from neurons.validator import validator
 
     # Set the weights on chain via our subtensor connection.
     validator.subtensor.set_weights(

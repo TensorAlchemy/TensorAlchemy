@@ -3,7 +3,7 @@ import torch
 import pytest
 from dotenv import load_dotenv
 
-from neurons.validator.reward import get_human_rewards
+from neurons.validator.rewards.reward import get_human_rewards
 from neurons.validator.validator import StableValidator
 
 validator: StableValidator = None
