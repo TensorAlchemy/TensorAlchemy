@@ -13,7 +13,11 @@ from neurons.validator.rewards.models.diversity import ModelDiversityRewardModel
 from neurons.validator.rewards.models.human import HumanValidationRewardModel
 from neurons.validator.rewards.models.image_reward import ImageRewardModel
 from neurons.validator.rewards.models.nsfw import NSFWRewardModel
-from neurons.validator.rewards.types import AutomatedRewardsResult, RewardModelType
+from neurons.validator.rewards.types import (
+    AutomatedRewards,
+    RewardModelType,
+    MaskedRewards,
+)
 from neurons.validator.utils import measure_time
 
 
@@ -141,7 +145,7 @@ class RewardProcessor(AbstractRewardProcessor):
         task_type,
         synapse,
         device: torch.device = None,
-    ) -> AutomatedRewardsResult:
+    ) -> AutomatedRewards:
         if not device:
             device = self.device
 
@@ -166,6 +170,7 @@ class RewardProcessor(AbstractRewardProcessor):
         rewards, masking_event = await self.apply_masking_functions(
             self.masking_functions, responses, rewards
         )
+
         event.update(masking_event)
 
         uids_tensor = torch.tensor(uids).to(device)
@@ -173,21 +178,35 @@ class RewardProcessor(AbstractRewardProcessor):
             0, uids_tensor, rewards
         ).to(validator.device)
 
-        return AutomatedRewardsResult(
+        return AutomatedRewards(
             scattered_rewards=scattered_rewards, rewards=rewards, event=event
         )
+
+    async def get_masked_rewards(
+        self,
+        responses: List[bt.Synapse],
+        models: List[BaseRewardModel],
+        device: torch.device = None,
+    ) -> MaskedRewards:
+        """Apply masking functions (NSFW, Blacklist etc.) and return rewards
+
+        Return 0 score if response didn't pass check
+        """
+        if not device:
+            device = self.device
+
+        rewards, event = await self.apply_masking_functions(
+            models, responses, torch.ones(len(responses)).to(device)
+        )
+        return MaskedRewards(rewards=rewards, event=event)
 
     async def get_human_voting_scores(
         self,
         hotkeys: List[str],
-        # mock: bool,
-        # mock_winner: str = None,
-        # mock_loser: str = None,
     ) -> torch.Tensor:
         _, human_voting_scores_normalised = (
             await self.human_voting_reward_model.get_rewards(
                 hotkeys,
-                # mock, mock_winner, mock_loser
             )
         )
         return human_voting_scores_normalised

@@ -4,7 +4,8 @@ import bittensor as bt
 from bittensor.utils import torch
 
 from neurons.protocol import ModelType
-from neurons.validator.rewards.types import AutomatedRewardsResult
+from neurons.validator.rewards.models.base import BaseRewardModel
+from neurons.validator.rewards.types import AutomatedRewards, MaskedRewards
 
 
 class AbstractRewardProcessor(ABC):
@@ -19,7 +20,13 @@ class AbstractRewardProcessor(ABC):
         task_type,
         synapse,
         device: torch.device = None,
-    ) -> AutomatedRewardsResult:
+    ) -> AutomatedRewards:
+        pass
+
+    @abstractmethod
+    async def get_masked_rewards(
+        self, responses: List[bt.Synapse], models: List[BaseRewardModel]
+    ) -> MaskedRewards:
         pass
 
     @abstractmethod

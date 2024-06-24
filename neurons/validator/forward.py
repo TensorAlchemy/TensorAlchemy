@@ -17,46 +17,56 @@ from pydantic import BaseModel
 
 from neurons.constants import MOVING_AVERAGE_ALPHA
 from neurons.protocol import ImageGeneration, ImageGenerationTaskModel
-from neurons.utils import colored_log, sh
+from neurons.utils import colored_log, sh, Stats
+from neurons.validator.backend.client import TensorAlchemyBackendClient
 from neurons.validator.backend.exceptions import PostMovingAveragesError
 from neurons.validator.event import EventSchema
 from neurons.validator.rewards.interface import AbstractRewardProcessor
+from neurons.validator.rewards.models.blacklist import BlacklistFilter
+from neurons.validator.rewards.models.nsfw import NSFWRewardModel
+from neurons.validator.rewards.types import MaskedRewards, AutomatedRewards
 from neurons.validator.schemas import Batch
 from neurons.validator.utils import ttl_get_block
 
 transform = T.Compose([T.PILToTensor()])
 
 
-def update_moving_averages(
-    moving_averaged_scores: torch.Tensor,
+async def update_moving_averages(
+    validator: "StableValidator",
+    backend_client: TensorAlchemyBackendClient,
     rewards: torch.Tensor,
     device: torch.device,
     alpha=MOVING_AVERAGE_ALPHA,
-) -> torch.FloatTensor:
+) -> None:
     rewards = torch.nan_to_num(
         rewards,
         nan=0.0,
         posinf=0.0,
         neginf=0.0,
     ).to(device)
-    moving_averaged_scores: torch.FloatTensor = alpha * rewards + (
+    moving_average_scores: torch.FloatTensor = alpha * rewards + (
         1 - alpha
-    ) * moving_averaged_scores.to(device)
-    return moving_averaged_scores
+    ) * validator.moving_average_scores.to(device)
 
+    validator.moving_average_scores = moving_average_scores
 
-async def query_axons(
-    dendrite: bt.dendrite,
-    axons: List[AxonInfo],
-    synapse: bt.Synapse,
-    query_timeout: int,
-) -> List[ImageGeneration]:
-    """Request image generation from axons"""
-    return await dendrite(
-        axons,
-        synapse,
-        timeout=query_timeout,
-    )
+    # Save moving averages scores on backend
+    try:
+        await backend_client.post_moving_averages(
+            validator.hotkeys, moving_average_scores
+        )
+    except PostMovingAveragesError as e:
+        logger.error(f"failed to post moving averages: {e}")
+
+    try:
+        for i, average in enumerate(validator.moving_average_scores):
+            if (validator.metagraph.axons[i].hotkey in validator.hotkey_blacklist) or (
+                validator.metagraph.axons[i].coldkey in validator.coldkey_blacklist
+            ):
+                validator.moving_average_scores[i] = 0
+
+    except Exception as e:
+        logger.error(f"An unexpected error occurred (E1): {e}")
 
 
 class ImageGenerationResponse(BaseModel):
@@ -104,6 +114,46 @@ async def query_axons_async(
         result: ImageGenerationResponse = await future
         result.uid = uid_by_axon[id(result.axon)]
         yield result
+
+
+async def query_axons_and_process_responses(
+    validator: "StableValidator",
+    task: ImageGenerationTaskModel,
+    axons: List[AxonInfo],
+    uids: torch.LongTensor,
+    synapse: bt.Synapse,
+    query_timeout: int,
+) -> List[ImageGenerationResponse]:
+    """Request image generation from axons"""
+    responses = []
+    async for response in query_axons_async(
+        validator.dendrite, axons, uids, synapse, query_timeout
+    ):
+        logger.info(
+            f"axon={response.axon} uid={response.uid} time={response.time:.2f} images={response.synapse.images}"
+        )
+        masked_rewards = await validator.reward_processor.get_masked_rewards(
+            responses=[response.synapse],
+            models=[BlacklistFilter(), NSFWRewardModel()],
+        )
+        # Create batch from single response and enqueue uploading
+        # Batch will be merged at backend side
+        batch_for_upload = await create_batch_for_upload(
+            validator_wallet=validator.wallet,
+            metagraph=validator.metagraph,
+            batch_id=task.task_id,
+            prompt=task.prompt,
+            responses=[response],
+            masked_rewards=masked_rewards,
+        )
+        validator.batches_upload_queue.put_nowait(batch_for_upload)
+        logger.info(f"batch_for_upload = {batch_for_upload.batch_id}")
+        responses.append(response)
+
+    # Responses with images should be first in list
+    responses.sort(key=lambda r: r.has_images(), reverse=True)
+
+    return responses
 
 
 def log_query_to_history(validator: "StableValidator", uids: torch.Tensor):
@@ -187,17 +237,18 @@ def log_event_to_wandb(wandb, event: dict, prompt: str):
 
 
 async def create_batch_for_upload(
-    validator: "StableValidator",
+    validator_wallet: bt.wallet,
+    metagraph: "bt.metagraph.Metagraph",
     batch_id: str,
     prompt: str,
     responses: List[ImageGenerationResponse],
-    rewards: torch.Tensor,
+    masked_rewards: MaskedRewards,
 ):
     uids = [response.uid for response in responses]
 
     should_drop_entries = []
     images = []
-    for response, reward in zip(responses, rewards):
+    for response, reward in zip(responses, masked_rewards.rewards):
         if response.has_images() and reward != 0:
             im_file = BytesIO()
             T.transforms.ToPILImage()(bt.Tensor.deserialize(response.images[0])).save(
@@ -209,6 +260,7 @@ async def create_batch_for_upload(
             images.append(im_b64.decode())
             should_drop_entries.append(0)
         else:
+            # Generated image has zero reward, we are dropping it
             im_file = BytesIO()
             T.transforms.ToPILImage()(
                 torch.full([3, 1024, 1024], 255, dtype=torch.float)
@@ -225,15 +277,12 @@ async def create_batch_for_upload(
         prompt=prompt,
         computes=images,
         batch_id=batch_id,
-        nsfw_scores=[0] * len(images),
-        blacklist_scores=[0] * len(images),
-        # TODO: get nsfw/blacklist scores from somewhere
-        # "nsfw_scores": event["nsfw_filter"],
-        # "blacklist_scores": event["blacklist_filter"],
+        nsfw_scores=masked_rewards.event["nsfw_filter"],
+        blacklist_scores=masked_rewards.event["blacklist_filter"],
         should_drop_entries=should_drop_entries,
-        validator_hotkey=str(validator.wallet.hotkey.ss58_address),
-        miner_hotkeys=[validator.metagraph.hotkeys[uid] for uid in uids],
-        miner_coldkeys=[validator.metagraph.coldkeys[uid] for uid in uids],
+        validator_hotkey=str(validator_wallet.hotkey.ss58_address),
+        miner_hotkeys=[metagraph.hotkeys[uid] for uid in uids],
+        miner_coldkeys=[metagraph.coldkeys[uid] for uid in uids],
     )
 
 
@@ -244,6 +293,28 @@ async def create_batch_for_upload(
 # )
 
 
+def display_run_info(stats: Stats, task_type: str, prompt: str):
+    time_elapsed = datetime.now() - stats.start_time
+
+    colored_log(
+        sh("Info")
+        + f"-> Date {datetime.strftime(stats.start_time, '%Y/%m/%d %H:%M')}"
+        + f" | Elapsed {time_elapsed}"
+        + f" | RPM {stats.total_requests / (time_elapsed.total_seconds() / 60):.2f}",
+        color="green",
+    )
+    colored_log(
+        f"{sh('Request')} -> Type: {task_type}"
+        + f" | Total requests sent {stats.total_requests:,}"
+        + f" | Timeouts {stats.timeouts:,}",
+        color="cyan",
+    )
+    colored_log(
+        f"{sh('Prompt')} -> {prompt}",
+        color="yellow",
+    )
+
+
 async def run_step(
     validator: "StableValidator",
     reward_processor: AbstractRewardProcessor,
@@ -251,31 +322,14 @@ async def run_step(
     axons: List[AxonInfo],
     uids: torch.LongTensor,
     model_type: str,
+    stats: Stats,
 ):
     # Get Arguments
     prompt = task.prompt
-    batch_id = task.task_id
     task_type = task.task_type
 
-    time_elapsed = datetime.now() - validator.stats.start_time
-
-    colored_log(
-        sh("Info")
-        + f"-> Date {datetime.strftime(validator.stats.start_time, '%Y/%m/%d %H:%M')}"
-        + f" | Elapsed {time_elapsed}"
-        + f" | RPM {validator.stats.total_requests / (time_elapsed.total_seconds() / 60):.2f}",
-        color="green",
-    )
-    colored_log(
-        f"{sh('Request')} -> Type: {task_type}"
-        + f" | Total requests sent {validator.stats.total_requests:,}"
-        + f" | Timeouts {validator.stats.timeouts:,}",
-        color="cyan",
-    )
-    colored_log(
-        f"{sh('Prompt')} -> {prompt}",
-        color="yellow",
-    )
+    # Output some information about run
+    display_run_info(stats, task_type, prompt)
 
     # Set seed to -1 so miners will use a random seed by default
     task_type_for_miner = task_type.lower()
@@ -299,36 +353,12 @@ async def run_step(
         f"| Width: {synapse.width}"
     )
 
-    # responses = await query_axons(
-    #     validator.dendrite, axons, synapse, validator.query_timeout
-    # )
-
-    responses = []
-    async for response in query_axons_async(
-        validator.dendrite, axons, uids, synapse, validator.query_timeout
-    ):
-        logger.info(
-            f"axon={response.axon} uid={response.uid} time={response.time:.2f} images={response.synapse.images}"
-        )
-        automated_rewards = await reward_processor.get_automated_rewards(
-            validator,
-            validator.model_type,
-            [response.synapse],
-            [response.uid],
-            task_type,
-            synapse,
-        )
-        batch_for_upload = await create_batch_for_upload(
-            validator, batch_id, prompt, [response], automated_rewards.rewards
-        )
-        validator.batches_upload_queue.put_nowait(batch_for_upload)
-        logger.info(f"batch_for_upload = {batch_for_upload.batch_id}")
-        responses.append(response)
+    responses = await query_axons_and_process_responses(
+        validator, task, axons, uids, synapse, validator.query_timeout
+    )
 
     log_query_to_history(validator, uids)
 
-    # Responses with images should be first in list
-    responses = sorted(responses, key=lambda r: r.has_images(), reverse=True)
     uids = [response.uid for response in responses]
     responses = [r.synapse for r in responses]
 
@@ -349,47 +379,37 @@ async def run_step(
         color="cyan",
     )
 
-    validator.stats.total_requests += 1
+    stats.total_requests += 1
 
     start_time = time.time()
 
     # Log the results for monitoring purposes.
     log_responses(responses, prompt)
 
-    scattered_rewards, event, rewards = await reward_processor.get_automated_rewards(
+    # Calculate rewards
+    automated_rewards: AutomatedRewards = await reward_processor.get_automated_rewards(
         validator, validator.model_type, responses, uids, task_type, synapse
     )
 
     scattered_rewards_adjusted = await reward_processor.get_human_rewards(
-        validator.hotkeys, scattered_rewards
+        validator.hotkeys, automated_rewards.scattered_rewards
     )
 
-    scattered_rewards_adjusted = await reward_processor.filter_rewards(
+    scattered_rewards_adjusted = reward_processor.filter_rewards(
         validator.isalive_dict, validator.isalive_threshold, scattered_rewards_adjusted
     )
 
-    validator.moving_average_scores = update_moving_averages(
-        validator.moving_average_scores, scattered_rewards_adjusted, validator.device
+    # Update moving averages
+    await update_moving_averages(
+        validator,
+        validator.backend_client,
+        scattered_rewards_adjusted,
+        validator.device,
     )
 
-    # Save moving averages scores on backend
-    try:
-        await validator.backend_client.post_moving_averages(
-            validator.hotkeys, validator.moving_average_scores
-        )
-    except PostMovingAveragesError as e:
-        logger.error(f"failed to post moving averages: {e}")
-
-    try:
-        for i, average in enumerate(validator.moving_average_scores):
-            if (validator.metagraph.axons[i].hotkey in validator.hotkey_blacklist) or (
-                validator.metagraph.axons[i].coldkey in validator.coldkey_blacklist
-            ):
-                validator.moving_average_scores[i] = 0
-
-    except Exception as e:
-        logger.error(f"An unexpected error occurred (E1): {e}")
-
+    # Update event and save it to wandb
+    event = automated_rewards.event
+    rewards_list = automated_rewards.rewards.tolist()
     try:
         # Log the step event.
         event.update(
@@ -406,63 +426,15 @@ async def run_step(
                         if (response.images != []) and (reward != 0)
                         else []
                     )
-                    for response, reward in zip(responses, rewards.tolist())
+                    for response, reward in zip(responses, rewards_list)
                 ],
-                "rewards": rewards.tolist(),
+                "rewards": rewards_list,
                 "model_type": model_type,
             }
         )
         event.update(validator_info)
     except Exception as err:
         logger.error(f"Error updating event dict: {err}")
-
-    # try:
-    #     should_drop_entries = []
-    #     images = []
-    #     for response, reward in zip(responses, rewards.tolist()):
-    #         if (response.images != []) and (reward != 0):
-    #             im_file = BytesIO()
-    #             T.transforms.ToPILImage()(
-    #                 bt.Tensor.deserialize(response.images[0])
-    #             ).save(im_file, format="PNG")
-    #             # im_bytes: image in binary format.
-    #             im_bytes = im_file.getvalue()
-    #             im_b64 = base64.b64encode(im_bytes)
-    #             images.append(im_b64.decode())
-    #             should_drop_entries.append(0)
-    #         else:
-    #             im_file = BytesIO()
-    #             T.transforms.ToPILImage()(
-    #                 torch.full([3, 1024, 1024], 255, dtype=torch.float)
-    #             ).save(im_file, format="PNG")
-    #             # im_bytes: image in binary format.
-    #             im_bytes = im_file.getvalue()
-    #             im_b64 = base64.b64encode(im_bytes)
-    #             images.append(im_b64.decode())
-    #             should_drop_entries.append(1)
-    #
-    #     # Update batches to be sent to the human validation platform
-    #     if batch_id not in validator.batches.keys():
-    #         validator.batches[batch_id] = {
-    #             "prompt": prompt,
-    #             "computes": images,
-    #             "batch_id": batch_id,
-    #             "nsfw_scores": event["nsfw_filter"],
-    #             "blacklist_scores": event["blacklist_filter"],
-    #             "should_drop_entries": should_drop_entries,
-    #             "validator_hotkey": str(validator.wallet.hotkey.ss58_address),
-    #             "miner_hotkeys": [validator.metagraph.hotkeys[uid] for uid in uids],
-    #             "miner_coldkeys": [validator.metagraph.coldkeys[uid] for uid in uids],
-    #         }
-    #
-    #     # Upload the batches to the Human Validation Platform
-    #     validator.batches = await upload_batches(
-    #         validator.backend_client,
-    #         validator.batches,
-    #     )
-
-    # except Exception as e:
-    #     logger.error(f"An unexpected error occurred appending the batch: {e}")
 
     log_event_to_wandb(validator.wandb, event, prompt)
 

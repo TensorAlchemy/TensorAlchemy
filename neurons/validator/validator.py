@@ -311,6 +311,7 @@ class StableValidator:
                     axons=axons,
                     uids=uids,
                     model_type=self.model_type,
+                    stats=self.stats,
                 )
                 # Re-sync with the network. Updates the metagraph.
                 try:

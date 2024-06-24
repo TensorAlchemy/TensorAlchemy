@@ -13,8 +13,16 @@ class RewardModelType(Enum):
     model_diversity = "model_diversity_reward_model"
 
 
-class AutomatedRewardsResult(BaseModel):
+class AutomatedRewards(BaseModel):
     scattered_rewards: torch.Tensor
+    rewards: torch.Tensor
+    event: dict
+
+    class Config:
+        arbitrary_types_allowed = True
+
+
+class MaskedRewards(BaseModel):
     rewards: torch.Tensor
     event: dict
 
