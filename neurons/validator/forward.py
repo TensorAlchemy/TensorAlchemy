@@ -18,6 +18,8 @@ from pydantic import BaseModel
 from neurons.constants import MOVING_AVERAGE_ALPHA
 from neurons.protocol import ImageGeneration, ImageGenerationTaskModel
 from neurons.utils import colored_log, sh, Stats
+
+from neurons.validator.config import get_device, get_backend_client
 from neurons.validator.backend.client import TensorAlchemyBackendClient
 from neurons.validator.backend.exceptions import PostMovingAveragesError
 from neurons.validator.event import EventSchema
@@ -33,9 +35,7 @@ transform = T.Compose([T.PILToTensor()])
 
 async def update_moving_averages(
     validator: "StableValidator",
-    backend_client: TensorAlchemyBackendClient,
     rewards: torch.Tensor,
-    device: torch.device,
     alpha=MOVING_AVERAGE_ALPHA,
 ) -> None:
     rewards = torch.nan_to_num(
@@ -43,17 +43,19 @@ async def update_moving_averages(
         nan=0.0,
         posinf=0.0,
         neginf=0.0,
-    ).to(device)
+    ).to(get_device())
+
     moving_average_scores: torch.FloatTensor = alpha * rewards + (
         1 - alpha
-    ) * validator.moving_average_scores.to(device)
+    ) * validator.moving_average_scores.to(get_device())
 
     validator.moving_average_scores = moving_average_scores
 
     # Save moving averages scores on backend
     try:
-        await backend_client.post_moving_averages(
-            validator.hotkeys, moving_average_scores
+        await get_backend_client().post_moving_averages(
+            validator.hotkeys,
+            moving_average_scores,
         )
     except PostMovingAveragesError as e:
         logger.error(f"failed to post moving averages: {e}")
@@ -388,23 +390,34 @@ async def run_step(
 
     # Calculate rewards
     automated_rewards: AutomatedRewards = await reward_processor.get_automated_rewards(
-        validator, validator.model_type, responses, uids, task_type, synapse
+        validator,
+        validator.model_type,
+        responses,
+        uids,
+        task_type,
+        synapse,
     )
 
+    uids_tensor = torch.tensor(uids).to(get_device())
+    scattered_rewards: torch.Tensor = validator.moving_average_scores.scatter(
+        0, uids_tensor, automated_rewards.rewards
+    ).to(get_device())
+
     scattered_rewards_adjusted = await reward_processor.get_human_rewards(
-        validator.hotkeys, automated_rewards.scattered_rewards
+        validator.hotkeys,
+        scattered_rewards,
     )
 
     scattered_rewards_adjusted = reward_processor.filter_rewards(
-        validator.isalive_dict, validator.isalive_threshold, scattered_rewards_adjusted
+        validator.isalive_dict,
+        validator.isalive_threshold,
+        scattered_rewards_adjusted,
     )
 
     # Update moving averages
     await update_moving_averages(
         validator,
-        validator.backend_client,
         scattered_rewards_adjusted,
-        validator.device,
     )
 
     # Update event and save it to wandb

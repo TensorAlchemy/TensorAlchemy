@@ -1,30 +1,39 @@
 from enum import Enum
+from typing import Type
 
 import torch
 from pydantic import BaseModel
+from neurons.validator.rewards.models.base import BaseRewardModel
 
 
-class RewardModelType(Enum):
-    diversity = "diversity_reward_model"
-    image = "image_reward_model"
-    human = "human_reward_model"
-    blacklist = "blacklist_filter"
-    nsfw = "nsfw_filter"
-    model_diversity = "model_diversity_reward_model"
+class PackedRewardModel(BaseModel):
+    weight: float
+    model: Type[BaseRewardModel]
+
+    @property
+    def name(self) -> str:
+        return str(self.model.name)
+
+
+class RewardModelType(str, Enum):
+    HUMAN = "HUMAN"
+    IMAGE = "IMAGE"
+    NSFW = "NSFW_FILTER"
+    DIVERSITY = "DIVERSITY"
+    BLACKLIST = "BLACKLIST_FILTER"
 
 
 class AutomatedRewards(BaseModel):
-    scattered_rewards: torch.Tensor
-    rewards: torch.Tensor
     event: dict
+    rewards: torch.Tensor
 
     class Config:
         arbitrary_types_allowed = True
 
 
 class MaskedRewards(BaseModel):
-    rewards: torch.Tensor
     event: dict
+    rewards: torch.Tensor
 
     class Config:
         arbitrary_types_allowed = True

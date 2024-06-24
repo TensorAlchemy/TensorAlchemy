@@ -26,9 +26,14 @@ from neurons.utils import (
     colored_log,
     get_defaults,
 )
+from neurons.validator.config import (
+    add_args,
+    check_config,
+    get_config,
+    get_metagraph,
+)
 from neurons.validator.backend.client import TensorAlchemyBackendClient
 from neurons.validator.backend.models import TaskState
-from neurons.validator.config import add_args, check_config, config
 from neurons.validator.forward import run_step
 from neurons.validator.rewards.models.blacklist import BlacklistFilter
 from neurons.validator.rewards.models.diversity import ModelDiversityRewardModel
@@ -71,7 +76,7 @@ class StableValidator:
 
     @classmethod
     def config(cls):
-        return config(cls)
+        return get_config(cls)
 
     def loop_until_registered(self):
         index = None
@@ -114,7 +119,7 @@ class StableValidator:
         # Init external API services
         self.openai_service = get_openai_service()
 
-        self.backend_client = TensorAlchemyBackendClient(self.config)
+        self.backend_client = TensorAlchemyBackendClient()
 
         wandb.login(anonymous="must")
 
@@ -149,9 +154,12 @@ class StableValidator:
         logger.info(f"Loaded dendrite pool: {self.dendrite}")
 
         # Init metagraph.
-        self.metagraph = bt.metagraph(
-            netuid=self.config.netuid, network=self.subtensor.network, sync=False
-        )  # Make sure not to sync without passing subtensor
+        self.metagraph = get_metagraph(
+            netuid=self.config.netuid,
+            # Make sure not to sync without passing subtensor
+            network=self.subtensor.network,
+            sync=False,
+        )
 
         # Sync metagraph with subtensor.
         self.metagraph.sync(subtensor=self.subtensor)
@@ -189,11 +197,7 @@ class StableValidator:
         self.step = 0
 
         # Rewards calculation
-        self.reward_processor = RewardProcessor(
-            metagraph=self.metagraph,
-            device=self.device,
-            backend_client=self.backend_client,
-        )
+        self.reward_processor = RewardProcessor()
 
         # Set validator variables
         self.request_frequency = 35
@@ -306,12 +310,12 @@ class StableValidator:
                 # Text to Image Run
                 await run_step(
                     validator=self,
-                    reward_processor=self.reward_processor,
                     task=task,
                     axons=axons,
                     uids=uids,
                     model_type=self.model_type,
                     stats=self.stats,
+                    reward_processor=self.reward_processor,
                 )
                 # Re-sync with the network. Updates the metagraph.
                 try:

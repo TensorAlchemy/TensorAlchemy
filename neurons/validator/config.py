@@ -1,10 +1,12 @@
 import argparse
 import os
 
+import torch
 import bittensor as bt
 from loguru import logger
 
 from neurons.constants import EVENTS_RETENTION_SIZE
+from neurons.validator.backend.client import TensorAlchemyBackendClient
 
 IS_TEST: bool = False
 
@@ -81,7 +83,7 @@ def add_args(_cls, parser):
     )
 
 
-def config(cls):
+def get_config(cls):
     parser = argparse.ArgumentParser()
 
     bt.wallet.add_args(parser)
@@ -91,3 +93,34 @@ def config(cls):
     cls.add_args(parser)
 
     return bt.config(parser)
+
+
+device: torch.device = None
+metagraph: bt.metagraph = None
+backend_client: TensorAlchemyBackendClient = None
+
+
+def get_metagraph(**kwargs) -> bt.metagraph:
+    global metagraph
+    if not metagraph:
+        metagraph = bt.metagraph(**kwargs)
+
+    return metagraph
+
+
+def get_backend_client() -> TensorAlchemyBackendClient:
+    global backend_client
+    if not backend_client:
+        backend_client = TensorAlchemyBackendClient()
+
+    return backend_client
+
+
+def get_device() -> torch.device:
+    global device
+    if not device:
+        config = get_config()
+        check_config(config)
+        device = config.alchemy.device
+
+    return device

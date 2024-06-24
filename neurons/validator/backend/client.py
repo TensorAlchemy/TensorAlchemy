@@ -14,6 +14,7 @@ from tenacity import (
     retry_if_result,
 )
 
+
 from neurons.constants import DEV_URL, PROD_URL
 from neurons.protocol import denormalize_image_model, ImageGenerationTaskModel
 from neurons.validator.backend.exceptions import (
@@ -23,19 +24,24 @@ from neurons.validator.backend.exceptions import (
     PostWeightsError,
     UpdateTaskError,
 )
+from neurons.validator.config import check_config, get_config
 from neurons.validator.backend.models import TaskState
 from neurons.validator.schemas import Batch
 
 
 class TensorAlchemyBackendClient:
-    def __init__(self, config: bt.config):
-        self.config = config
+    def __init__(self):
+        self.config = get_config()
+        check_config(self.config)
 
         self.wallet = bt.wallet(config=self.config)
         self.hotkey = self.wallet.hotkey
 
-        self.api_url = DEV_URL if config.subtensor.network == "test" else PROD_URL
-        if config.alchemy.force_prod:
+        self.api_url = DEV_URL
+        if self.config.subtensor.network != "test":
+            self.api_url = PROD_URL
+
+        if self.config.alchemy.force_prod:
             self.api_url = PROD_URL
 
         logger.info(f"Using backend server {self.api_url}")
@@ -54,7 +60,9 @@ class TensorAlchemyBackendClient:
 
     # Get tasks from the client server
     async def poll_task(self, timeout: int = 60, backoff: int = 1):
-        """Performs polling for new task. If no new task found within `timeout`, returns None."""
+        """Performs polling for new task.
+        If no new task found within `timeout`
+        returns None."""
 
         @retry(
             stop=stop_after_delay(timeout),

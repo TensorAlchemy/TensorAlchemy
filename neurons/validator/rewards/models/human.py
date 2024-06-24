@@ -6,7 +6,7 @@ from loguru import logger
 from tenacity import AsyncRetrying, RetryError, stop_after_attempt, wait_fixed
 from torch import Tensor
 
-from neurons.validator import config as validator_config
+from neurons.validator.config import get_backend_client
 from neurons.validator.backend.client import TensorAlchemyBackendClient
 from neurons.validator.rewards.models.base import BaseRewardModel
 from neurons.validator.rewards.types import RewardModelType
@@ -15,17 +15,7 @@ from neurons.validator.rewards.types import RewardModelType
 class HumanValidationRewardModel(BaseRewardModel):
     @property
     def name(self) -> str:
-        return RewardModelType.human.value
-
-    def __init__(
-        self,
-        metagraph: "bt.metagraph.Metagraph",
-        backend_client: TensorAlchemyBackendClient,
-    ):
-        super().__init__()
-        self.device = validator_config.get_default_device()
-        self.human_voting_scores = torch.zeros((metagraph.n)).to(self.device)
-        self.backend_client = backend_client
+        return str(RewardModelType.HUMAN)
 
     async def get_rewards(
         self,
@@ -44,7 +34,8 @@ class HumanValidationRewardModel(BaseRewardModel):
                 stop=stop_after_attempt(max_retries), wait=wait_fixed(backoff)
             ):
                 with attempt:
-                    human_voting_scores = await self.backend_client.get_votes()
+                    human_voting_scores = await get_backend_client().get_votes()
+
         except RetryError as e:
             logger.error(f"error while getting votes: {e}")
             # Return empty results
@@ -57,18 +48,6 @@ class HumanValidationRewardModel(BaseRewardModel):
                         human_voting_scores_dict[key] += value
                     else:
                         human_voting_scores_dict[key] = value
-
-        # TODO: move out mock code
-        # else:
-        #     human_voting_scores_dict = {hotkey: 50 for hotkey in hotkeys}
-        #     if (mock_winner is not None) and (
-        #         mock_winner in human_voting_scores_dict.keys()
-        #     ):
-        #         human_voting_scores_dict[mock_winner] = 100
-        #     if (mock_loser is not None) and (
-        #         mock_loser in human_voting_scores_dict.keys()
-        #     ):
-        #         human_voting_scores_dict[mock_loser] = 1
 
         if human_voting_scores_dict != {}:
             for index, hotkey in enumerate(hotkeys):

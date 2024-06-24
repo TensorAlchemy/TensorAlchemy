@@ -28,7 +28,8 @@ def test_non_zero_moving_averages():
     scattered_rewards = moving_average_scores.scatter(0, uids, rewards).to(device)
 
     moving_average_scores = update_moving_averages(
-        moving_average_scores, scattered_rewards, device
+        moving_average_scores,
+        scattered_rewards,
     )
 
     assert moving_average_scores.sum().item() != 0
@@ -45,7 +46,7 @@ def test_large_rewards():
 
     previous_moving_average = moving_average_scores[test_uid_index]
     moving_average_scores = update_moving_averages(
-        moving_average_scores, scattered_rewards, device
+        moving_average_scores, scattered_rewards
     )
     current_moving_average = moving_average_scores[test_uid_index]
 
@@ -58,9 +59,7 @@ def test_rewards_with_nans():
     rewards = torch.zeros(len(moving_average_scores)).to(device)
     rewards[0] = float("nan")
 
-    moving_average_scores = update_moving_averages(
-        moving_average_scores, rewards, device
-    )
+    moving_average_scores = update_moving_averages(moving_average_scores, rewards)
     assert torch.isnan(moving_average_scores).sum().item() == 0
 
 
@@ -70,9 +69,7 @@ def test_zero_rewards():
     rewards = torch.zeros(len(moving_average_scores)).to(device)
 
     previous_moving_average_scores_sum = moving_average_scores.sum()
-    moving_average_scores = update_moving_averages(
-        moving_average_scores, rewards, device
-    )
+    moving_average_scores = update_moving_averages(moving_average_scores, rewards)
     current_moving_average_scores_sum = moving_average_scores.sum()
 
     assert previous_moving_average_scores_sum >= current_moving_average_scores_sum
@@ -84,9 +81,7 @@ def test_ones_rewards():
     rewards = torch.ones(len(moving_average_scores)).to(device)
 
     previous_moving_average_scores_sum = moving_average_scores.sum()
-    moving_average_scores = update_moving_averages(
-        moving_average_scores, rewards, device
-    )
+    moving_average_scores = update_moving_averages(moving_average_scores, rewards)
     current_moving_average_scores_sum = moving_average_scores.sum()
 
     assert previous_moving_average_scores_sum < current_moving_average_scores_sum

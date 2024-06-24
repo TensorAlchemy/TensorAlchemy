@@ -4,7 +4,7 @@ import torch
 import torchvision.transforms as transforms
 from loguru import logger
 
-from neurons.validator import config as validator_config
+from neurons.validator.config import get_device
 from neurons.validator.rewards.models.base import BaseRewardModel
 from neurons.validator.rewards.types import RewardModelType
 
@@ -12,12 +12,11 @@ from neurons.validator.rewards.types import RewardModelType
 class ImageRewardModel(BaseRewardModel):
     @property
     def name(self) -> str:
-        return RewardModelType.image.value
+        return str(RewardModelType.IMAGE)
 
     def __init__(self):
         super().__init__()
-        self.device = validator_config.get_default_device()
-        self.scoring_model = RM.load("ImageReward-v1.0", device=self.device)
+        self.scoring_model = RM.load("ImageReward-v1.0", device=get_device())
 
     def reward(self, response) -> float:
         img_scores = torch.zeros(len(response.images), dtype=torch.float32)

@@ -6,7 +6,7 @@ from transformers import (
 )
 
 from neurons.safety import StableDiffusionSafetyChecker
-from neurons.validator import config as validator_config
+from neurons.validator.config import get_device
 from neurons.validator.rewards.models.base import BaseRewardModel
 from neurons.validator.rewards.types import RewardModelType
 
@@ -14,19 +14,20 @@ from neurons.validator.rewards.types import RewardModelType
 class NSFWRewardModel(BaseRewardModel):
     @property
     def name(self) -> str:
-        return RewardModelType.nsfw.value
+        return str(RewardModelType.NSFW)
 
     def __init__(self):
         super().__init__()
-        self.device = validator_config.get_default_device()
+
         self.safetychecker = StableDiffusionSafetyChecker.from_pretrained(
             "CompVis/stable-diffusion-safety-checker"
-        ).to(self.device)
+        ).to(get_device())
+
         self.processor = CLIPImageProcessor()
 
     def reward(self, response) -> float:
         # delete all none images
-        for j, image in enumerate(response.images):
+        for image in response.images:
             if image is None:
                 return 0.0
 
@@ -36,10 +37,11 @@ class NSFWRewardModel(BaseRewardModel):
             clip_input = self.processor(
                 [bt.Tensor.deserialize(image) for image in response.images],
                 return_tensors="pt",
-            ).to(self.device)
+            ).to(get_device())
+
             images, has_nsfw_concept = self.safetychecker.forward(
                 images=response.images,
-                clip_input=clip_input.pixel_values.to(self.device),
+                clip_input=clip_input.pixel_values.to(get_device()),
             )
 
             any_nsfw = any(has_nsfw_concept)
@@ -53,7 +55,12 @@ class NSFWRewardModel(BaseRewardModel):
 
         return 1.0
 
-    async def get_rewards(self, responses, rewards, synapse=None) -> torch.FloatTensor:
+    async def get_rewards(
+        self,
+        responses,
+        rewards,
+        synapse=None,
+    ) -> torch.FloatTensor:
         return torch.tensor(
             [
                 self.reward(response) if reward != 0.0 else 0.0
@@ -62,5 +69,8 @@ class NSFWRewardModel(BaseRewardModel):
             dtype=torch.float32,
         )
 
-    def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
+    def normalize_rewards(
+        self,
+        rewards: torch.FloatTensor,
+    ) -> torch.FloatTensor:
         return rewards

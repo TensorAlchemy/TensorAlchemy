@@ -8,6 +8,7 @@ import torch
 import torchvision.transforms as T
 from loguru import logger
 
+from neurons.validator.config import get_device
 from neurons.validator.utils import cosine_distance
 
 transform = T.Compose([T.PILToTensor()])
@@ -28,7 +29,8 @@ class DefaultRewardFrameworkConfig:
         pooled_output = self.vision_model(clip_input)[1]  # pooled_output
         image_embeds = self.visual_projection(pooled_output)
 
-        # we always cast to float32 as this does not cause significant overhead and is compatible with bfloat16
+        # we always cast to float32 as this does not cause
+        # significant overhead and is compatible with bfloat16
         special_cos_dist = (
             cosine_distance(image_embeds, self.special_care_embeds)
             .cpu()
@@ -105,7 +107,8 @@ class DefaultRewardFrameworkConfig:
 class BaseRewardModel:
     @property
     @abstractmethod
-    def name(self) -> str: ...
+    def name(self) -> str:
+        ...
 
     def __str__(self) -> str:
         return str(self.name)
@@ -114,7 +117,8 @@ class BaseRewardModel:
         return str(self.name)
 
     @abstractmethod
-    async def get_rewards(self, responses: List, rewards) -> torch.FloatTensor: ...
+    async def get_rewards(self, responses: List, rewards) -> torch.FloatTensor:
+        ...
 
     def __init__(self) -> None:
         self.count = 0
@@ -124,7 +128,12 @@ class BaseRewardModel:
 
     def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
         """
-        This method normalizes the given rewards by updating the moving mean and variance statistics. The rewards are first standardized, and then scaled to the 0-1 range using a cumulative distribution function (CDF) to ensure they're in a comparable range across different environments.
+        This method normalizes the given rewards by updating the
+        moving mean and variance statistics.
+        The rewards are first standardized,
+        and then scaled to the 0-1 range using a
+        cumulative distribution function (CDF)
+        to ensure they're in a comparable range across different environments.
 
         Args:
         rewards (torch.FloatTensor): The reward values to be normalized.
@@ -155,22 +164,26 @@ class BaseRewardModel:
 
             # Update the old mean with the new mean and weights.
             self.mean = new_weight * new_mean + old_weight * self.mean
-            # Update the old variance with the new variance and weights, and adjusting for the difference in means.
+            # Update the old variance with the new variance and weights,
+            # and adjusting for the difference in means.
             self.var = (
                 (new_weight * new_var)
                 + (old_weight * self.var)
                 + (new_weight * old_weight) * diff * diff
             )
-            # Update the old count with the new count, but don't exceed the limit.
+            # Update the old count with the new count,
+            # but don't exceed the limit.
             self.count = min(self.count_limit, self.count + new_count)
 
         # Standardize the rewards using the updated mean and variance.
         rewards = rewards - self.mean
         if self.var > 0:
             rewards /= torch.sqrt(self.var)
-        # Scale the standardized rewards to the range [0, 1] using the error function as a cumulative distribution function (CDF).
+        # Scale the standardized rewards to the range [0, 1]
+        # using the error function as a cumulative
+        # distribution function (CDF).
         rewards = 0.5 * (
-            1 + torch.erf(rewards / torch.sqrt(torch.tensor([2.0])).to(rewards.device))
+            1 + torch.erf(rewards / torch.sqrt(torch.tensor([2.0])).to(get_device()))
         )
 
         return rewards
@@ -212,5 +225,6 @@ class BaseRewardModel:
         ):
             filled_rewards[idx] = reward
             filled_rewards_normalized[idx] = reward_normalized
+
         # Return the filled rewards.
         return filled_rewards, filled_rewards_normalized

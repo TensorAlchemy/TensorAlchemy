@@ -11,7 +11,7 @@ transform = T.Compose([T.PILToTensor()])
 class BlacklistFilter(BaseRewardModel):
     @property
     def name(self) -> str:
-        return RewardModelType.blacklist.value
+        return str(RewardModelType.BLACKLIST)
 
     def __init__(self):
         super().__init__()

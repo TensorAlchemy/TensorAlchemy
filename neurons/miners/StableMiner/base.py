@@ -96,7 +96,11 @@ class BaseMiner(ABC):
             ]
         ):
             self.wandb = WandbUtils(
-                self, self.metagraph, self.config, self.wallet, self.event
+                self,
+                self.metagraph,
+                self.config,
+                self.wallet,
+                self.event,
             )
 
         # Start the generic background loop
