@@ -192,8 +192,9 @@ class BaseRewardModel:
 
     async def apply(
         self,
+        synapse: bt.Synapse,
         responses: List[bt.Synapse],
-        rewards,
+        rewards: torch.FloatTensor,
     ) -> Tuple[torch.FloatTensor, torch.FloatTensor]:
         """Applies the reward model across each call. Unsuccessful responses are zeroed."""
         # Get indices of correctly responding calls.
@@ -211,6 +212,7 @@ class BaseRewardModel:
 
         # Reward each completion.
         successful_rewards = await self.get_rewards(
+            synapse,
             successful_generations,
             rewards,
         )

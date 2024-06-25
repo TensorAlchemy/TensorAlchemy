@@ -25,7 +25,7 @@ from transformers import (
     CLIPImageProcessor,
 )
 
-from neurons.valdiator.config import get_device
+from neurons.validator.config import get_device
 from neurons.miners.StableMiner.utils import (
     colored_log,
     nsfw_image_filter,
