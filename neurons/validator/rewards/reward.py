@@ -22,14 +22,10 @@ from neurons.validator.rewards.pipeline import (
 
 class RewardProcessor(AbstractRewardProcessor):
     def __init__(self):
-        self.device = get_device()
-
         self.reward_names = [
             RewardModelType.IMAGE,
             RewardModelType.DIVERSITY,
         ]
-
-        self.human_voting_scores = torch.zeros(get_metagraph().n).to(get_device())
 
     async def get_automated_rewards(
         self,

@@ -1,6 +1,6 @@
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import List
+from typing import List, Tuple
 
 import bittensor as bt
 import numpy as np
@@ -117,7 +117,9 @@ class BaseRewardModel:
         return str(self.name)
 
     @abstractmethod
-    async def get_rewards(self, responses: List, rewards) -> torch.FloatTensor:
+    async def get_rewards(
+        self, synapse: bt.Synapse, responses: List, rewards
+    ) -> torch.FloatTensor:
         ...
 
     def __init__(self) -> None:
@@ -189,8 +191,10 @@ class BaseRewardModel:
         return rewards
 
     async def apply(
-        self, responses: List[bt.Synapse], rewards, synapse=None
-    ) -> torch.FloatTensor:
+        self,
+        responses: List[bt.Synapse],
+        rewards,
+    ) -> Tuple[torch.FloatTensor, torch.FloatTensor]:
         """Applies the reward model across each call. Unsuccessful responses are zeroed."""
         # Get indices of correctly responding calls.
 
@@ -207,7 +211,8 @@ class BaseRewardModel:
 
         # Reward each completion.
         successful_rewards = await self.get_rewards(
-            successful_generations, rewards, synapse
+            successful_generations,
+            rewards,
         )
 
         # Softmax rewards across samples.

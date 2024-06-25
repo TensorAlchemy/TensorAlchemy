@@ -57,9 +57,9 @@ class NSFWRewardModel(BaseRewardModel):
 
     async def get_rewards(
         self,
+        _synapse: bt.Synapse,
         responses,
         rewards,
-        synapse=None,
     ) -> torch.FloatTensor:
         return torch.tensor(
             [

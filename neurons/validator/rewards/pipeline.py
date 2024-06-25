@@ -1,9 +1,7 @@
 from typing import Dict, List
-
 import torch
 import bittensor as bt
 from loguru import logger
-
 from neurons.protocol import ModelType
 from neurons.validator.config import get_device
 from neurons.validator.backend.client import TensorAlchemyBackendClient
@@ -16,6 +14,7 @@ from neurons.validator.rewards.models.nsfw import NSFWRewardModel
 from neurons.validator.rewards.types import (
     PackedRewardModel,
     RewardModelType,
+    AutomatedRewards,
 )
 
 ModelStorage = Dict[RewardModelType, PackedRewardModel]
@@ -62,11 +61,13 @@ def get_reward_functions(model_type: ModelType) -> List[PackedRewardModel]:
     if model_type != ModelType.ALCHEMY:
         return [
             get_model(REWARD_MODELS, RewardModelType.IMAGE),
+            get_model(REWARD_MODELS, RewardModelType.HUMAN),
         ]
 
     return [
         get_model(REWARD_MODELS, RewardModelType.IMAGE),
         get_model(REWARD_MODELS, RewardModelType.DIVERSITY),
+        get_model(REWARD_MODELS, RewardModelType.HUMAN),
     ]
 
 
@@ -79,24 +80,23 @@ def get_masking_functions(_model_type: ModelType) -> List[PackedRewardModel]:
 
 async def apply_masking_functions(
     model_type: ModelType,
+    synapse: bt.synapse,
     responses: list,
     rewards: torch.Tensor,
-    synapse: bt.synapse,
 ) -> tuple[torch.Tensor, dict]:
     event = {}
-
     masking_functions: List[PackedRewardModel] = get_masking_functions(
         model_type,
     )
 
     for function in masking_functions:
-        mask_i, mask_i_normalized = await function.model.apply(
+        mask_i, mask_i_normalized = await function.apply(
+            synapse,
             responses,
             rewards,
         )
 
         rewards *= mask_i_normalized.to(get_device())
-
         event[function.name] = mask_i.tolist()
         event[function.name + "_normalized"] = mask_i_normalized.tolist()
         logger.info(f"{function.name} {mask_i_normalized.tolist()}")
@@ -106,26 +106,60 @@ async def apply_masking_functions(
 
 async def apply_reward_functions(
     model_type: ModelType,
+    synapse: bt.synapse,
     responses: list,
     rewards: torch.Tensor,
-    synapse: bt.synapse,
 ) -> tuple[torch.Tensor, dict]:
     event = {}
-    reward_functions: List[PackedRewardModel] = get_reward_functions(
-        model_type,
-    )
-
+    reward_functions: List[PackedRewardModel] = get_reward_functions(model_type)
     for function in reward_functions:
-        reward_i, reward_i_normalized = await function.model.apply(
+        reward_i, reward_i_normalized = await function.apply(
+            synapse,
             responses,
             rewards,
-            synapse,
         )
 
         rewards += function.weight * reward_i_normalized.to(get_device())
         event[function.name] = reward_i.tolist()
         event[function.name + "_normalized"] = reward_i_normalized.tolist()
-
         logger.info(f"{function.name}, {reward_i_normalized.tolist()}")
 
     return rewards, event
+
+
+async def get_automated_rewards(
+    model_type: ModelType,
+    responses: List[bt.Synapse],
+    task_type,
+    synapse,
+) -> AutomatedRewards:
+    event = {"task_type": task_type}
+
+    # Initialize rewards tensor
+    rewards: torch.Tensor = torch.zeros(
+        len(responses),
+        dtype=torch.float32,
+    ).to(get_device())
+
+    # Apply reward functions (including human voting)
+    rewards, reward_event = await apply_reward_functions(
+        model_type,
+        synapse,
+        responses,
+        rewards,
+    )
+    event.update(reward_event)
+
+    # Apply masking functions
+    rewards, masking_event = await apply_masking_functions(
+        model_type,
+        synapse,
+        responses,
+        rewards,
+    )
+    event.update(masking_event)
+
+    return AutomatedRewards(
+        event=event,
+        rewards=rewards,
+    )

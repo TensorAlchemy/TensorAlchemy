@@ -83,7 +83,12 @@ class DiversityRewardModel(BaseRewardModel):
 
         return pp
 
-    async def get_rewards(self, responses, rewards, synapse=None) -> torch.FloatTensor:
+    async def get_rewards(
+        self,
+        _synapse: bt.Synapse,
+        responses,
+        rewards,
+    ) -> torch.FloatTensor:
         extract_fn = self.extract_embeddings(self.model.to(get_device()))
 
         images = [
@@ -235,11 +240,11 @@ class ModelDiversityRewardModel(BaseRewardModel):
 
         # Set up mapping for the different synapse types
         self.mapping = {
-            f"text_to_image": {
+            "text_to_image": {
                 "args": self.t2i_args,
                 "model": self.t2i_model,
             },
-            f"image_to_image": {
+            "image_to_image": {
                 "args": self.i2i_args,
                 "model": self.i2i_model,
             },
@@ -359,8 +364,10 @@ class ModelDiversityRewardModel(BaseRewardModel):
         self.stats.generation_time += generation_time
         return synapse
 
-    async def get_rewards(self, responses, rewards, synapse) -> torch.FloatTensor:
-        extract_fn = self.extract_embeddings(self.model.to(self.device))
+    async def get_rewards(
+        self, synapse: bt.Synapse, responses, rewards
+    ) -> torch.FloatTensor:
+        extract_fn = self.extract_embeddings(self.model.to(get_device()))
 
         images = [
             (
@@ -372,6 +379,7 @@ class ModelDiversityRewardModel(BaseRewardModel):
         ]
 
         validator_synapse = self.generate_image(synapse)
+
         validator_embeddings = extract_fn(
             {
                 "image": [

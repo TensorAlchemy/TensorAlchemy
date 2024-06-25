@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Type
+from typing import Type, Tuple
 
 import torch
 from pydantic import BaseModel
@@ -13,6 +13,11 @@ class PackedRewardModel(BaseModel):
     @property
     def name(self) -> str:
         return str(self.model.name)
+
+    def apply(
+        self, *args, **kwargs
+    ) -> Tuple[torch.FloatTensor, torch.FloatTensor,]:
+        return self.model.apply(*args, **kwargs)
 
 
 class RewardModelType(str, Enum):

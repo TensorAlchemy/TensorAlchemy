@@ -20,6 +20,7 @@ class ImageRewardModel(BaseRewardModel):
 
     def reward(self, response) -> float:
         img_scores = torch.zeros(len(response.images), dtype=torch.float32)
+
         try:
             with torch.no_grad():
                 images = [
@@ -37,7 +38,9 @@ class ImageRewardModel(BaseRewardModel):
             logger.error("ImageReward score is 0. No image in response.")
             return 0.0
 
-    async def get_rewards(self, responses, rewards, synapse=None) -> torch.FloatTensor:
+    async def get_rewards(
+        self, _synapse: bt.Synapse, responses, rewards
+    ) -> torch.FloatTensor:
         return torch.tensor(
             [self.reward(response) for response in responses],
             dtype=torch.float32,

@@ -327,6 +327,7 @@ def background_loop(self, is_validator):
                         self.reward_weights = torch.tensor(
                             weights_to_add, dtype=torch.float32
                         ).to(self.device)
+
                         logger.info(
                             f"Retrieved the latest validator weights: {self.reward_weights}"
                         )
@@ -380,7 +381,7 @@ def background_loop(self, is_validator):
                 runs = [
                     x
                     for x in os.listdir(f"{wandb_path}/wandb")
-                    if "run-" in x and not "latest-run" in x
+                    if "run-" in x and "latest-run" not in x
                 ]
                 if len(runs) > 0:
                     subprocess.call(
@@ -388,14 +389,17 @@ def background_loop(self, is_validator):
                         shell=True,
                     )
                     logger.info("Cleaned all synced wandb runs.")
-                    subprocess.Popen(["wandb artifact cache cleanup 5GB"], shell=True)
+                    subprocess.Popen(
+                        ["wandb artifact cache cleanup 5GB"],
+                        shell=True,
+                    )
                     logger.info("Cleaned all wandb cache data > 5GB.")
 
                 # Catch any runs that the stock wandb function doesn't
                 runs = [
                     x
                     for x in os.listdir(f"{wandb_path}/wandb")
-                    if "run-" in x and not "latest-run" in x
+                    if "run-" in x and "latest-run" not in x
                 ]
 
                 # Leave the most recent 3 runs

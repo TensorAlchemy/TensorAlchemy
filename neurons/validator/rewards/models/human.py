@@ -19,6 +19,7 @@ class HumanValidationRewardModel(BaseRewardModel):
 
     async def get_rewards(
         self,
+        _synapse: bt.Synapse,
         hotkeys: List[str],
         # mock=False, mock_winner=None, mock_loser=None
     ) -> tuple[Tensor, Tensor | Any]:
