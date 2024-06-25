@@ -1,12 +1,11 @@
 from typing import Any, List
 
 import bittensor as bt
-import torch
 from loguru import logger
 from tenacity import AsyncRetrying, RetryError, stop_after_attempt, wait_fixed
 from torch import Tensor
 
-from neurons.validator.config import get_backend_client
+from neurons.validator.config import get_backend_client, get_metagraph
 from neurons.validator.backend.client import TensorAlchemyBackendClient
 from neurons.validator.rewards.models.base import BaseRewardModel
 from neurons.validator.rewards.types import RewardModelType
@@ -20,11 +19,12 @@ class HumanValidationRewardModel(BaseRewardModel):
     async def get_rewards(
         self,
         _synapse: bt.Synapse,
-        hotkeys: List[str],
-        # mock=False, mock_winner=None, mock_loser=None
+        responses: torch.FloatTensor,
+        rewards: torch.FloatTensor,
     ) -> tuple[Tensor, Tensor | Any]:
         logger.info("Extracting human votes...")
 
+        hotkeys: List[str] = get_metagraph().hotkeys
         human_voting_scores = None
         human_voting_scores_dict = {}
 

@@ -49,7 +49,10 @@ class BlacklistFilter(BaseRewardModel):
         return 1.0
 
     async def get_rewards(
-        self, _synapse: bt.Synapse, responses, rewards
+        self,
+        _synapse: bt.Synapse,
+        responses: torch.FloatTensor,
+        rewards: torch.FloatTensor,
     ) -> torch.FloatTensor:
         return torch.tensor(
             [

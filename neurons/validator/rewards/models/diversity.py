@@ -86,8 +86,8 @@ class DiversityRewardModel(BaseRewardModel):
     async def get_rewards(
         self,
         _synapse: bt.Synapse,
-        responses,
-        rewards,
+        responses: torch.FloatTensor,
+        rewards: torch.FloatTensor,
     ) -> torch.FloatTensor:
         extract_fn = self.extract_embeddings(self.model.to(get_device()))
 
@@ -126,6 +126,7 @@ class DiversityRewardModel(BaseRewardModel):
                         ]
                     )
                 i += 1
+
         return dissimilarity_scores
 
     def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
@@ -365,7 +366,10 @@ class ModelDiversityRewardModel(BaseRewardModel):
         return synapse
 
     async def get_rewards(
-        self, synapse: bt.Synapse, responses, rewards
+        self,
+        synapse: bt.Synapse,
+        responses: torch.FloatTensor,
+        rewards: torch.FloatTensor,
     ) -> torch.FloatTensor:
         extract_fn = self.extract_embeddings(self.model.to(get_device()))
 
@@ -391,16 +395,24 @@ class ModelDiversityRewardModel(BaseRewardModel):
         )
         scores = []
         exact_scores = []
-        for i, image in enumerate(images):
+        for image in images:
             if image == []:
                 scores.append(0)
-            else:
-                image_embeddings = extract_fn({"image": [image]})
-                cosine_similarity = F.cosine_similarity(
-                    validator_embeddings["embeddings"], image_embeddings["embeddings"]
+                continue
+
+            image_embeddings = extract_fn({"image": [image]})
+            cosine_similar_score = F.cosine_similarity(
+                validator_embeddings["embeddings"],
+                image_embeddings["embeddings"],
+            )
+            scores.append(
+                float(
+                    cosine_similar_score.item() > self.threshold,
                 )
-                scores.append(float(cosine_similarity.item() > self.threshold))
-                exact_scores.append(cosine_similarity.item())
+            )
+
+            exact_scores.append(cosine_similar_score.item())
+
         return torch.tensor(scores)
 
     def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:

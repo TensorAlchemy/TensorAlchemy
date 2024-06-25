@@ -39,7 +39,7 @@ class NSFWRewardModel(BaseRewardModel):
                 return_tensors="pt",
             ).to(get_device())
 
-            images, has_nsfw_concept = self.safetychecker.forward(
+            _, has_nsfw_concept = self.safetychecker.forward(
                 images=response.images,
                 clip_input=clip_input.pixel_values.to(get_device()),
             )
@@ -58,8 +58,8 @@ class NSFWRewardModel(BaseRewardModel):
     async def get_rewards(
         self,
         _synapse: bt.Synapse,
-        responses,
-        rewards,
+        responses: torch.FloatTensor,
+        rewards: torch.FloatTensor,
     ) -> torch.FloatTensor:
         return torch.tensor(
             [

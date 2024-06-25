@@ -18,9 +18,7 @@ class ImageRewardModel(BaseRewardModel):
         super().__init__()
         self.scoring_model = RM.load("ImageReward-v1.0", device=get_device())
 
-    def reward(self, response) -> float:
-        img_scores = torch.zeros(len(response.images), dtype=torch.float32)
-
+    def reward(self, response: torch.FloatTensor) -> float:
         try:
             with torch.no_grad():
                 images = [
@@ -39,7 +37,10 @@ class ImageRewardModel(BaseRewardModel):
             return 0.0
 
     async def get_rewards(
-        self, _synapse: bt.Synapse, responses, rewards
+        self,
+        _synapse: bt.Synapse,
+        responses: torch.FloatTensor,
+        rewards: torch.FloatTensor,
     ) -> torch.FloatTensor:
         return torch.tensor(
             [self.reward(response) for response in responses],
