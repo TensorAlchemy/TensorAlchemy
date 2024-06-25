@@ -6,7 +6,6 @@ import bittensor as bt
 from loguru import logger
 
 from neurons.constants import EVENTS_RETENTION_SIZE
-from neurons.validator.backend.client import TensorAlchemyBackendClient
 
 IS_TEST: bool = False
 
@@ -97,7 +96,7 @@ def get_config(cls):
 
 device: torch.device = None
 metagraph: bt.metagraph = None
-backend_client: TensorAlchemyBackendClient = None
+backend_client: "TensorAlchemyBackendClient" = None
 
 
 def get_metagraph(**kwargs) -> bt.metagraph:
@@ -108,9 +107,11 @@ def get_metagraph(**kwargs) -> bt.metagraph:
     return metagraph
 
 
-def get_backend_client() -> TensorAlchemyBackendClient:
+def get_backend_client() -> "TensorAlchemyBackendClient":
     global backend_client
     if not backend_client:
+        from neurons.validator.backend.client import TensorAlchemyBackendClient
+
         backend_client = TensorAlchemyBackendClient()
 
     return backend_client
