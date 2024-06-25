@@ -33,8 +33,9 @@ from neurons.utils import (
     get_defaults,
 )
 from neurons.validator.config import (
-    add_args,
     check_config,
+    add_args,
+    get_device,
     get_config,
     get_metagraph,
 )
@@ -127,7 +128,7 @@ class StableValidator:
         )
 
         # Init device.
-        self.device = torch.device(self.config.alchemy.device)
+        self.device = get_device(torch.device(self.config.alchemy.device))
 
         self.corcel_api_key = os.environ.get("CORCEL_API_KEY")
 

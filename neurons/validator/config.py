@@ -1,5 +1,6 @@
-import argparse
 import os
+import argparse
+from typing import Optional
 
 import torch
 import bittensor as bt
@@ -10,12 +11,12 @@ from neurons.constants import EVENTS_RETENTION_SIZE
 IS_TEST: bool = False
 
 
-def get_default_device() -> str:
+def get_default_device() -> torch.device:
     if IS_TEST:
         logger.info("Using CPU for test environment (CI)")
-        return "cpu:0"
+        return torch.device("cpu:0")
 
-    return "cuda:0"
+    return torch.device("cuda:0")
 
 
 def check_config(cls, to_check: bt.config):
@@ -117,11 +118,13 @@ def get_backend_client() -> "TensorAlchemyBackendClient":
     return backend_client
 
 
-def get_device() -> torch.device:
+def get_device(new_device: Optional[torch.device] = None) -> torch.device:
     global device
     if not device:
-        config = get_config()
-        check_config(config)
-        device = config.alchemy.device
+        if new_device is None:
+            device = get_default_device()
+
+        else:
+            device = new_device
 
     return device

@@ -2,14 +2,13 @@ import copy
 
 import torch
 
-from neurons.validator import config
+from neurons.validator.config import get_device
 from neurons.validator.rewards.reward import (
     apply_human_voting_weight,
 )
 
 
 def test_apply_human_voting_weight():
-    device = config.get_default_device()
     human_voting_weight = 0.02 / 32
     test_index = 0
     rewards = torch.tensor(
@@ -25,7 +24,7 @@ def test_apply_human_voting_weight():
             0.0,
             0.0,
         ]
-    ).to(device)
+    ).to(get_device())
     human_voting_scores = torch.tensor(
         [
             91 / 100,
@@ -39,7 +38,7 @@ def test_apply_human_voting_weight():
             1 / 100,
             1 / 100,
         ]
-    ).to(device)
+    ).to(get_device())
     previous_reward = copy.copy(rewards[test_index].item())
     new_rewards = apply_human_voting_weight(
         rewards, human_voting_scores, human_voting_weight
