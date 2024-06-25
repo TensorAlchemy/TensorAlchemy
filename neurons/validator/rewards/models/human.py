@@ -55,11 +55,12 @@ class HumanValidationRewardModel(BaseRewardModel):
                 if hotkey in human_voting_scores_dict.keys():
                     self.human_voting_scores[index] = human_voting_scores_dict[hotkey]
 
-        if self.human_voting_scores.sum() == 0:
-            human_voting_scores_normalised = self.human_voting_scores
-        else:
-            human_voting_scores_normalised = (
-                self.human_voting_scores / self.human_voting_scores.sum()
-            )
+        return self.human_voting_scores
 
-        return self.human_voting_scores, human_voting_scores_normalised
+    def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
+        if self.human_voting_scores.sum() == 0:
+            human_voting_scores_normalised = rewards
+        else:
+            human_voting_scores_normalised = rewards / rewards.sum()
+
+        return human_voting_scores_normalised
