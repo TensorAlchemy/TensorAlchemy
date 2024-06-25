@@ -26,7 +26,7 @@ class HumanValidationRewardModel(BaseRewardModel):
     async def get_rewards(
         self,
         _synapse: bt.Synapse,
-        responses: torch.FloatTensor,
+        _responses: torch.FloatTensor,
         rewards: torch.FloatTensor,
     ) -> tuple[Tensor, Tensor | Any]:
         logger.info("Extracting human votes...")

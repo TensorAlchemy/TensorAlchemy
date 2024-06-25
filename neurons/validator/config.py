@@ -135,17 +135,9 @@ def get_metagraph(netuid: int = 25, network: str = "test", **kwargs) -> bt.metag
 def get_backend_client() -> "TensorAlchemyBackendClient":
     global backend_client
     if not backend_client:
-        if IS_TEST:
-            from neurons.validator.backend.client_mock import (
-                MockTensorAlchemyBackendClient,
-            )
+        from neurons.validator.backend.client import TensorAlchemyBackendClient
 
-            backend_client = MockTensorAlchemyBackendClient()
-
-        else:
-            from neurons.validator.backend.client import TensorAlchemyBackendClient
-
-            backend_client = TensorAlchemyBackendClient()
+        backend_client = TensorAlchemyBackendClient()
 
     return backend_client
 

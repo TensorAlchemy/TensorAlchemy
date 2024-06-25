@@ -202,7 +202,7 @@ class BaseRewardModel:
     def get_successful_indices(
         self,
         _rewards: torch.FloatTensor,
-        responses: List[Any],
+        responses: List[bt.Synapse],
     ) -> List[int]:
         return [
             #
@@ -211,29 +211,30 @@ class BaseRewardModel:
             if self.was_success(resp)
         ]
 
+    def get_successful_generations(
+        self,
+        rewards: torch.FloatTensor,
+        responses: List[bt.synapse],
+    ) -> List[bt.Synapse]:
+        # Get all completions from responding calls.
+        return [
+            #
+            responses[idx]
+            for idx in self.get_successful_indices(rewards, responses)
+        ]
+
     async def apply(
         self,
         synapse: bt.Synapse,
-        responses: List[Any],
+        responses: List[bt.Synapse],
         rewards: torch.FloatTensor,
     ) -> Tuple[torch.FloatTensor, torch.FloatTensor]:
         """Applies the reward model across each call.
         Unsuccessful responses are zeroed."""
-        # Get indices of correctly responding calls.
-
-        successful_generations_indices: List[int] = self.get_successful_indices(
-            rewards, responses
-        )
-
-        # Get all completions from responding calls.
-        successful_generations: List[str] = [
-            responses[idx] for idx in successful_generations_indices
-        ]
-
         # Reward each completion.
         successful_rewards = await self.get_rewards(
             synapse,
-            successful_generations,
+            responses,
             rewards,
         )
 
@@ -243,6 +244,10 @@ class BaseRewardModel:
         # Init zero rewards for all calls.
         filled_rewards = torch.zeros(len(responses), dtype=torch.float32)
         filled_rewards_normalized = torch.zeros(len(responses), dtype=torch.float32)
+
+        successful_generations_indices: List[int] = self.get_successful_indices(
+            rewards, responses
+        )
 
         # Fill reward tensor.
         for idx, reward, reward_normalized in zip(
