@@ -9,7 +9,7 @@ from neurons.validator.backend.client_mock import MockTensorAlchemyBackendClient
 @pytest.fixture
 def mock_tensor_alchemy_backend_client():
     with patch(
-        "your_module.TensorAlchemyBackendClient",
+        "neurons.validator.backend.client.TensorAlchemyBackendClient",
         MockTensorAlchemyBackendClient,
     ):
         yield MockTensorAlchemyBackendClient()
