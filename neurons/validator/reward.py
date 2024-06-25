@@ -5,10 +5,9 @@ import time
 from abc import abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 
 import ImageReward as RM
-import bittensor as bt
 import numpy as np
 import sentry_sdk
 import torch
@@ -22,8 +21,15 @@ from diffusers import (
     DPMSolverMultistepScheduler,
 )
 from loguru import logger
+from neurons.miners.StableMiner.utils import colored_log, nsfw_image_filter, sh, warm_up
+from neurons.protocol import ImageGeneration
+from neurons.safety import StableDiffusionSafetyChecker
+from neurons.utils import clean_nsfw_from_prompt, get_defaults
+from neurons.validator import config as validator_config
+from neurons.validator.backend.client import TensorAlchemyBackendClient
+from neurons.validator.utils import cosine_distance
 from sklearn.metrics.pairwise import cosine_similarity
-from tenacity import AsyncRetrying, stop_after_attempt, wait_fixed, RetryError
+from tenacity import AsyncRetrying, RetryError, stop_after_attempt, wait_fixed
 from torch import Tensor
 from transformers import (
     AutoFeatureExtractor,
@@ -32,18 +38,7 @@ from transformers import (
     CLIPImageProcessor,
 )
 
-from neurons.miners.StableMiner.utils import (
-    colored_log,
-    nsfw_image_filter,
-    sh,
-    warm_up,
-)
-from neurons.protocol import ImageGeneration
-from neurons.safety import StableDiffusionSafetyChecker
-from neurons.utils import get_defaults, clean_nsfw_from_prompt
-from neurons.validator import config as validator_config
-from neurons.validator.backend.client import TensorAlchemyBackendClient
-from neurons.validator.utils import cosine_distance
+import bittensor as bt
 
 transform = T.Compose([T.PILToTensor()])
 
@@ -62,10 +57,18 @@ async def apply_reward_functions(
     responses: list,
     rewards: torch.Tensor,
     device: torch.device,
+    task_type: str,
 ) -> tuple[torch.Tensor, dict]:
+    # Create base image prompt
+    if task_type == "image_to_image":
+        base_image_prompt = "An image of random colours in each pixel overlayed with an image generated with the following instruction:"
+    else:
+        base_image_prompt = None
     event = {}
     for weight_i, reward_fn_i in zip(reward_weights, reward_functions):
-        reward_i, reward_i_normalized = await reward_fn_i.apply(responses, rewards)
+        reward_i, reward_i_normalized = await reward_fn_i.apply(
+            responses, rewards, base_image_prompt
+        )
         rewards += weight_i * reward_i_normalized.to(device)
         event[reward_fn_i.name] = reward_i.tolist()
         event[reward_fn_i.name + "_normalized"] = reward_i_normalized.tolist()
@@ -98,7 +101,12 @@ async def get_automated_rewards(self, responses, uids, task_type):
     )
 
     rewards, reward_event = await apply_reward_functions(
-        self.reward_weights, self.reward_functions, responses, rewards, self.device
+        self.reward_weights,
+        self.reward_functions,
+        responses,
+        rewards,
+        self.device,
+        task_type,
     )
     event.update(reward_event)
 
@@ -258,7 +266,8 @@ class DefaultRewardFrameworkConfig:
 class BaseRewardModel:
     @property
     @abstractmethod
-    def name(self) -> str: ...
+    def name(self) -> str:
+        ...
 
     def __str__(self) -> str:
         return str(self.name)
@@ -267,7 +276,13 @@ class BaseRewardModel:
         return str(self.name)
 
     @abstractmethod
-    async def get_rewards(self, responses: List, rewards) -> torch.FloatTensor: ...
+    async def get_rewards(
+        self,
+        responses: List,
+        rewards,
+        base_image_prompt: str = None,
+    ) -> torch.FloatTensor:
+        ...
 
     def __init__(self) -> None:
         self.count = 0
@@ -332,6 +347,7 @@ class BaseRewardModel:
         self,
         responses: List[bt.Synapse],
         rewards,
+        base_image_prompt: str = None,
     ) -> torch.FloatTensor:
         """Applies the reward model across each call. Unsuccessful responses are zeroed."""
         # Get indices of correctly responding calls.
@@ -347,7 +363,9 @@ class BaseRewardModel:
             responses[idx] for idx in successful_generations_indices
         ]
         # Reward each completion.
-        successful_rewards = await self.get_rewards(successful_generations, rewards)
+        successful_rewards = await self.get_rewards(
+            successful_generations, rewards, base_image_prompt
+        )
 
         # Softmax rewards across samples.
         successful_rewards_normalized = self.normalize_rewards(successful_rewards)
@@ -408,7 +426,9 @@ class BlacklistFilter(BaseRewardModel):
                 return 0.0
         return 1.0
 
-    async def get_rewards(self, responses, rewards) -> torch.FloatTensor:
+    async def get_rewards(
+        self, responses, rewards, base_image_prompt: str = None
+    ) -> torch.FloatTensor:
         return torch.tensor(
             [
                 self.reward(response) if reward != 0.0 else 0.0
@@ -463,7 +483,9 @@ class NSFWRewardModel(BaseRewardModel):
 
         return 1.0
 
-    async def get_rewards(self, responses, rewards) -> torch.FloatTensor:
+    async def get_rewards(
+        self, responses, rewards, base_image_prompt: str = None
+    ) -> torch.FloatTensor:
         return torch.tensor(
             [
                 self.reward(response) if reward != 0.0 else 0.0
@@ -494,7 +516,6 @@ class HumanValidationRewardModel(BaseRewardModel):
     async def get_rewards(
         self, hotkeys, mock=False, mock_winner=None, mock_loser=None
     ) -> tuple[Tensor, Tensor | Any]:
-
         logger.info("Extracting human votes...")
 
         human_voting_scores = None
@@ -558,15 +579,19 @@ class ImageRewardModel(BaseRewardModel):
         self.device = validator_config.get_default_device()
         self.scoring_model = RM.load("ImageReward-v1.0", device=self.device)
 
-    def reward(self, response) -> float:
+    def reward(self, response, base_image_prompt: str = None) -> float:
         img_scores = torch.zeros(len(response.images), dtype=torch.float32)
+        if base_image_prompt == None:
+            prompt = response.prompt
+        else:
+            prompt = f"{base_image_prompt} {response.prompt}"
         try:
             with torch.no_grad():
                 images = [
                     transforms.ToPILImage()(bt.Tensor.deserialize(image))
                     for image in response.images
                 ]
-                _, scores = self.scoring_model.inference_rank(response.prompt, images)
+                _, scores = self.scoring_model.inference_rank(prompt, images)
 
                 image_scores = torch.tensor(scores)
                 mean_image_scores = torch.mean(image_scores)
@@ -577,9 +602,11 @@ class ImageRewardModel(BaseRewardModel):
             logger.error("ImageReward score is 0. No image in response.")
             return 0.0
 
-    async def get_rewards(self, responses, rewards) -> torch.FloatTensor:
+    async def get_rewards(
+        self, responses, rewards, base_image_prompt: str = None
+    ) -> torch.FloatTensor:
         return torch.tensor(
-            [self.reward(response) for response in responses],
+            [self.reward(response, base_image_prompt) for response in responses],
             dtype=torch.float32,
         )
 
@@ -629,7 +656,9 @@ class DiversityRewardModel(BaseRewardModel):
 
         return pp
 
-    async def get_rewards(self, responses, rewards) -> torch.FloatTensor:
+    async def get_rewards(
+        self, responses, rewards, base_image_prompt: str = None
+    ) -> torch.FloatTensor:
         extract_fn = self.extract_embeddings(self.model.to(self.device))
 
         images = [
@@ -897,7 +926,9 @@ class ModelDiversityRewardModel(BaseRewardModel):
         self.stats.generation_time += generation_time
         return synapse
 
-    async def get_rewards(self, responses, rewards, synapse) -> torch.FloatTensor:
+    async def get_rewards(
+        self, responses, rewards, synapse, base_image_prompt: str = None
+    ) -> torch.FloatTensor:
         extract_fn = self.extract_embeddings(self.model.to(self.device))
 
         images = [

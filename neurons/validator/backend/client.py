@@ -29,7 +29,6 @@ from neurons.validator.backend.models import TaskState
 
 
 class TensorAlchemyBackendClient:
-
     def __init__(self, config: bt.config):
         self.config = config
 

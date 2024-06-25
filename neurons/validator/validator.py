@@ -6,20 +6,12 @@ import time
 import traceback
 import uuid
 
-import bittensor as bt
 import sentry_sdk
 import torch
-import wandb
 from loguru import logger
-
 from neurons.constants import DEV_URL, N_NEURONS, PROD_URL
-from neurons.protocol import denormalize_image_model, ImageGenerationTaskModel
-from neurons.utils import (
-    BackgroundTimer,
-    background_loop,
-    colored_log,
-    get_defaults,
-)
+from neurons.protocol import ImageGenerationTaskModel, denormalize_image_model
+from neurons.utils import BackgroundTimer, background_loop, colored_log, get_defaults
 from neurons.validator.backend.client import TensorAlchemyBackendClient
 from neurons.validator.backend.models import TaskState
 from neurons.validator.config import add_args, check_config, config
@@ -35,12 +27,15 @@ from neurons.validator.utils import (
     generate_random_prompt_gpt,
     get_device_name,
     get_random_uids,
+    get_validator_version,
     init_wandb,
     reinit_wandb,
     ttl_get_block,
-    get_validator_version,
 )
 from neurons.validator.weights import set_weights
+
+import bittensor as bt
+import wandb
 
 
 def is_valid_current_directory() -> bool:
@@ -313,7 +308,7 @@ class StableValidator:
 
                     continue
 
-                # Text to Image Run
+                # Image Generation Run
                 await run_step(self, task, axons, uids)
                 # Re-sync with the network. Updates the metagraph.
                 try:
@@ -376,14 +371,23 @@ class StableValidator:
             if not prompt:
                 logger.error("failed to generate prompt for synthetic task")
                 return None
+
+            if self.step % 2 == 0:
+                task_type = "TEXT_TO_IMAGE"
+                images = None
+            else:
+                task_type = "IMAGE_TO_IMAGE"
+                images = [bt.Tensor.serialize(torch.rand([3, 1024, 1024]))]
+
             # NOTE: Generate synthetic request
             return denormalize_image_model(
                 id=str(uuid.uuid4()),
                 image_count=1,
-                task_type="TEXT_TO_IMAGE",
+                task_type=task_type,
                 guidance_scale=7.5,
                 negative_prompt=None,
                 prompt=prompt,
+                images=images,
                 seed=-1,
                 steps=50,
                 width=1024,

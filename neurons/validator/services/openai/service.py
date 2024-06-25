@@ -10,7 +10,6 @@ class OpenAIRequestFailed(Exception):
 
 
 class OpenAIService:
-
     def __init__(self):
         openai_api_key = os.environ.get("OPENAI_API_KEY", None)
         if not openai_api_key:
