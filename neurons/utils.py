@@ -39,6 +39,9 @@ from neurons.constants import (
 from neurons.exceptions import MinimumValidImagesError
 from neurons.validator.schemas import Batch
 from neurons.validator.utils import init_wandb
+from neurons.validator.rewards.types import (
+    RewardModelType,
+)
 
 
 @dataclass
@@ -311,7 +314,12 @@ def background_loop(self, is_validator):
 
                 if validator_weights:
                     weights_to_add = []
-                    for rw_name in self.reward_processor.reward_names:
+                    reward_names = [
+                        RewardModelType.IMAGE,
+                        RewardModelType.DIVERSITY,
+                    ]
+
+                    for rw_name in reward_names:
                         if rw_name in validator_weights:
                             weights_to_add.append(validator_weights[rw_name])
 

@@ -1,17 +1,18 @@
-from typing import Dict, List
+from typing import Dict, List, Optional
+
 import torch
 import bittensor as bt
 from loguru import logger
+
 from neurons.protocol import ModelType
 from neurons.validator.config import get_device
-from neurons.validator.backend.client import TensorAlchemyBackendClient
-from neurons.validator.rewards.models.base import BaseRewardModel
 from neurons.validator.rewards.models.blacklist import BlacklistFilter
 from neurons.validator.rewards.models.diversity import ModelDiversityRewardModel
 from neurons.validator.rewards.models.human import HumanValidationRewardModel
 from neurons.validator.rewards.models.image_reward import ImageRewardModel
 from neurons.validator.rewards.models.nsfw import NSFWRewardModel
 from neurons.validator.rewards.types import (
+    MaskedRewards,
     PackedRewardModel,
     RewardModelType,
     AutomatedRewards,
@@ -104,34 +105,55 @@ async def apply_masking_functions(
     return rewards, event
 
 
+async def apply_reward_function(
+    reward_function: PackedRewardModel,
+    synapse: bt.synapse,
+    responses: list,
+    rewards: torch.Tensor,
+    event: Optional[Dict] = None,
+) -> tuple[torch.Tensor, dict]:
+    if event is None:
+        event = {}
+
+    reward_i, reward_i_normalized = await reward_function.apply(
+        synapse,
+        responses,
+        rewards,
+    )
+
+    rewards += reward_function.weight * reward_i_normalized.to(get_device())
+    event[reward_function.name] = reward_i.tolist()
+    event[reward_function.name + "_normalized"] = reward_i_normalized.tolist()
+    logger.info(f"{reward_function.name}, {reward_i_normalized.tolist()}")
+
+    return rewards, event
+
+
 async def apply_reward_functions(
     model_type: ModelType,
     synapse: bt.synapse,
     responses: list,
     rewards: torch.Tensor,
 ) -> tuple[torch.Tensor, dict]:
-    event = {}
     reward_functions: List[PackedRewardModel] = get_reward_functions(model_type)
+
+    event: Dict = {}
     for function in reward_functions:
-        reward_i, reward_i_normalized = await function.apply(
+        rewards, event = apply_reward_function(
+            function,
             synapse,
             responses,
             rewards,
         )
-
-        rewards += function.weight * reward_i_normalized.to(get_device())
-        event[function.name] = reward_i.tolist()
-        event[function.name + "_normalized"] = reward_i_normalized.tolist()
-        logger.info(f"{function.name}, {reward_i_normalized.tolist()}")
 
     return rewards, event
 
 
 async def get_automated_rewards(
     model_type: ModelType,
+    synapse: bt.Synapse,
     responses: List[bt.Synapse],
-    task_type,
-    synapse,
+    task_type: str,
 ) -> AutomatedRewards:
     event = {"task_type": task_type}
 
@@ -163,3 +185,34 @@ async def get_automated_rewards(
         event=event,
         rewards=rewards,
     )
+
+
+async def get_masked_rewards(
+    model_type: ModelType,
+    synapse: bt.Synapse,
+    responses: List[bt.Synapse],
+) -> MaskedRewards:
+    """Apply masking functions (NSFW, Blacklist etc.) and return rewards
+
+    Return 0 score if response didn't pass check
+    """
+    rewards, event = await apply_masking_functions(
+        model_type,
+        synapse,
+        responses,
+        torch.ones(len(responses)).to(get_device()),
+    )
+
+    return MaskedRewards(rewards=rewards, event=event)
+
+
+def filter_rewards(
+    isalive_dict: Dict[int, int],
+    isalive_threshold: int,
+    rewards: torch.Tensor,
+) -> torch.Tensor:
+    for uid, count in isalive_dict.items():
+        if count >= isalive_threshold:
+            rewards[uid] = 0
+
+    return rewards

@@ -3,8 +3,8 @@ import copy
 import torch
 
 from neurons.validator.config import get_device
-from neurons.validator.rewards.reward import (
-    apply_human_voting_weight,
+from neurons.validator.rewards.pipeline import (
+    apply_reward_functions,
 )
 
 
@@ -40,8 +40,10 @@ def test_apply_human_voting_weight():
         ]
     ).to(get_device())
     previous_reward = copy.copy(rewards[test_index].item())
-    new_rewards = apply_human_voting_weight(
-        rewards, human_voting_scores, human_voting_weight
+    new_rewards = apply_reward_functions(
+        rewards,
+        human_voting_scores,
+        human_voting_weight,
     )
     current_reward = new_rewards[test_index].item()
     assert current_reward > previous_reward

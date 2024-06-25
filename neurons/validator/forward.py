@@ -20,15 +20,17 @@ from neurons.protocol import ImageGeneration, ImageGenerationTaskModel
 from neurons.utils import colored_log, sh, Stats
 
 from neurons.validator.config import get_device, get_backend_client
-from neurons.validator.backend.client import TensorAlchemyBackendClient
 from neurons.validator.backend.exceptions import PostMovingAveragesError
 from neurons.validator.event import EventSchema
 from neurons.validator.rewards.interface import AbstractRewardProcessor
-from neurons.validator.rewards.models.blacklist import BlacklistFilter
-from neurons.validator.rewards.models.nsfw import NSFWRewardModel
 from neurons.validator.rewards.types import MaskedRewards, AutomatedRewards
 from neurons.validator.schemas import Batch
 from neurons.validator.utils import ttl_get_block
+from neurons.validator.rewards.pipeline import (
+    get_masked_rewards,
+    get_automated_rewards,
+    filter_rewards,
+)
 
 transform = T.Compose([T.PILToTensor()])
 
@@ -135,9 +137,10 @@ async def query_axons_and_process_responses(
             f"axon={response.axon.hotkey} uid={response.uid}"
             f" responded in {response.time:.2f}s"
         )
-        masked_rewards = await validator.reward_processor.get_masked_rewards(
+        masked_rewards = await get_masked_rewards(
+            validator.model_type,
+            synapse,
             responses=[response.synapse],
-            models=[BlacklistFilter(), NSFWRewardModel()],
         )
         # Create batch from single response and enqueue uploading
         # Batch will be merged at backend side
@@ -389,13 +392,11 @@ async def run_step(
     log_responses(responses, prompt)
 
     # Calculate rewards
-    automated_rewards: AutomatedRewards = await reward_processor.get_automated_rewards(
-        validator,
+    automated_rewards: AutomatedRewards = await get_automated_rewards(
         validator.model_type,
-        responses,
-        uids,
-        task_type,
         synapse,
+        responses,
+        task_type,
     )
 
     uids_tensor = torch.tensor(uids).to(get_device())
@@ -403,15 +404,10 @@ async def run_step(
         0, uids_tensor, automated_rewards.rewards
     ).to(get_device())
 
-    scattered_rewards_adjusted = await reward_processor.get_human_rewards(
-        validator.hotkeys,
-        scattered_rewards,
-    )
-
-    scattered_rewards_adjusted = reward_processor.filter_rewards(
+    scattered_rewards_adjusted = filter_rewards(
         validator.isalive_dict,
         validator.isalive_threshold,
-        scattered_rewards_adjusted,
+        scattered_rewards,
     )
 
     # Update moving averages

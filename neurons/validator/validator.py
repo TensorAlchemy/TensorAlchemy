@@ -212,9 +212,6 @@ class StableValidator:
         self.prev_block = ttl_get_block(self)
         self.step = 0
 
-        # Rewards calculation
-        self.reward_processor = RewardProcessor()
-
         # Set validator variables
         self.request_frequency = 35
         self.query_timeout = 20
@@ -331,7 +328,6 @@ class StableValidator:
                     uids=uids,
                     model_type=self.model_type,
                     stats=self.stats,
-                    reward_processor=self.reward_processor,
                 )
                 # Re-sync with the network. Updates the metagraph.
                 try:
