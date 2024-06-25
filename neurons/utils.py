@@ -37,7 +37,6 @@ from neurons.constants import (
     WANDB_VALIDATOR_PATH,
 )
 from neurons.exceptions import MinimumValidImagesError
-from neurons.validator.backend.client import TensorAlchemyBackendClient
 from neurons.validator.schemas import Batch
 from neurons.validator.utils import init_wandb
 

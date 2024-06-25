@@ -12,8 +12,15 @@ import sentry_sdk
 import torch
 import wandb
 from loguru import logger
+import sentry_sdk
 
-from neurons.constants import DEV_URL, N_NEURONS, PROD_URL
+from neurons.constants import (
+    DEV_URL,
+    N_NEURONS,
+    PROD_URL,
+    VALIDATOR_SENTRY_DSN,
+)
+
 from neurons.protocol import (
     denormalize_image_model,
     ImageGenerationTaskModel,
@@ -102,6 +109,15 @@ class StableValidator:
         # Init config
         self.config = StableValidator.config()
         self.check_config(self.config)
+
+        environment: str = "production"
+        if self.config.subtensor.network == "test":
+            environment = "local"
+
+        sentry_sdk.init(
+            environment=environment,
+            dsn=VALIDATOR_SENTRY_DSN,
+        )
 
         bt.logging(
             config=self.config,
