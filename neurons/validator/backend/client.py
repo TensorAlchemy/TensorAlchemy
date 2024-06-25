@@ -101,7 +101,7 @@ class TensorAlchemyBackendClient:
             try:
                 if response.json().get("code") == "NO_TASKS_FOUND":
                     return None
-            except Exception as e:
+            except Exception:
                 pass
 
         raise GetTaskError(

@@ -34,7 +34,7 @@ class ImageRewardModel(BaseRewardModel):
 
                 return mean_image_scores
 
-        except Exception as e:
+        except Exception:
             logger.error("ImageReward score is 0. No image in response.")
             return 0.0
 

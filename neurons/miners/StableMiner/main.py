@@ -1,4 +1,5 @@
-import time, pathlib, sys
+import pathlib
+import sys
 
 if __name__ == "__main__":
     # Add the base repository to the path so the miner can access it
