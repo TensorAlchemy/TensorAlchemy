@@ -16,6 +16,13 @@ class HumanValidationRewardModel(BaseRewardModel):
     def name(self) -> str:
         return str(RewardModelType.HUMAN)
 
+    def get_successful_indices(
+        self,
+        rewards: torch.FloatTensor,
+        _responses: List[Any],
+    ) -> List[int]:
+        return [i for i, reward in enumerate(rewards) if reward > 0]
+
     async def get_rewards(
         self,
         _synapse: bt.Synapse,
@@ -25,7 +32,7 @@ class HumanValidationRewardModel(BaseRewardModel):
         logger.info("Extracting human votes...")
 
         hotkeys: List[str] = get_metagraph().hotkeys
-        human_voting_scores = None
+        to_return = torch.zeros((get_metagraph().n)).to(self.device)
         human_voting_scores_dict = {}
 
         max_retries = 3
@@ -35,32 +42,30 @@ class HumanValidationRewardModel(BaseRewardModel):
                 stop=stop_after_attempt(max_retries), wait=wait_fixed(backoff)
             ):
                 with attempt:
-                    human_voting_scores = await get_backend_client().get_votes()
+                    self.human_voting_scores = await get_backend_client().get_votes()
 
         except RetryError as e:
             logger.error(f"error while getting votes: {e}")
             # Return empty results
-            return self.human_voting_scores, self.human_voting_scores
+            return to_return
 
         if human_voting_scores:
             for inner_dict in human_voting_scores.values():
-                for key, value in inner_dict.items():
-                    if key in human_voting_scores_dict:
-                        human_voting_scores_dict[key] += value
+                for hotkey, value in inner_dict.items():
+                    if hotkey in human_voting_scores_dict:
+                        human_voting_scores_dict[hotkey] += value
                     else:
-                        human_voting_scores_dict[key] = value
+                        human_voting_scores_dict[hotkey] = value
 
         if human_voting_scores_dict != {}:
             for index, hotkey in enumerate(hotkeys):
                 if hotkey in human_voting_scores_dict.keys():
-                    self.human_voting_scores[index] = human_voting_scores_dict[hotkey]
+                    to_return[index] = human_voting_scores_dict[hotkey]
 
-        return self.human_voting_scores
+        return to_return
 
     def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
-        if self.human_voting_scores.sum() == 0:
-            human_voting_scores_normalised = rewards
-        else:
-            human_voting_scores_normalised = rewards / rewards.sum()
+        if rewards.sum() == 0:
+            return rewards
 
-        return human_voting_scores_normalised
+        return rewards / rewards.sum()

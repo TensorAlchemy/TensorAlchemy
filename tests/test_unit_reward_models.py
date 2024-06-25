@@ -44,7 +44,9 @@ async def test_black_image():
         ),
     ]
     rewards = await blacklist_reward_model.get_rewards(
-        responses, rewards=torch.ones(len(responses))
+        responses[0],
+        responses,
+        rewards=torch.ones(len(responses)),
     )
     assert rewards[0].item() == 1
     assert rewards[1].item() == 0
@@ -70,7 +72,9 @@ async def test_incorrect_image_size():
         ),
     ]
     rewards = await blacklist_reward_model.get_rewards(
-        responses, rewards=torch.ones(len(responses))
+        responses[0],
+        responses,
+        rewards=torch.ones(len(responses)),
     )
     assert rewards[0].item() == 1
     assert rewards[1].item() == 0
@@ -99,7 +103,9 @@ async def test_nsfw_image():
     )
     responses = [response_nsfw, response_no_nsfw]
     rewards = await nsfw_reward_model.get_rewards(
-        responses, rewards=torch.ones(len(responses))
+        response_no_nsfw,
+        responses,
+        rewards=torch.ones(len(responses)),
     )
     assert rewards[0].item() == 0
     assert rewards[1].item() == 1

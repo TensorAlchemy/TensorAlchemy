@@ -73,18 +73,6 @@ def is_valid_current_directory() -> bool:
 
 
 class StableValidator:
-    @classmethod
-    def check_config(cls, new_config: bt.config):
-        check_config(cls, new_config)
-
-    @classmethod
-    def add_args(cls, parser):
-        add_args(cls, parser)
-
-    @classmethod
-    def config(cls):
-        return get_config(cls)
-
     def loop_until_registered(self):
         index = None
         while True:
@@ -108,8 +96,7 @@ class StableValidator:
 
     def __init__(self):
         # Init config
-        self.config = StableValidator.config()
-        self.check_config(self.config)
+        self.config = get_config()
 
         environment: str = "production"
         if self.config.subtensor.network == "test":

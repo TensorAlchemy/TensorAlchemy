@@ -1,6 +1,6 @@
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import Any, List, Tuple
 
 import bittensor as bt
 import numpy as np
@@ -190,20 +190,40 @@ class BaseRewardModel:
 
         return rewards
 
+    def was_success(self, response: Any) -> bool:
+        if isinstance(response, float):
+            return response > 0
+
+        if isinstance(response, bt.Synapse):
+            return response.dendrite.status_code == 200
+
+        return False
+
+    def get_successful_indices(
+        self,
+        _rewards: torch.FloatTensor,
+        responses: List[Any],
+    ) -> List[int]:
+        return [
+            #
+            idx
+            for idx, resp in enumerate(responses)
+            if self.was_success(resp)
+        ]
+
     async def apply(
         self,
         synapse: bt.Synapse,
-        responses: List[bt.Synapse],
+        responses: List[Any],
         rewards: torch.FloatTensor,
     ) -> Tuple[torch.FloatTensor, torch.FloatTensor]:
-        """Applies the reward model across each call. Unsuccessful responses are zeroed."""
+        """Applies the reward model across each call.
+        Unsuccessful responses are zeroed."""
         # Get indices of correctly responding calls.
 
-        successful_generations_indices: List[int] = [
-            idx
-            for idx, resp in enumerate(responses)
-            if resp.dendrite.status_code == 200
-        ]
+        successful_generations_indices: List[int] = self.get_successful_indices(
+            rewards, responses
+        )
 
         # Get all completions from responding calls.
         successful_generations: List[str] = [

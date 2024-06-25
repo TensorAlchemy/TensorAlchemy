@@ -24,7 +24,7 @@ from neurons.validator.backend.exceptions import (
     PostWeightsError,
     UpdateTaskError,
 )
-from neurons.validator.config import check_config, get_config
+from neurons.validator.config import get_config, add_args
 from neurons.validator.backend.models import TaskState
 from neurons.validator.schemas import Batch
 
@@ -32,7 +32,6 @@ from neurons.validator.schemas import Batch
 class TensorAlchemyBackendClient:
     def __init__(self):
         self.config = get_config()
-        check_config(self.config)
 
         self.wallet = bt.wallet(config=self.config)
         self.hotkey = self.wallet.hotkey

@@ -1,16 +1,29 @@
 import copy
 
 import torch
+import bittensor as bt
 
+from neurons.protocol import ImageGeneration, ModelType
 from neurons.validator.config import get_device
+from neurons.validator.rewards.types import RewardModelType
 from neurons.validator.rewards.pipeline import (
-    apply_reward_functions,
+    get_function,
+    apply_reward_function,
+    REWARD_MODELS,
 )
 
 
-def test_apply_human_voting_weight():
-    human_voting_weight = 0.02 / 32
+async def test_apply_human_voting_weight():
     test_index = 0
+    synapse = ImageGeneration(
+        generation_type="TEXT_TO_IMAGE",
+        seed=-1,
+        model_type=ModelType.ALCHEMY.value,
+        images=[
+            bt.Tensor.serialize(torch.full([3, 1024, 1024], 254, dtype=torch.float))
+        ],
+    )
+
     rewards = torch.tensor(
         [
             0.6522690057754517,
@@ -25,25 +38,13 @@ def test_apply_human_voting_weight():
             0.0,
         ]
     ).to(get_device())
-    human_voting_scores = torch.tensor(
-        [
-            91 / 100,
-            1 / 100,
-            1 / 100,
-            1 / 100,
-            1 / 100,
-            1 / 100,
-            1 / 100,
-            1 / 100,
-            1 / 100,
-            1 / 100,
-        ]
-    ).to(get_device())
+
     previous_reward = copy.copy(rewards[test_index].item())
-    new_rewards = apply_reward_functions(
-        rewards,
-        human_voting_scores,
-        human_voting_weight,
+    new_rewards = await apply_reward_function(
+        get_function(REWARD_MODELS, RewardModelType.HUMAN),
+        synapse,
+        [],  # some synapse responses
+        torch.ones(len(rewards)).to(get_device()),
     )
     current_reward = new_rewards[test_index].item()
     assert current_reward > previous_reward

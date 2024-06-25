@@ -1,6 +1,6 @@
 import os
 import argparse
-from typing import Optional
+from typing import Any, Optional
 
 import torch
 import bittensor as bt
@@ -19,7 +19,7 @@ def get_default_device() -> torch.device:
     return torch.device("cuda:0")
 
 
-def check_config(cls, to_check: bt.config):
+def check_config(to_check: bt.config):
     r"""Checks/validates the config namespace object."""
     bt.logging.check_config(to_check)
     # bt.wallet.check_config(config)
@@ -58,14 +58,20 @@ def check_config(cls, to_check: bt.config):
     )
 
 
-def add_args(_cls, parser):
+def add_args(parser):
     # Netuid Arg
-    parser.add_argument("--netuid", type=int, help="Network netuid", default=26)
+    parser.add_argument(
+        "--netuid",
+        type=int,
+        help="Network netuid",
+        default=26,
+    )
 
     parser.add_argument(
         "--alchemy.name",
         type=str,
-        help="Trials for this validator go in validator.root / (wallet_cold - wallet_hot) / validator.name.",
+        help="Trials for this validator go in validator.root"
+        + " / (wallet_cold - wallet_hot) / validator.name.",
         default="image_alchemy_validator",
     )
     parser.add_argument(
@@ -74,7 +80,11 @@ def add_args(_cls, parser):
         help="Device to run the validator on.",
         default=get_default_device(),
     )
-    parser.add_argument("--alchemy.force_prod", action="store_true", default=False)
+    parser.add_argument(
+        "--alchemy.force_prod",
+        action="store_true",
+        default=False,
+    )
     parser.add_argument(
         "--alchemy.streamlit_port",
         type=int,
@@ -83,27 +93,41 @@ def add_args(_cls, parser):
     )
 
 
-def get_config(cls):
+config: bt.config = None
+device: torch.device = None
+metagraph: bt.metagraph = None
+backend_client: "TensorAlchemyBackendClient" = None
+
+
+def get_config():
+    global config
+    if config:
+        return config
+
     parser = argparse.ArgumentParser()
 
     bt.wallet.add_args(parser)
     bt.subtensor.add_args(parser)
     bt.logging.add_args(parser)
     bt.axon.add_args(parser)
-    cls.add_args(parser)
 
-    return bt.config(parser)
+    # Add default arguments
+    add_args(parser)
+
+    config = bt.config(parser)
+    check_config(config)
+
+    return config
 
 
-device: torch.device = None
-metagraph: bt.metagraph = None
-backend_client: "TensorAlchemyBackendClient" = None
-
-
-def get_metagraph(**kwargs) -> bt.metagraph:
+def get_metagraph(netuid: int = 25, network: str = "test", **kwargs) -> bt.metagraph:
     global metagraph
     if not metagraph:
-        metagraph = bt.metagraph(**kwargs)
+        metagraph = bt.metagraph(
+            netuid=netuid,
+            network=network,
+            **kwargs,
+        )
 
     return metagraph
 
@@ -111,9 +135,17 @@ def get_metagraph(**kwargs) -> bt.metagraph:
 def get_backend_client() -> "TensorAlchemyBackendClient":
     global backend_client
     if not backend_client:
-        from neurons.validator.backend.client import TensorAlchemyBackendClient
+        if IS_TEST:
+            from neurons.validator.backend.client_mock import (
+                MockTensorAlchemyBackendClient,
+            )
 
-        backend_client = TensorAlchemyBackendClient()
+            backend_client = MockTensorAlchemyBackendClient()
+
+        else:
+            from neurons.validator.backend.client import TensorAlchemyBackendClient
+
+            backend_client = TensorAlchemyBackendClient()
 
     return backend_client
 

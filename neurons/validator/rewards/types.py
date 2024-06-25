@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Type, Tuple
+from typing import Tuple
 
 import torch
 from pydantic import BaseModel
@@ -8,7 +8,10 @@ from neurons.validator.rewards.models.base import BaseRewardModel
 
 class PackedRewardModel(BaseModel):
     weight: float
-    model: Type[BaseRewardModel]
+    model: BaseRewardModel
+
+    class Config:
+        arbitrary_types_allowed = True
 
     @property
     def name(self) -> str:

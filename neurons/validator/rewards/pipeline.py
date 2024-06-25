@@ -48,7 +48,7 @@ MASKING_MODELS: ModelStorage = {
 }
 
 
-def get_model(
+def get_function(
     models: ModelStorage,
     reward_type: RewardModelType,
 ) -> PackedRewardModel:
@@ -61,21 +61,21 @@ def get_model(
 def get_reward_functions(model_type: ModelType) -> List[PackedRewardModel]:
     if model_type != ModelType.ALCHEMY:
         return [
-            get_model(REWARD_MODELS, RewardModelType.IMAGE),
-            get_model(REWARD_MODELS, RewardModelType.HUMAN),
+            get_function(REWARD_MODELS, RewardModelType.IMAGE),
+            get_function(REWARD_MODELS, RewardModelType.HUMAN),
         ]
 
     return [
-        get_model(REWARD_MODELS, RewardModelType.IMAGE),
-        get_model(REWARD_MODELS, RewardModelType.DIVERSITY),
-        get_model(REWARD_MODELS, RewardModelType.HUMAN),
+        get_function(REWARD_MODELS, RewardModelType.IMAGE),
+        get_function(REWARD_MODELS, RewardModelType.DIVERSITY),
+        get_function(REWARD_MODELS, RewardModelType.HUMAN),
     ]
 
 
 def get_masking_functions(_model_type: ModelType) -> List[PackedRewardModel]:
     return [
-        get_model(MASKING_MODELS, RewardModelType.NSFW),
-        get_model(MASKING_MODELS, RewardModelType.BLACKLIST),
+        get_function(MASKING_MODELS, RewardModelType.NSFW),
+        get_function(MASKING_MODELS, RewardModelType.BLACKLIST),
     ]
 
 

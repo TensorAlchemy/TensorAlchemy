@@ -19,27 +19,38 @@ from neurons.constants import MOVING_AVERAGE_ALPHA
 from neurons.protocol import ImageGeneration, ImageGenerationTaskModel
 from neurons.utils import colored_log, sh, Stats
 
-from neurons.validator.config import get_device, get_backend_client
 from neurons.validator.backend.exceptions import PostMovingAveragesError
 from neurons.validator.event import EventSchema
-from neurons.validator.rewards.interface import AbstractRewardProcessor
 from neurons.validator.rewards.types import MaskedRewards, AutomatedRewards
 from neurons.validator.schemas import Batch
 from neurons.validator.utils import ttl_get_block
+from neurons.validator.config import (
+    get_device,
+    get_metagraph,
+    get_backend_client,
+)
 from neurons.validator.rewards.pipeline import (
+    filter_rewards,
     get_masked_rewards,
     get_automated_rewards,
-    filter_rewards,
 )
 
 transform = T.Compose([T.PILToTensor()])
 
 
 async def update_moving_averages(
-    validator: "StableValidator",
+    previous_ma_scores: torch.FloatTensor,
     rewards: torch.Tensor,
-    alpha=MOVING_AVERAGE_ALPHA,
+    hotkey_blacklist: Optional[List[str]] = None,
+    coldkey_blacklist: Optional[List[str]] = None,
+    alpha: Optional[float] = MOVING_AVERAGE_ALPHA,
 ) -> None:
+    if not hotkey_blacklist:
+        hotkey_blacklist = []
+
+    if not coldkey_blacklist:
+        coldkey_blacklist = []
+
     rewards = torch.nan_to_num(
         rewards,
         nan=0.0,
@@ -49,28 +60,30 @@ async def update_moving_averages(
 
     moving_average_scores: torch.FloatTensor = alpha * rewards + (
         1 - alpha
-    ) * validator.moving_average_scores.to(get_device())
+    ) * previous_ma_scores.to(get_device())
 
-    validator.moving_average_scores = moving_average_scores
+    metagraph: bt.metagraph = get_metagraph()
 
     # Save moving averages scores on backend
     try:
         await get_backend_client().post_moving_averages(
-            validator.hotkeys,
+            metagraph.hotkeys,
             moving_average_scores,
         )
     except PostMovingAveragesError as e:
         logger.error(f"failed to post moving averages: {e}")
 
     try:
-        for i, average in enumerate(validator.moving_average_scores):
-            if (validator.metagraph.axons[i].hotkey in validator.hotkey_blacklist) or (
-                validator.metagraph.axons[i].coldkey in validator.coldkey_blacklist
+        for i, average in enumerate(moving_average_scores):
+            if (metagraph.axons[i].hotkey in hotkey_blacklist) or (
+                metagraph.axons[i].coldkey in coldkey_blacklist
             ):
-                validator.moving_average_scores[i] = 0
+                moving_average_scores[i] = 0
 
     except Exception as e:
         logger.error(f"An unexpected error occurred (E1): {e}")
+
+    return moving_average_scores
 
 
 class ImageGenerationResponse(BaseModel):
@@ -291,13 +304,6 @@ async def create_batch_for_upload(
     )
 
 
-# Upload the batches to the Human Validation Platform
-# validator.batches = await upload_batches(
-#     validator.backend_client,
-#     validator.batches,
-# )
-
-
 def display_run_info(stats: Stats, task_type: str, prompt: str):
     time_elapsed = datetime.now() - stats.start_time
 
@@ -322,7 +328,6 @@ def display_run_info(stats: Stats, task_type: str, prompt: str):
 
 async def run_step(
     validator: "StableValidator",
-    reward_processor: AbstractRewardProcessor,
     task: ImageGenerationTaskModel,
     axons: List[AxonInfo],
     uids: torch.LongTensor,
@@ -411,9 +416,11 @@ async def run_step(
     )
 
     # Update moving averages
-    await update_moving_averages(
+    validator.moving_average_scores = await update_moving_averages(
         validator,
         scattered_rewards_adjusted,
+        hotkey_blacklist=validator.hotkey_blacklist,
+        coldkey_blacklist=validator.coldkey_blacklist,
     )
 
     # Update event and save it to wandb
