@@ -1,12 +1,12 @@
 from typing import Any, List
 
+import torch
+from torch import Tensor
 import bittensor as bt
 from loguru import logger
 from tenacity import AsyncRetrying, RetryError, stop_after_attempt, wait_fixed
-from torch import Tensor
 
 from neurons.validator.config import get_backend_client, get_metagraph
-from neurons.validator.backend.client import TensorAlchemyBackendClient
 from neurons.validator.rewards.models.base import BaseRewardModel
 from neurons.validator.rewards.types import RewardModelType
 
