@@ -6,7 +6,7 @@ import time
 from dataclasses import asdict
 from datetime import datetime
 from io import BytesIO
-from typing import List, AsyncIterator, Optional
+from typing import List, AsyncIterator, Optional, Tuple
 
 import bittensor as bt
 import torch
@@ -104,32 +104,51 @@ class ImageGenerationResponse(BaseModel):
         return self.synapse.images
 
 
-async def query_single_axon(
-    dendrite: bt.dendrite,
-    axon: AxonInfo,
-    synapse: bt.Synapse,
-    query_timeout: int,
-) -> bt.Synapse:
-    responses = await dendrite(
-        [axon],
-        synapse,
-        timeout=query_timeout,
-    )
-    return responses[0]
-
-
 async def query_axons_async(
     dendrite: bt.dendrite,
     axons: List[AxonInfo],
     uids: torch.LongTensor,
     synapse: bt.Synapse,
     query_timeout: int,
-) -> AsyncIterator[bt.Synapse]:
-    routines = [
-        query_single_axon(dendrite, axon, synapse, query_timeout) for axon in axons
-    ]
+) -> AsyncIterator[Tuple[int, bt.Synapse]]:
+    """
+    Asynchronously queries a list of axons and yields the responses.
+
+    Args:
+        dendrite (bt.dendrite): The dendrite instance to use for querying.
+        axons (List[AxonInfo]): The list of axons to query.
+        uids (torch.LongTensor): The unique identifiers of the axons.
+        synapse (bt.Synapse): The synapse object to use for the query.
+        query_timeout (int): The timeout duration for the query.
+
+    Yields:
+        Tuple[int, bt.Synapse]: The UID of the axon
+                                and the filled Synapse object.
+    """
+
+    async def process_stream(axon: AxonInfo):
+        async for response in dendrite.call_stream(
+            synapse=synapse,
+            target_axon=axon,
+            timeout=query_timeout,
+        ):
+            if isinstance(response, bt.Synapse):
+                # TODO: Bittensor AsyncGenerator has a bug
+                #       it always returns the same axon
+                #
+                # FIXME: Check in bittensor 7.2.0
+                response.axon.uuid = axon.uuid
+                response.axon.port = axon.port
+                response.axon.hotkey = axon.hotkey
+                response.axon.signature = axon.signature
+
+                return response
+
+    routines = [process_stream(axon) for axon, uid in zip(axons, uids)]
+
     for future in asyncio.as_completed(routines):
-        result: bt.Synapse = await future
+        result = await future
+        print(f"{result.axon.hotkey=}")
         yield result
 
 

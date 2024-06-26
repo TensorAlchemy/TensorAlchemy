@@ -16,8 +16,8 @@ def get_caller_stake(self, synapse):
     """
     Look up the stake of the requesting validator.
     """
-    if synapse.dendrite.hotkey in self.metagraph.hotkeys:
-        index = self.metagraph.hotkeys.index(synapse.dendrite.hotkey)
+    if synapse.axon.hotkey in self.metagraph.hotkeys:
+        index = self.metagraph.hotkeys.index(synapse.axon.hotkey)
         return self.metagraph.S[index].item()
     return None
 
@@ -37,7 +37,7 @@ def do_logs(self, synapse, local_args):
     Output logs for each request that comes through.
     """
     time_elapsed = datetime.now() - self.stats.start_time
-    hotkey = synapse.dendrite.hotkey
+    hotkey = synapse.axon.hotkey
 
     colored_log(
         str(sh("Info"))

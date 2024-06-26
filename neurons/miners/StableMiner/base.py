@@ -400,7 +400,7 @@ class BaseMiner(ABC):
         # If hotkey or coldkey is whitelisted
         # and not found on the metagraph, give a priority of 5,000
         # Caller hotkey
-        caller_hotkey = synapse.dendrite.hotkey
+        caller_hotkey = synapse.axon.hotkey
 
         # Retrieve the coldkey of the caller
         caller_coldkey = get_coldkey_for_hotkey(self, caller_hotkey)
@@ -414,14 +414,14 @@ class BaseMiner(ABC):
             priority = 25000
             logger.info(
                 f"Setting the priority of whitelisted key"
-                + f" {synapse.dendrite.hotkey} to {priority}"
+                + f" {synapse.axon.hotkey} to {priority}"
             )
 
         try:
-            caller_uid = self.metagraph.hotkeys.index(synapse.dendrite.hotkey)
+            caller_uid = self.metagraph.hotkeys.index(synapse.axon.hotkey)
             priority = max(priority, float(self.metagraph.S[caller_uid]))
             logger.info(
-                f"Prioritizing key {synapse.dendrite.hotkey}"
+                f"Prioritizing key {synapse.axon.hotkey}"
                 + f" with value: {priority}."
             )
         except Exception:
@@ -437,7 +437,7 @@ class BaseMiner(ABC):
             synapse_type = type(synapse).__name__
 
             # Caller hotkey
-            caller_hotkey = synapse.dendrite.hotkey
+            caller_hotkey = synapse.axon.hotkey
 
             # Retrieve the coldkey of the caller
             caller_coldkey = get_coldkey_for_hotkey(self, caller_hotkey)
