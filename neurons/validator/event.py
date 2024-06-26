@@ -7,13 +7,24 @@ from neurons.validator.rewards.types import RewardModelType
 
 def convert_enum_keys_to_strings(data) -> dict:
     if isinstance(data, dict):
-        return {
-            k.value if isinstance(k, Enum) else str(k): convert_enum_keys_to_strings(v)
-            for k, v in data.items()
-        }
+        new_dict = {}
+        for k, v in data.items():
+            new_key = k.value if isinstance(k, Enum) else k
+            new_value = convert_enum_keys_to_strings(v)
+            new_dict[new_key] = new_value
+
+        return new_dict
 
     if isinstance(data, list):
-        return [convert_enum_keys_to_strings(item) for item in data]
+        new_list = []
+        for item in data:
+            new_item = convert_enum_keys_to_strings(item)
+            new_list.append(new_item)
+
+        return new_list
+
+    if isinstance(data, Enum):
+        return data.value
 
     return data
 
