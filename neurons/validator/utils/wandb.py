@@ -64,41 +64,39 @@ def reinit_wandb(self):
     init_wandb(self, reinit=True)
 
 
-def get_promptdb_backup(netuid, prompt_history=[], limit=1):
+def get_promptdb_backup(netuid, prompt=[], limit=1):
     api = wandb.Api()
     project = "ImageAlchemy" if netuid == 26 else "ImageAlchemyTest"
     runs = api.runs(f"tensoralchemists/{project}")
 
     for run in runs:
-        if len(prompt_history) >= limit:
+        if len(prompt) >= limit:
             break
         if run.historyLineCount >= 100:
             history = run.history()
-            if ("prompt_t2i" not in history.columns) or (
-                "prompt_i2i" not in history.columns
-            ):
+            if ("prompt" not in history.columns) or ("prompt" not in history.columns):
                 continue
             for i in range(0, len(history) - 1, 2):
-                if len(prompt_history) >= limit:
+                if len(prompt) >= limit:
                     break
 
                 if (
-                    pd.isna(history.loc[i, "prompt_t2i"])
-                    or (history.loc[i, "prompt_t2i"] is None)
+                    pd.isna(history.loc[i, "prompt"])
+                    or (history.loc[i, "prompt"] is None)
                     or (i == len(history))
-                    or (history.loc[i + 1, "prompt_i2i"] is None)
-                    or pd.isna(history.loc[i + 1, "prompt_i2i"])
+                    or (history.loc[i + 1, "prompt"] is None)
+                    or pd.isna(history.loc[i + 1, "prompt"])
                 ):
                     continue
 
-                prompt_tuple = (
-                    history.loc[i, "prompt_t2i"],
-                    history.loc[i + 1, "prompt_i2i"],
+                prompt = (
+                    history.loc[i, "prompt"],
+                    history.loc[i + 1, "prompt"],
                 )
 
-                if prompt_tuple in prompt_history:
+                if prompt in prompt:
                     continue
 
-                prompt_history.append(prompt_tuple)
+                prompt.append(prompt)
 
-    return prompt_history
+    return prompt

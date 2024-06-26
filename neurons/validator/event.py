@@ -11,8 +11,7 @@ class EventSchema:
     block: float
     uids: List[int]
     hotkeys: List[str]
-    prompt_t2i: str
-    prompt_i2i: str
+    prompt: str
     step_length: float
     model_type: str
 
@@ -46,7 +45,7 @@ class EventSchema:
             block=event_dict["block"],
             uids=event_dict["uids"],
             hotkeys=event_dict["hotkeys"],
-            prompt_t2i=event_dict["prompt_t2i"],
+            prompt=event_dict["prompt"],
             step_length=event_dict["step_length"],
             images=event_dict["images"],
             rewards=rewards,
@@ -56,6 +55,5 @@ class EventSchema:
             vtrust=event_dict["vtrust"],
             dividends=event_dict["dividends"],
             emissions=event_dict["emissions"],
-            # prompt_i2i=event_dict["prompt_i2i"],
             # moving_averages=event_dict["moving_averages"]
         )

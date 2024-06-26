@@ -437,7 +437,7 @@ async def run_step(
             {
                 "block": ttl_get_block(validator),
                 "step_length": time.time() - start_time,
-                "prompt_t2i": prompt if task_type == "TEXT_TO_IMAGE" else None,
+                "prompt": prompt if task_type == "TEXT_TO_IMAGE" else None,
                 "uids": uids,
                 "hotkeys": [response.dendrite.hotkey for response in responses],
                 "images": [
