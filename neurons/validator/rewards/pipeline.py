@@ -172,6 +172,9 @@ async def get_automated_rewards(
     # NOTE: If mask is (1) that means we had a trigger
     #       so we want to reduce score by the effect
     #       of the mask.
+    #
+    #       A mask value of 1 means "failed a check",
+    #       so we multiply by (1 - mask)
     rewards *= 1.0 - mask
 
     return AutomatedRewards(
