@@ -1,5 +1,5 @@
 import torch
-from typing import Dict, Any, Callable
+from typing import Dict, Any
 from base import BaseMiner
 from diffusers import (
     AutoPipelineForImage2Image,

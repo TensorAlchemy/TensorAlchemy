@@ -1,6 +1,6 @@
 import os
 import argparse
-from typing import Any, Optional
+from typing import Optional
 
 import torch
 import bittensor as bt

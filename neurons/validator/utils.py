@@ -17,7 +17,7 @@ import torch
 import torch.nn as nn
 import wandb
 from loguru import logger
-from tenacity import retry, stop_after_delay, wait_fixed, retry_if_result
+
 
 from neurons.constants import (
     N_NEURONS_TO_QUERY,
@@ -25,8 +25,7 @@ from neurons.constants import (
     WANDB_VALIDATOR_PATH,
 )
 from neurons.protocol import IsAlive
-from neurons.validator.backend.client import TensorAlchemyBackendClient
-from neurons.validator.backend.exceptions import GetTaskError
+from neurons.validator.rewards.pipeline import REWARD_MODELS
 from neurons.validator.services.openai.service import (
     get_openai_service,
     OpenAIRequestFailed,
@@ -711,8 +710,8 @@ def init_wandb(validator: "StableValidator", reinit=False):
     if validator.config.mock:
         tags.append("mock")
 
-    for fn in validator.reward_processor.reward_models:
-        tags.append(str(fn))
+    for fn_name in REWARD_MODELS:
+        tags.append(str(fn_name))
 
     wandb_config = {
         key: copy.deepcopy(validator.config.get(key, None))

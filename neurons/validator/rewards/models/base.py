@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Any, List, Tuple, Dict
+from typing import List, Tuple, Dict
 
 import bittensor as bt
 import torch
