@@ -1,8 +1,15 @@
 import asyncio
 import pathlib
 import sys
+import warnings
 
 from loguru import logger
+
+# Suppress the eth_utils network warnings
+# "does not have a valid ChainId."
+# NOTE: It's not our bug, it's upstream
+# TODO: Remove after updating bittensor
+warnings.simplefilter("ignore")
 
 REPO_URL = "TensorAlchemy/TensorAlchemy"
 
