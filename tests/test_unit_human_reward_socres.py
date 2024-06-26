@@ -1,3 +1,5 @@
+# In tests/test_unit_human_reward_scores.py
+
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 import torch
@@ -72,9 +74,6 @@ async def test_apply_human_voting_weight():
 
     # Apply patches for the entire test
     with patch(
-        "neurons.validator.rewards.models.human.get_metagraph",
-        return_value=mock_metagraph,
-    ), patch(
         "neurons.validator.rewards.models.human.get_backend_client",
         return_value=mock_backend_client,
     ):
@@ -83,7 +82,7 @@ async def test_apply_human_voting_weight():
             get_function(REWARD_MODELS, RewardModelType.EMPTY),
             generate_synapse(),
             responses,
-            {uid: 0.0 for uid in test_uids},
+            {hotkey: 0.0 for hotkey in test_hotkeys},
         )
 
         # Assert all rewards are 0
@@ -97,20 +96,20 @@ async def test_apply_human_voting_weight():
             empty_rewards,
         )
 
-        print(human_rewards)
-        # Assert rewards have changed for UIDs with votes
-        assert human_rewards[1] > 0
-        assert human_rewards[2] > 0
-        assert human_rewards[3] > 0
-        assert human_rewards[4] > 0
-        assert human_rewards[5] == 0  # This UID didn't receive any votes
+        # Assert rewards have changed for hotkeys with votes
+        assert human_rewards["hotkey_1"] > 0
+        assert human_rewards["hotkey_2"] > 0
+        assert human_rewards["hotkey_3"] > 0
+        assert human_rewards["hotkey_4"] > 0
+        assert human_rewards["hotkey_5"] == 0  # hotkey didn't get votes
 
         # Assert relative magnitudes
-        assert human_rewards[1] > human_rewards[2]  # UID 1 got more votes than UID 2
-        assert human_rewards[3] > human_rewards[4]  # UID 3 got more votes than UID 4
+        assert (
+            human_rewards["hotkey_1"] > human_rewards["hotkey_2"]
+        )  # hotkey_1 got more votes than hotkey_2
+        assert (
+            human_rewards["hotkey_3"] > human_rewards["hotkey_4"]
+        )  # hotkey_3 got more votes than hotkey_4
 
         # Verify that the backend client's get_votes method was called
         mock_backend_client.get_votes.assert_awaited_once()
-
-        # Verify that the metagraph's hotkeys were accessed
-        assert mock_metagraph.hotkeys == test_hotkeys

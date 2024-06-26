@@ -1,10 +1,13 @@
+# In neurons/validator/rewards/models/human.py
+
 from typing import Dict, List
 import bittensor as bt
 from loguru import logger
+import torch
 
 from neurons.validator.rewards.models.base import BaseRewardModel
 from neurons.validator.rewards.types import RewardModelType
-from neurons.validator.config import get_backend_client, get_metagraph
+from neurons.validator.config import get_backend_client
 
 
 class HumanValidationRewardModel(BaseRewardModel):
@@ -16,11 +19,10 @@ class HumanValidationRewardModel(BaseRewardModel):
         self,
         _synapse: bt.Synapse,
         responses: List[bt.Synapse],
-    ) -> Dict[int, float]:
+    ) -> Dict[str, float]:
         logger.info("Extracting human votes...")
 
         human_voting_scores_dict = {}
-        metagraph = get_metagraph()
 
         try:
             self.human_voting_scores = await get_backend_client().get_votes()
@@ -31,31 +33,33 @@ class HumanValidationRewardModel(BaseRewardModel):
         if self.human_voting_scores:
             for inner_dict in self.human_voting_scores.values():
                 for hotkey, value in inner_dict.items():
-                    if hotkey in human_voting_scores_dict:
-                        human_voting_scores_dict[hotkey] += value
-                    else:
-                        human_voting_scores_dict[hotkey] = value
+                    human_voting_scores_dict[hotkey] = (
+                        human_voting_scores_dict.get(hotkey, 0) + value
+                    )
 
-        rewards = {}
-        for response in responses:
-            hotkey = response.dendrite.hotkey
-            try:
-                uid = metagraph.hotkeys.index(hotkey)
-                rewards[uid] = human_voting_scores_dict.get(hotkey, 0.0)
-            except ValueError:
-                logger.warning(
-                    f"Hotkey {hotkey} not found in metagraph. Assigning 0 reward."
-                )
-                rewards[hotkey] = 0.0
-
+        rewards = {
+            response.dendrite.hotkey: human_voting_scores_dict.get(
+                response.dendrite.hotkey, 0.0
+            )
+            for response in responses
+        }
         return rewards
 
-    def normalize_rewards(self, rewards: Dict[int, float]) -> Dict[int, float]:
+    def normalize_rewards(self, rewards: Dict[str, float]) -> Dict[str, float]:
         if not rewards:
             return rewards
 
-        total = sum(rewards.values())
-        if total == 0:
-            return rewards
+        values = torch.tensor(list(rewards.values()))
+        if values.numel() > 1:
+            normalized = (values - values.min()) / (values.max() - values.min() + 1e-8)
+        else:
+            normalized = values
 
-        return {uid: score / total for uid, score in rewards.items()}
+        return {
+            #
+            hotkey: float(norm)
+            for hotkey, norm in zip(
+                rewards.keys(),
+                normalized,
+            )
+        }
