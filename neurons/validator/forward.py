@@ -439,9 +439,7 @@ async def run_step(
                 "step_length": time.time() - start_time,
                 "prompt_t2i": prompt if task_type == "TEXT_TO_IMAGE" else None,
                 "uids": uids,
-                "hotkeys": [
-                    validator.metagraph.axons[uid.item()].hotkey for uid in uids
-                ],
+                "hotkeys": [response.dendrite.hotkey for response in responses],
                 "images": [
                     (
                         response.images[0]
