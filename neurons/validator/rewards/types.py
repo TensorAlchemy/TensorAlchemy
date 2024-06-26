@@ -28,7 +28,7 @@ class RewardModelType(str, Enum):
     HUMAN = "HUMAN"
     IMAGE = "IMAGE"
     NSFW = "NSFW_FILTER"
-    DIVERSITY = "DIVERSITY"
+    SIMILARITY = "SIMILARITY"
     BLACKLIST = "BLACKLIST_FILTER"
 
 

@@ -39,10 +39,10 @@ from neurons.validator.rewards.models.base import BaseRewardModel
 from neurons.validator.rewards.types import RewardModelType
 
 
-class DiversityRewardModel(BaseRewardModel):
+class SimilarityRewardModel(BaseRewardModel):
     @property
     def name(self) -> str:
-        return str(RewardModelType.DIVERSITY)
+        return str(RewardModelType.SIMILARITY)
 
     def __init__(self):
         super().__init__()
@@ -133,10 +133,10 @@ class DiversityRewardModel(BaseRewardModel):
         return rewards / rewards.sum()
 
 
-class ModelDiversityRewardModel(BaseRewardModel):
+class ModelSimilarityRewardModel(BaseRewardModel):
     @property
     def name(self) -> str:
-        return RewardModelType.DIVERSITY
+        return RewardModelType.SIMILARITY
 
     def get_config(self) -> bt.config:
         argp = argparse.ArgumentParser(description="Miner Configs")

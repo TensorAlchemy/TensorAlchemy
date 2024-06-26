@@ -316,7 +316,7 @@ def background_loop(self, is_validator):
                     weights_to_add = []
                     reward_names = [
                         RewardModelType.IMAGE,
-                        RewardModelType.DIVERSITY,
+                        RewardModelType.SIMILARITY,
                     ]
 
                     for rw_name in reward_names:

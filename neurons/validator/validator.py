@@ -43,7 +43,7 @@ from neurons.validator.backend.client import TensorAlchemyBackendClient
 from neurons.validator.backend.models import TaskState
 from neurons.validator.forward import run_step
 from neurons.validator.rewards.models.blacklist import BlacklistFilter
-from neurons.validator.rewards.models.diversity import ModelDiversityRewardModel
+from neurons.validator.rewards.models.similarity import ModelSimilarityRewardModel
 from neurons.validator.rewards.models.human import HumanValidationRewardModel
 from neurons.validator.rewards.models.image_reward import ImageRewardModel
 from neurons.validator.rewards.models.nsfw import NSFWRewardModel

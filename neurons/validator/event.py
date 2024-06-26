@@ -20,7 +20,7 @@ class EventSchema:
     rewards: List[float]
     blacklist_filter: Optional[List[float]]
     nsfw_filter: Optional[List[float]]
-    diversity_reward_model: Optional[List[float]]
+    similarity_reward_model: Optional[List[float]]
     image_reward_model: Optional[List[float]]
     human_reward_model: Optional[List[float]]
 
@@ -39,7 +39,7 @@ class EventSchema:
 
         rewards = {
             RewardModelType.BLACKLIST: event_dict.get(RewardModelType.BLACKLIST),
-            RewardModelType.DIVERSITY: event_dict.get(RewardModelType.DIVERSITY),
+            RewardModelType.SIMILARITY: event_dict.get(RewardModelType.SIMILARITY),
             RewardModelType.HUMAN: event_dict.get(RewardModelType.HUMAN),
             RewardModelType.IMAGE: event_dict.get(RewardModelType.IMAGE),
             RewardModelType.NSFW: event_dict.get(RewardModelType.NSFW),
