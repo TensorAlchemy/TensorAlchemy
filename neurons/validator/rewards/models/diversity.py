@@ -2,7 +2,7 @@ import argparse
 import copy
 import random
 import time
-from typing import Dict
+from typing import Dict, List
 
 import bittensor as bt
 import sentry_sdk
@@ -368,36 +368,30 @@ class ModelDiversityRewardModel(BaseRewardModel):
     async def get_rewards(
         self,
         synapse: bt.Synapse,
-        responses: torch.FloatTensor,
-        rewards: torch.FloatTensor,
-    ) -> torch.FloatTensor:
+        responses: List[bt.Synapse],
+    ) -> Dict[int, float]:
         extract_fn = self.extract_embeddings(self.model.to(get_device()))
 
         images = [
-            (
-                T.transforms.ToPILImage()(bt.Tensor.deserialize(response.images[0]))
-                if response.images != []
-                else []
-            )
-            for response, reward in zip(responses, rewards)
+            T.ToPILImage()(bt.Tensor.deserialize(response.images[0]))
+            if response.images
+            else None
+            for response in responses
         ]
 
         validator_synapse = self.generate_image(synapse)
-
         validator_embeddings = extract_fn(
             {
                 "image": [
-                    T.transforms.ToPILImage()(
-                        bt.Tensor.deserialize(validator_synapse.images[0])
-                    )
+                    T.ToPILImage()(bt.Tensor.deserialize(validator_synapse.images[0]))
                 ]
             }
         )
-        scores = []
-        exact_scores = []
-        for image in images:
-            if image == []:
-                scores.append(0)
+
+        scores = {}
+        for response, image in zip(responses, images):
+            if image is None:
+                scores[response.dendrite.hotkey] = 0
                 continue
 
             image_embeddings = extract_fn({"image": [image]})
@@ -405,15 +399,11 @@ class ModelDiversityRewardModel(BaseRewardModel):
                 validator_embeddings["embeddings"],
                 image_embeddings["embeddings"],
             )
-            scores.append(
-                float(
-                    cosine_similar_score.item() > self.threshold,
-                )
+            scores[response.dendrite.hotkey] = float(
+                cosine_similar_score.item() > self.threshold
             )
 
-            exact_scores.append(cosine_similar_score.item())
+        return scores
 
-        return torch.tensor(scores)
-
-    def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
+    def normalize_rewards(self, rewards: Dict[int, float]) -> Dict[int, float]:
         return rewards

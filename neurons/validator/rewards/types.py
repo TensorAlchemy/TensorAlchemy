@@ -24,6 +24,7 @@ class PackedRewardModel(BaseModel):
 
 
 class RewardModelType(str, Enum):
+    EMPTY = "EMPTY"
     HUMAN = "HUMAN"
     IMAGE = "IMAGE"
     NSFW = "NSFW_FILTER"

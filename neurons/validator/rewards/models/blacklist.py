@@ -1,11 +1,7 @@
 import bittensor as bt
-import torch
-import torchvision.transforms as T
-
+from typing import Dict, List
 from neurons.validator.rewards.models.base import BaseRewardModel
 from neurons.validator.rewards.types import RewardModelType
-
-transform = T.Compose([T.PILToTensor()])
 
 
 class BlacklistFilter(BaseRewardModel):
@@ -18,8 +14,7 @@ class BlacklistFilter(BaseRewardModel):
         self.question_blacklist = []
         self.answer_blacklist = []
 
-    def reward(self, response) -> float:
-        # TODO maybe delete this if not needed
+    def reward(self, response: bt.Synapse) -> float:
         # Check the number of returned images in the response
         if len(response.images) != response.num_images_per_prompt:
             return 0.0
@@ -51,16 +46,11 @@ class BlacklistFilter(BaseRewardModel):
     async def get_rewards(
         self,
         _synapse: bt.Synapse,
-        responses: torch.FloatTensor,
-        rewards: torch.FloatTensor,
-    ) -> torch.FloatTensor:
-        return torch.tensor(
-            [
-                self.reward(response) if reward != 0.0 else 0.0
-                for response, reward in zip(responses, rewards)
-            ],
-            dtype=torch.float32,
-        )
+        responses: List[bt.Synapse],
+    ) -> Dict[int, float]:
+        return {
+            response.dendrite.hotkey: self.reward(response) for response in responses
+        }
 
-    def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
+    def normalize_rewards(self, rewards: Dict[int, float]) -> Dict[int, float]:
         return rewards

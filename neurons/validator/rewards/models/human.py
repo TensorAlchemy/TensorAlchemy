@@ -1,18 +1,10 @@
-from typing import Any, List
-
-import torch
-from torch import Tensor
+from typing import Dict, List
 import bittensor as bt
 from loguru import logger
-from tenacity import AsyncRetrying, RetryError, stop_after_attempt, wait_fixed
 
 from neurons.validator.rewards.models.base import BaseRewardModel
 from neurons.validator.rewards.types import RewardModelType
-from neurons.validator.config import (
-    get_device,
-    get_metagraph,
-    get_backend_client,
-)
+from neurons.validator.config import get_backend_client, get_metagraph
 
 
 class HumanValidationRewardModel(BaseRewardModel):
@@ -20,38 +12,21 @@ class HumanValidationRewardModel(BaseRewardModel):
     def name(self) -> str:
         return str(RewardModelType.HUMAN)
 
-    def get_successful_indices(
-        self,
-        rewards: torch.FloatTensor,
-        _responses: List[Any],
-    ) -> List[int]:
-        return [i for i, reward in enumerate(rewards) if reward > 0]
-
     async def get_rewards(
         self,
         _synapse: bt.Synapse,
-        _responses: torch.FloatTensor,
-        rewards: torch.FloatTensor,
-    ) -> tuple[Tensor, Tensor | Any]:
+        responses: List[bt.Synapse],
+    ) -> Dict[int, float]:
         logger.info("Extracting human votes...")
 
-        hotkeys: List[str] = get_metagraph().hotkeys
-        to_return = torch.zeros((get_metagraph().n)).to(get_device())
         human_voting_scores_dict = {}
+        metagraph = get_metagraph()
 
-        max_retries = 3
-        backoff = 2
         try:
-            async for attempt in AsyncRetrying(
-                stop=stop_after_attempt(max_retries), wait=wait_fixed(backoff)
-            ):
-                with attempt:
-                    self.human_voting_scores = await get_backend_client().get_votes()
-
-        except RetryError as e:
-            logger.error(f"error while getting votes: {e}")
-            # Return empty results
-            return to_return
+            self.human_voting_scores = await get_backend_client().get_votes()
+        except Exception as e:
+            logger.error(f"Error while getting votes: {e}")
+            return {response.dendrite.hotkey: 0.0 for response in responses}
 
         if self.human_voting_scores:
             for inner_dict in self.human_voting_scores.values():
@@ -61,15 +36,26 @@ class HumanValidationRewardModel(BaseRewardModel):
                     else:
                         human_voting_scores_dict[hotkey] = value
 
-        if human_voting_scores_dict != {}:
-            for index, hotkey in enumerate(hotkeys):
-                if hotkey in human_voting_scores_dict.keys():
-                    to_return[index] = human_voting_scores_dict[hotkey]
+        rewards = {}
+        for response in responses:
+            hotkey = response.dendrite.hotkey
+            try:
+                uid = metagraph.hotkeys.index(hotkey)
+                rewards[uid] = human_voting_scores_dict.get(hotkey, 0.0)
+            except ValueError:
+                logger.warning(
+                    f"Hotkey {hotkey} not found in metagraph. Assigning 0 reward."
+                )
+                rewards[hotkey] = 0.0
 
-        return to_return
+        return rewards
 
-    def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
-        if rewards.sum() == 0:
+    def normalize_rewards(self, rewards: Dict[int, float]) -> Dict[int, float]:
+        if not rewards:
             return rewards
 
-        return rewards / rewards.sum()
+        total = sum(rewards.values())
+        if total == 0:
+            return rewards
+
+        return {uid: score / total for uid, score in rewards.items()}
