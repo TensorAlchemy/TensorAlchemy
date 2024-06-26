@@ -6,9 +6,13 @@ import bittensor as bt
 from loguru import logger
 from tenacity import AsyncRetrying, RetryError, stop_after_attempt, wait_fixed
 
-from neurons.validator.config import get_backend_client, get_metagraph
 from neurons.validator.rewards.models.base import BaseRewardModel
 from neurons.validator.rewards.types import RewardModelType
+from neurons.validator.config import (
+    get_device,
+    get_metagraph,
+    get_backend_client,
+)
 
 
 class HumanValidationRewardModel(BaseRewardModel):
@@ -32,7 +36,7 @@ class HumanValidationRewardModel(BaseRewardModel):
         logger.info("Extracting human votes...")
 
         hotkeys: List[str] = get_metagraph().hotkeys
-        to_return = torch.zeros((get_metagraph().n)).to(self.device)
+        to_return = torch.zeros((get_metagraph().n)).to(get_device())
         human_voting_scores_dict = {}
 
         max_retries = 3
@@ -49,8 +53,8 @@ class HumanValidationRewardModel(BaseRewardModel):
             # Return empty results
             return to_return
 
-        if human_voting_scores:
-            for inner_dict in human_voting_scores.values():
+        if self.human_voting_scores:
+            for inner_dict in self.human_voting_scores.values():
                 for hotkey, value in inner_dict.items():
                     if hotkey in human_voting_scores_dict:
                         human_voting_scores_dict[hotkey] += value
