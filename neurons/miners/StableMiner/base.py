@@ -17,9 +17,9 @@ from neurons.protocol import ImageGeneration, IsAlive, ModelType
 from neurons.utils import (
     BackgroundTimer,
     background_loop,
-    clean_nsfw_from_prompt,
     get_defaults,
 )
+from neurons.utils.nsfw import clean_nsfw_from_prompt
 from utils import (
     colored_log,
     do_logs,

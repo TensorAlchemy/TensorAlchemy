@@ -34,7 +34,8 @@ from neurons.miners.StableMiner.utils import (
 )
 from neurons.protocol import ImageGeneration
 from neurons.safety import StableDiffusionSafetyChecker
-from neurons.utils import clean_nsfw_from_prompt, get_defaults
+from neurons.utils.defaults import get_defaults
+from neurons.utils.nsfw import clean_nsfw_from_prompt
 from neurons.validator.rewards.models.base import BaseRewardModel
 from neurons.validator.rewards.types import RewardModelType
 

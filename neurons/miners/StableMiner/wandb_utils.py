@@ -5,7 +5,7 @@ from threading import Timer
 import torch
 from loguru import logger
 from neurons.constants import WANDB_MINER_PATH
-from utils import colored_log
+from utils.log import colored_log
 
 import bittensor as bt
 import wandb

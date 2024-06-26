@@ -3,7 +3,7 @@ import time
 from datetime import datetime
 
 from loguru import logger
-from neurons.utils import colored_log, sh
+from neurons.utils.log import colored_log, sh
 
 
 # Wrapper for the raw images

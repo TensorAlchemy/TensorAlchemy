@@ -17,7 +17,9 @@ from pydantic import BaseModel
 
 from neurons.constants import MOVING_AVERAGE_ALPHA
 from neurons.protocol import ImageGeneration, ImageGenerationTaskModel
-from neurons.utils import colored_log, sh, Stats
+
+from neurons.utils import Stats
+from neurons.utils.log import colored_log, sh, Stats
 
 from neurons.validator.backend.exceptions import PostMovingAveragesError
 from neurons.validator.event import EventSchema

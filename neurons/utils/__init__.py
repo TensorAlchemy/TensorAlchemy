@@ -1,23 +1,22 @@
-import _thread
 import asyncio
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
 import traceback
 from asyncio import QueueEmpty
-from dataclasses import dataclass
 from datetime import datetime
 from threading import Timer
-from typing import List
 
 import requests
 import sentry_sdk
 import torch
-from google.cloud import storage
+
+import _thread
+
 from loguru import logger
+from google.cloud import storage
 
 from neurons.constants import (
     IA_BUCKET_NAME,
@@ -29,90 +28,16 @@ from neurons.constants import (
     IA_VALIDATOR_SETTINGS_FILE,
     IA_VALIDATOR_WEIGHT_FILES,
     IA_VALIDATOR_WHITELIST,
-    MINIMUM_COMPUTES_FOR_SUBMIT,
     N_NEURONS,
-    NSFW_WORDLIST_DEFAULT,
-    NSFW_WORDLIST_URL,
     WANDB_MINER_PATH,
     WANDB_VALIDATOR_PATH,
 )
-from neurons.exceptions import MinimumValidImagesError
-from neurons.validator.schemas import Batch
-from neurons.validator.utils import init_wandb
+from neurons.utils.log import colored_log
+
+from neurons.validator.utils.wandb import init_wandb
 from neurons.validator.rewards.types import (
     RewardModelType,
 )
-
-
-@dataclass
-class Stats:
-    start_time: datetime
-    start_dt: datetime
-    total_requests: int
-    timeouts: int
-    nsfw_count: int
-    generation_time: int
-
-
-# Colors to use in the logs
-COLORS = {
-    "r": "\033[1;31;40m",
-    "g": "\033[1;32;40m",
-    "b": "\033[1;34;40m",
-    "y": "\033[1;33;40m",
-    "m": "\033[1;35;40m",
-    "c": "\033[1;36;40m",
-    "w": "\033[1;37;40m",
-}
-
-
-def load_nsfw_words(url: str) -> List[str]:
-    try:
-        response = requests.get(url)
-        # Raise an exception if the request was unsuccessful
-        response.raise_for_status()
-
-        # Split the content into lines and strip whitespace
-        words = [line.strip() for line in response.text.splitlines()]
-
-        # Remove empty lines
-        words = [word for word in words if word]
-
-        return words
-
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Error occurred while loading NSFW words from {url}: {str(e)}")
-        return NSFW_WORDLIST_DEFAULT
-
-
-NSFW_WORDS: List[str] = load_nsfw_words(NSFW_WORDLIST_URL)
-
-
-# Utility function for coloring logs
-def colored_log(
-    message: str,
-    color: str = "white",
-    level: str = "INFO",
-) -> None:
-    logger.opt(colors=True).log(level, f"<bold><{color}>{message}</{color}></bold>")
-
-
-def sh(message: str):
-    return f"{message: <12}"
-
-
-# Get default stats
-def get_defaults(self):
-    now = datetime.now()
-    stats = Stats(
-        start_time=now,
-        start_dt=datetime.strftime(now, "%Y/%m/%d %H:%M"),
-        total_requests=0,
-        nsfw_count=0,
-        timeouts=0,
-        generation_time=0,
-    )
-    return stats
 
 
 # Background Loop
@@ -478,12 +403,3 @@ def retrieve_public_file(client, bucket_name, source_name):
         logger.info(f"An error occurred downloading from Google Cloud: {e}")
 
     return file
-
-
-def clean_nsfw_from_prompt(prompt):
-    for word in NSFW_WORDS:
-        if re.search(r"\b{}\b".format(word), prompt):
-            prompt = re.sub(r"\b{}\b".format(word), "", prompt).strip()
-            logger.warning(f"Removed NSFW word {word.strip()} from prompt...")
-
-    return prompt

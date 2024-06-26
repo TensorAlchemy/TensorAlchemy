@@ -9,7 +9,8 @@ from diffusers import (
 from neurons.protocol import ModelType
 from neurons.safety import StableDiffusionSafetyChecker
 from transformers import CLIPImageProcessor
-from utils import colored_log, warm_up
+from utils import warm_up
+from utils.log import colored_log
 
 
 class StableMiner(BaseMiner):
