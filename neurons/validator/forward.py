@@ -131,6 +131,10 @@ async def query_axons_async(
     async def do_call(inbound_axon: bt.AxonInfo) -> Tuple[int, bt.Synapse]:
         uid: int = metagraph.hotkeys.index(inbound_axon.hotkey)
 
+        # NOTE: Anything except `forward` here causes
+        #       weird impure race-conditions.
+        #
+        #       Please use `forward` for now
         to_return: List[bt.Synapse] = await dendrite.forward(
             synapse=synapse,
             timeout=query_timeout,
