@@ -36,21 +36,24 @@ class BlacklistFilter(BaseRewardModel):
                 return 0.0
 
             # check image size
-            if not (
-                (image.shape[1] == response.height)
-                and (image.shape[2] == response.width)
-            ):
+            if not image.shape[1] == response.height:
                 return 0.0
+
+            if not image.shape[2] == response.width:
+                return 0.0
+
         return 1.0
 
     async def get_rewards(
         self,
         _synapse: bt.Synapse,
         responses: List[bt.Synapse],
-    ) -> Dict[int, float]:
+    ) -> Dict[str, float]:
         return {
-            response.dendrite.hotkey: self.reward(response) for response in responses
+            #
+            response.dendrite.hotkey: self.reward(response)
+            for response in responses
         }
 
-    def normalize_rewards(self, rewards: Dict[int, float]) -> Dict[int, float]:
+    def normalize_rewards(self, rewards: Dict[str, float]) -> Dict[str, float]:
         return rewards
