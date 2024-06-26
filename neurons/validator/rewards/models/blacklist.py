@@ -1,8 +1,10 @@
 import bittensor as bt
 from typing import Dict, List
 
+import torch
 from loguru import logger
 
+from neurons.validator.config import get_device
 from neurons.validator.rewards.models.base import BaseRewardModel
 from neurons.validator.rewards.types import RewardModelType
 
@@ -47,17 +49,3 @@ class BlacklistFilter(BaseRewardModel):
                 return 0.0
 
         return 1.0
-
-    async def get_rewards(
-        self,
-        _synapse: bt.Synapse,
-        responses: List[bt.Synapse],
-    ) -> Dict[str, float]:
-        return {
-            #
-            response.dendrite.hotkey: self.reward(response)
-            for response in responses
-        }
-
-    def normalize_rewards(self, rewards: Dict[str, float]) -> Dict[str, float]:
-        return rewards

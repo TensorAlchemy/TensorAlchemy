@@ -412,20 +412,12 @@ async def run_step(
         validator.model_type,
         synapse,
         responses,
+        uids,
         task_type,
     )
 
-    # Convert rewards dict to tensor for scattering
-    rewards_tensor = torch.zeros_like(validator.moving_average_scores)
-    for uid, hotkey in zip(
-        uids,
-        [response.dendrite.hotkey for response in responses],
-    ):
-        if hotkey in automated_rewards.rewards:
-            rewards_tensor[uid] = automated_rewards.rewards[hotkey]
-
     scattered_rewards: torch.Tensor = validator.moving_average_scores.scatter(
-        0, torch.tensor(uids).to(get_device()), rewards_tensor[uids]
+        0, uids, automated_rewards.rewards[uids]
     ).to(get_device())
 
     scattered_rewards_adjusted = filter_rewards(
@@ -437,21 +429,14 @@ async def run_step(
     # Update moving averages
     validator.moving_average_scores = await update_moving_averages(
         validator.moving_average_scores,
-        {
-            validator.metagraph.hotkeys[i]: reward.item()
-            for i, reward in enumerate(scattered_rewards_adjusted)
-            if reward != 0
-        },
+        scattered_rewards_adjusted,
         hotkey_blacklist=validator.hotkey_blacklist,
         coldkey_blacklist=validator.coldkey_blacklist,
     )
 
     # Update event and save it to wandb
     event = automated_rewards.event
-    rewards_list = [
-        automated_rewards.rewards.get(response.dendrite.hotkey, 0)
-        for response in responses
-    ]
+    rewards_list = automated_rewards.rewards[uids].tolist()
     try:
         # Log the step event.
         event.update(
@@ -459,9 +444,11 @@ async def run_step(
                 "block": ttl_get_block(validator),
                 "step_length": time.time() - start_time,
                 "prompt_t2i": prompt if task_type == "TEXT_TO_IMAGE" else None,
-                "prompt_i2i": prompt if task_type == "IMAGE_TO_IMAGE" else None,
-                "uids": uids,
-                "hotkeys": [validator.metagraph.axons[uid].hotkey for uid in uids],
+                # "prompt_i2i": prompt if task_type == "IMAGE_TO_IMAGE" else None,
+                "uids": uids.tolist(),
+                "hotkeys": [
+                    validator.metagraph.axons[uid.item()].hotkey for uid in uids
+                ],
                 "images": [
                     (
                         response.images[0]

@@ -20,12 +20,6 @@ class BaseRewardModel:
     def __repr__(self) -> str:
         return str(self.name)
 
-    @abstractmethod
-    async def get_rewards(
-        self, synapse: bt.Synapse, responses: List[bt.Synapse]
-    ) -> Dict[int, float]:
-        ...
-
     def __init__(self) -> None:
         self.count = 0
         self.mean = 0.0
@@ -33,16 +27,25 @@ class BaseRewardModel:
         self.count_limit = 3000
         self.metagraph = get_metagraph()
 
-    def normalize_rewards(self, rewards: Dict[int, float]) -> Dict[int, float]:
-        if not rewards:
-            return rewards
+    async def get_rewards(
+        self,
+        _synapse: bt.Synapse,
+        responses: List[bt.Synapse],
+    ) -> torch.Tensor:
+        rewards = torch.zeros(len(bt.metagraph.n)).to(get_device())
 
-        values = torch.tensor(list(rewards.values()))
-        normalized = (values - values.mean()) / (values.std() + 1e-8)
-        return {uid: float(norm) for uid, norm in zip(rewards.keys(), normalized)}
+        for response in responses:
+            uid = bt.metagraph.hotkeys.index(response.dendrite.hotkey)
+            rewards[uid] = self.reward(response)
 
-    def was_success(self, response: bt.Synapse) -> bool:
-        return response.dendrite.is_success
+        return rewards
+
+    @abstractmethod
+    def reward(self, response) -> float:
+        return 0.0
+
+    def normalize_rewards(self, rewards: Dict[int, float]) -> torch.Tensor:
+        return rewards
 
     async def apply(
         self,

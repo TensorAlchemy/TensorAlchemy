@@ -1,13 +1,14 @@
 # In neurons/validator/rewards/models/human.py
 
 from typing import Dict, List
-import bittensor as bt
+
 from loguru import logger
+import bittensor as bt
 import torch
 
 from neurons.validator.rewards.models.base import BaseRewardModel
 from neurons.validator.rewards.types import RewardModelType
-from neurons.validator.config import get_backend_client
+from neurons.validator.config import get_backend_client, get_device
 
 
 class HumanValidationRewardModel(BaseRewardModel):
@@ -37,29 +38,23 @@ class HumanValidationRewardModel(BaseRewardModel):
                         human_voting_scores_dict.get(hotkey, 0) + value
                     )
 
-        rewards = {
-            response.dendrite.hotkey: human_voting_scores_dict.get(
-                response.dendrite.hotkey, 0.0
+        rewards = torch.zeros(len(bt.metagraph.n)).to(get_device())
+
+        for response in responses:
+            uid = bt.metagraph.hotkeys.index(response.dendrite.hotkey)
+            rewards[uid] = human_voting_scores_dict.get(
+                response.dendrite.hotkey,
+                0.0,
             )
-            for response in responses
-        }
+
         return rewards
 
-    def normalize_rewards(self, rewards: Dict[str, float]) -> Dict[str, float]:
-        if not rewards:
+    def normalize_rewards(self, rewards: torch.Tensor) -> torch.Tensor:
+        if rewards.sum() == 0:
             return rewards
 
-        values = torch.tensor(list(rewards.values()))
-        if values.numel() > 1:
-            normalized = (values - values.min()) / (values.max() - values.min() + 1e-8)
-        else:
-            normalized = values
-
-        return {
+        return (
             #
-            hotkey: float(norm)
-            for hotkey, norm in zip(
-                rewards.keys(),
-                normalized,
-            )
-        }
+            rewards
+            - rewards.min()
+        ) / (rewards.max() - rewards.min() + 1e-8)

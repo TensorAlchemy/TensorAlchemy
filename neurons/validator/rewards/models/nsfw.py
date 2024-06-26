@@ -41,15 +41,3 @@ class NSFWRewardModel(BaseRewardModel):
             logger.error(f"Error in NSFW detection: {e}")
             logger.error(f"images={response.images}")
             return 1.0
-
-    async def get_rewards(
-        self,
-        _synapse: bt.Synapse,
-        responses: List[bt.Synapse],
-    ) -> Dict[str, float]:
-        return {
-            response.dendrite.hotkey: self.reward(response) for response in responses
-        }
-
-    def normalize_rewards(self, rewards: Dict[str, float]) -> Dict[str, float]:
-        return rewards

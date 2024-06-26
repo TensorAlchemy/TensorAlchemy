@@ -36,15 +36,3 @@ class ImageRewardModel(BaseRewardModel):
         except Exception:
             logger.error("ImageReward score is 0. No image in response.")
             return 0.0
-
-    async def get_rewards(
-        self,
-        _synapse: bt.Synapse,
-        responses: List[bt.Synapse],
-    ) -> Dict[int, float]:
-        rewards = {}
-
-        for response in responses:
-            rewards[response.dendrite.uuid] = self.reward(response)
-
-        return rewards

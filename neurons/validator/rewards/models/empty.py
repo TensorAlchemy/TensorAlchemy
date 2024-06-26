@@ -9,7 +9,5 @@ class EmptyScoreRewardModel(BaseRewardModel):
     def name(self) -> str:
         return str(RewardModelType.EMPTY)
 
-    async def get_rewards(
-        self, _synapse: bt.Synapse, responses: List[bt.Synapse]
-    ) -> Dict[int, float]:
-        return {response.dendrite.uuid: 0.0 for response in responses}
+    def reward(self, _response: bt.Synapse) -> float:
+        return 0.0
