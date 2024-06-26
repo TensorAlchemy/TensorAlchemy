@@ -5,7 +5,7 @@ import time
 from dataclasses import asdict
 from datetime import datetime
 from io import BytesIO
-from typing import List, AsyncIterator, Optional
+from typing import Dict, List, AsyncIterator, Optional
 
 import bittensor as bt
 import torch
@@ -40,29 +40,38 @@ transform = T.Compose([T.PILToTensor()])
 
 async def update_moving_averages(
     previous_ma_scores: torch.FloatTensor,
-    rewards: torch.Tensor,
+    rewards: Dict[str, float],
     hotkey_blacklist: Optional[List[str]] = None,
     coldkey_blacklist: Optional[List[str]] = None,
     alpha: Optional[float] = MOVING_AVERAGE_ALPHA,
-) -> None:
+) -> torch.FloatTensor:
     if not hotkey_blacklist:
         hotkey_blacklist = []
 
     if not coldkey_blacklist:
         coldkey_blacklist = []
 
-    rewards = torch.nan_to_num(
-        rewards,
+    metagraph: bt.metagraph = get_metagraph()
+
+    # Convert rewards dict to tensor
+    rewards_tensor = torch.zeros_like(previous_ma_scores)
+    for hotkey, reward in rewards.items():
+        try:
+            idx = metagraph.hotkeys.index(hotkey)
+            rewards_tensor[idx] = reward
+        except ValueError:
+            logger.warning(f"Hotkey {hotkey} not found in metagraph")
+
+    rewards_tensor = torch.nan_to_num(
+        rewards_tensor,
         nan=0.0,
         posinf=0.0,
         neginf=0.0,
     ).to(get_device())
 
-    moving_average_scores: torch.FloatTensor = alpha * rewards + (
+    moving_average_scores: torch.FloatTensor = alpha * rewards_tensor + (
         1 - alpha
     ) * previous_ma_scores.to(get_device())
-
-    metagraph: bt.metagraph = get_metagraph()
 
     # Save moving averages scores on backend
     try:
@@ -404,9 +413,17 @@ async def run_step(
         task_type,
     )
 
-    uids_tensor = torch.tensor(uids).to(get_device())
+    # Convert rewards dict to tensor for scattering
+    rewards_tensor = torch.zeros_like(validator.moving_average_scores)
+    for uid, hotkey in zip(
+        uids,
+        [response.dendrite.hotkey for response in responses],
+    ):
+        if hotkey in automated_rewards.rewards:
+            rewards_tensor[uid] = automated_rewards.rewards[hotkey]
+
     scattered_rewards: torch.Tensor = validator.moving_average_scores.scatter(
-        0, uids_tensor, automated_rewards.rewards
+        0, torch.tensor(uids).to(get_device()), rewards_tensor[uids]
     ).to(get_device())
 
     scattered_rewards_adjusted = filter_rewards(
@@ -417,15 +434,22 @@ async def run_step(
 
     # Update moving averages
     validator.moving_average_scores = await update_moving_averages(
-        validator,
-        scattered_rewards_adjusted,
+        validator.moving_average_scores,
+        {
+            validator.metagraph.hotkeys[i]: reward.item()
+            for i, reward in enumerate(scattered_rewards_adjusted)
+            if reward != 0
+        },
         hotkey_blacklist=validator.hotkey_blacklist,
         coldkey_blacklist=validator.coldkey_blacklist,
     )
 
     # Update event and save it to wandb
     event = automated_rewards.event
-    rewards_list = automated_rewards.rewards.tolist()
+    rewards_list = [
+        automated_rewards.rewards.get(response.dendrite.hotkey, 0)
+        for response in responses
+    ]
     try:
         # Log the step event.
         event.update(
