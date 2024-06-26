@@ -96,7 +96,11 @@ class BaseMiner(ABC):
             ]
         ):
             self.wandb = WandbUtils(
-                self, self.metagraph, self.config, self.wallet, self.event
+                self,
+                self.metagraph,
+                self.config,
+                self.wallet,
+                self.event,
             )
 
         # Start the generic background loop
@@ -372,7 +376,7 @@ class BaseMiner(ABC):
                 # Log to Wandb
                 self.wandb._log()
 
-        except Exception as e:
+        except Exception:
             logger.info("Error trying to log events to wandb.")
 
         # Log time to generate image
@@ -525,7 +529,7 @@ class BaseMiner(ABC):
             logger.info(f"Allowing recognized hotkey {caller_hotkey}")
             return False, "Hotkey recognized"
 
-        except Exception as e:
+        except Exception:
             logger.info(f"Error in blacklist: {traceback.format_exc()}")
 
     def blacklist_is_alive(self, synapse: IsAlive) -> typing.Tuple[bool, str]:
@@ -620,6 +624,6 @@ class BaseMiner(ABC):
 
             # In case of unforeseen errors,
             # the miner will log the error and continue operations.
-            except Exception as e:
+            except Exception:
                 logger.error(f"Unexpected error: {traceback.format_exc()}")
                 continue

@@ -1,25 +1,23 @@
 import bittensor as bt
-import torch
-import torchvision.transforms as T
+from typing import Dict, List
+
+from loguru import logger
 
 from neurons.validator.rewards.models.base import BaseRewardModel
 from neurons.validator.rewards.types import RewardModelType
-
-transform = T.Compose([T.PILToTensor()])
 
 
 class BlacklistFilter(BaseRewardModel):
     @property
     def name(self) -> str:
-        return RewardModelType.blacklist.value
+        return str(RewardModelType.BLACKLIST)
 
     def __init__(self):
         super().__init__()
         self.question_blacklist = []
         self.answer_blacklist = []
 
-    def reward(self, response) -> float:
-        # TODO maybe delete this if not needed
+    def reward(self, response: bt.Synapse) -> float:
         # Check the number of returned images in the response
         if len(response.images) != response.num_images_per_prompt:
             return 0.0
@@ -30,6 +28,7 @@ class BlacklistFilter(BaseRewardModel):
             try:
                 img = bt.Tensor.deserialize(image)
             except Exception:
+                logger.warning("Could not deserialise image")
                 return 0.0
 
             # Check if the image is black image
@@ -40,22 +39,25 @@ class BlacklistFilter(BaseRewardModel):
             if not isinstance(image, bt.Tensor):
                 return 0.0
 
-            # check image size
-            if not (
-                (image.shape[1] == response.height)
-                and (image.shape[2] == response.width)
-            ):
+            if image.shape[1] != response.width:
                 return 0.0
+
+            # check image size
+            if image.shape[2] != response.height:
+                return 0.0
+
         return 1.0
 
-    async def get_rewards(self, responses, rewards, synapse=None) -> torch.FloatTensor:
-        return torch.tensor(
-            [
-                self.reward(response) if reward != 0.0 else 0.0
-                for response, reward in zip(responses, rewards)
-            ],
-            dtype=torch.float32,
-        )
+    async def get_rewards(
+        self,
+        _synapse: bt.Synapse,
+        responses: List[bt.Synapse],
+    ) -> Dict[str, float]:
+        return {
+            #
+            response.dendrite.hotkey: self.reward(response)
+            for response in responses
+        }
 
-    def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
+    def normalize_rewards(self, rewards: Dict[str, float]) -> Dict[str, float]:
         return rewards

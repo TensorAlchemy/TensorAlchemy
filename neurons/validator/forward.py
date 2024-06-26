@@ -5,7 +5,7 @@ import time
 from dataclasses import asdict
 from datetime import datetime
 from io import BytesIO
-from typing import List, AsyncIterator, Optional
+from typing import Dict, List, AsyncIterator, Optional
 
 import bittensor as bt
 import torch
@@ -18,55 +18,81 @@ from pydantic import BaseModel
 from neurons.constants import MOVING_AVERAGE_ALPHA
 from neurons.protocol import ImageGeneration, ImageGenerationTaskModel
 from neurons.utils import colored_log, sh, Stats
-from neurons.validator.backend.client import TensorAlchemyBackendClient
+
 from neurons.validator.backend.exceptions import PostMovingAveragesError
 from neurons.validator.event import EventSchema
-from neurons.validator.rewards.interface import AbstractRewardProcessor
-from neurons.validator.rewards.models.blacklist import BlacklistFilter
-from neurons.validator.rewards.models.nsfw import NSFWRewardModel
 from neurons.validator.rewards.types import MaskedRewards, AutomatedRewards
 from neurons.validator.schemas import Batch
 from neurons.validator.utils import ttl_get_block
+from neurons.validator.config import (
+    get_device,
+    get_metagraph,
+    get_backend_client,
+)
+from neurons.validator.rewards.pipeline import (
+    filter_rewards,
+    get_masked_rewards,
+    get_automated_rewards,
+)
 
 transform = T.Compose([T.PILToTensor()])
 
 
 async def update_moving_averages(
-    validator: "StableValidator",
-    backend_client: TensorAlchemyBackendClient,
-    rewards: torch.Tensor,
-    device: torch.device,
-    alpha=MOVING_AVERAGE_ALPHA,
-) -> None:
-    rewards = torch.nan_to_num(
-        rewards,
+    previous_ma_scores: torch.FloatTensor,
+    rewards: Dict[str, float],
+    hotkey_blacklist: Optional[List[str]] = None,
+    coldkey_blacklist: Optional[List[str]] = None,
+    alpha: Optional[float] = MOVING_AVERAGE_ALPHA,
+) -> torch.FloatTensor:
+    if not hotkey_blacklist:
+        hotkey_blacklist = []
+
+    if not coldkey_blacklist:
+        coldkey_blacklist = []
+
+    metagraph: bt.metagraph = get_metagraph()
+
+    # Convert rewards dict to tensor
+    rewards_tensor = torch.zeros_like(previous_ma_scores)
+    for hotkey, reward in rewards.items():
+        try:
+            idx = metagraph.hotkeys.index(hotkey)
+            rewards_tensor[idx] = reward
+        except ValueError:
+            logger.warning(f"Hotkey {hotkey} not found in metagraph")
+
+    rewards_tensor = torch.nan_to_num(
+        rewards_tensor,
         nan=0.0,
         posinf=0.0,
         neginf=0.0,
-    ).to(device)
-    moving_average_scores: torch.FloatTensor = alpha * rewards + (
-        1 - alpha
-    ) * validator.moving_average_scores.to(device)
+    ).to(get_device())
 
-    validator.moving_average_scores = moving_average_scores
+    moving_average_scores: torch.FloatTensor = alpha * rewards_tensor + (
+        1 - alpha
+    ) * previous_ma_scores.to(get_device())
 
     # Save moving averages scores on backend
     try:
-        await backend_client.post_moving_averages(
-            validator.hotkeys, moving_average_scores
+        await get_backend_client().post_moving_averages(
+            metagraph.hotkeys,
+            moving_average_scores,
         )
     except PostMovingAveragesError as e:
         logger.error(f"failed to post moving averages: {e}")
 
     try:
-        for i, average in enumerate(validator.moving_average_scores):
-            if (validator.metagraph.axons[i].hotkey in validator.hotkey_blacklist) or (
-                validator.metagraph.axons[i].coldkey in validator.coldkey_blacklist
+        for i, average in enumerate(moving_average_scores):
+            if (metagraph.axons[i].hotkey in hotkey_blacklist) or (
+                metagraph.axons[i].coldkey in coldkey_blacklist
             ):
-                validator.moving_average_scores[i] = 0
+                moving_average_scores[i] = 0
 
     except Exception as e:
         logger.error(f"An unexpected error occurred (E1): {e}")
+
+    return moving_average_scores
 
 
 class ImageGenerationResponse(BaseModel):
@@ -133,9 +159,10 @@ async def query_axons_and_process_responses(
             f"axon={response.axon.hotkey} uid={response.uid}"
             f" responded in {response.time:.2f}s"
         )
-        masked_rewards = await validator.reward_processor.get_masked_rewards(
+        masked_rewards = await get_masked_rewards(
+            validator.model_type,
+            synapse,
             responses=[response.synapse],
-            models=[BlacklistFilter(), NSFWRewardModel()],
         )
         # Create batch from single response and enqueue uploading
         # Batch will be merged at backend side
@@ -286,13 +313,6 @@ async def create_batch_for_upload(
     )
 
 
-# Upload the batches to the Human Validation Platform
-# validator.batches = await upload_batches(
-#     validator.backend_client,
-#     validator.batches,
-# )
-
-
 def display_run_info(stats: Stats, task_type: str, prompt: str):
     time_elapsed = datetime.now() - stats.start_time
 
@@ -317,7 +337,6 @@ def display_run_info(stats: Stats, task_type: str, prompt: str):
 
 async def run_step(
     validator: "StableValidator",
-    reward_processor: AbstractRewardProcessor,
     task: ImageGenerationTaskModel,
     axons: List[AxonInfo],
     uids: torch.LongTensor,
@@ -387,29 +406,50 @@ async def run_step(
     log_responses(responses, prompt)
 
     # Calculate rewards
-    automated_rewards: AutomatedRewards = await reward_processor.get_automated_rewards(
-        validator, validator.model_type, responses, uids, task_type, synapse
+    automated_rewards: AutomatedRewards = await get_automated_rewards(
+        validator.model_type,
+        synapse,
+        responses,
+        task_type,
     )
 
-    scattered_rewards_adjusted = await reward_processor.get_human_rewards(
-        validator.hotkeys, automated_rewards.scattered_rewards
-    )
+    # Convert rewards dict to tensor for scattering
+    rewards_tensor = torch.zeros_like(validator.moving_average_scores)
+    for uid, hotkey in zip(
+        uids,
+        [response.dendrite.hotkey for response in responses],
+    ):
+        if hotkey in automated_rewards.rewards:
+            rewards_tensor[uid] = automated_rewards.rewards[hotkey]
 
-    scattered_rewards_adjusted = reward_processor.filter_rewards(
-        validator.isalive_dict, validator.isalive_threshold, scattered_rewards_adjusted
+    scattered_rewards: torch.Tensor = validator.moving_average_scores.scatter(
+        0, torch.tensor(uids).to(get_device()), rewards_tensor[uids]
+    ).to(get_device())
+
+    scattered_rewards_adjusted = filter_rewards(
+        validator.isalive_dict,
+        validator.isalive_threshold,
+        scattered_rewards,
     )
 
     # Update moving averages
-    await update_moving_averages(
-        validator,
-        validator.backend_client,
-        scattered_rewards_adjusted,
-        validator.device,
+    validator.moving_average_scores = await update_moving_averages(
+        validator.moving_average_scores,
+        {
+            validator.metagraph.hotkeys[i]: reward.item()
+            for i, reward in enumerate(scattered_rewards_adjusted)
+            if reward != 0
+        },
+        hotkey_blacklist=validator.hotkey_blacklist,
+        coldkey_blacklist=validator.coldkey_blacklist,
     )
 
     # Update event and save it to wandb
     event = automated_rewards.event
-    rewards_list = automated_rewards.rewards.tolist()
+    rewards_list = [
+        automated_rewards.rewards.get(response.dendrite.hotkey, 0)
+        for response in responses
+    ]
     try:
         # Log the step event.
         event.update(

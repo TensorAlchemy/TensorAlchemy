@@ -2,7 +2,7 @@ import argparse
 import copy
 import random
 import time
-from typing import Dict
+from typing import Dict, List
 
 import bittensor as bt
 import sentry_sdk
@@ -25,19 +25,24 @@ from transformers import (
     CLIPImageProcessor,
 )
 
-from neurons.miners.StableMiner.utils import colored_log, nsfw_image_filter, sh, warm_up
+from neurons.validator.config import get_device
+from neurons.miners.StableMiner.utils import (
+    colored_log,
+    nsfw_image_filter,
+    sh,
+    warm_up,
+)
 from neurons.protocol import ImageGeneration
 from neurons.safety import StableDiffusionSafetyChecker
 from neurons.utils import clean_nsfw_from_prompt, get_defaults
-from neurons.validator import config as validator_config
 from neurons.validator.rewards.models.base import BaseRewardModel
 from neurons.validator.rewards.types import RewardModelType
 
 
-class DiversityRewardModel(BaseRewardModel):
+class SimilarityRewardModel(BaseRewardModel):
     @property
     def name(self) -> str:
-        return RewardModelType.diversity.value
+        return str(RewardModelType.SIMILARITY)
 
     def __init__(self):
         super().__init__()
@@ -57,11 +62,10 @@ class DiversityRewardModel(BaseRewardModel):
                 ),
             ]
         )
-        # TODO take device argument in
-        self.device = validator_config.get_default_device()
 
     def extract_embeddings(self, model: torch.nn.Module):
         """Utility to compute embeddings."""
+
         device = model.device
 
         def pp(batch):
@@ -79,8 +83,13 @@ class DiversityRewardModel(BaseRewardModel):
 
         return pp
 
-    async def get_rewards(self, responses, rewards, synapse=None) -> torch.FloatTensor:
-        extract_fn = self.extract_embeddings(self.model.to(self.device))
+    async def get_rewards(
+        self,
+        _synapse: bt.Synapse,
+        responses: torch.FloatTensor,
+        rewards: torch.FloatTensor,
+    ) -> torch.FloatTensor:
+        extract_fn = self.extract_embeddings(self.model.to(get_device()))
 
         images = [
             T.transforms.ToPILImage()(bt.Tensor.deserialize(response.images[0]))
@@ -117,16 +126,17 @@ class DiversityRewardModel(BaseRewardModel):
                         ]
                     )
                 i += 1
+
         return dissimilarity_scores
 
     def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
         return rewards / rewards.sum()
 
 
-class ModelDiversityRewardModel(BaseRewardModel):
+class ModelSimilarityRewardModel(BaseRewardModel):
     @property
     def name(self) -> str:
-        return RewardModelType.model_diversity.value
+        return RewardModelType.SIMILARITY
 
     def get_config(self) -> bt.config:
         argp = argparse.ArgumentParser(description="Miner Configs")
@@ -137,9 +147,7 @@ class ModelDiversityRewardModel(BaseRewardModel):
         argp.add_argument("--wandb.entity", type=str, default="")
         argp.add_argument("--wandb.api_key", type=str, default="")
         argp.add_argument("--miner.optimize", action="store_true")
-        argp.add_argument(
-            "--miner.device", type=str, default=validator_config.get_default_device()
-        )
+        argp.add_argument("--miner.device", type=str, default=get_device())
 
         seed = random.randint(0, 100_000_000_000)
         argp.add_argument("--miner.seed", type=int, default=seed)
@@ -185,7 +193,6 @@ class ModelDiversityRewardModel(BaseRewardModel):
         )
         # Set up transform functionc
         self.transform = transforms.Compose([transforms.PILToTensor()])
-        self.device = validator_config.get_default_device()
         self.threshold = 0.95
         self.config = self.get_config()
         self.stats = get_defaults(self)
@@ -234,11 +241,11 @@ class ModelDiversityRewardModel(BaseRewardModel):
 
         # Set up mapping for the different synapse types
         self.mapping = {
-            f"text_to_image": {
+            "text_to_image": {
                 "args": self.t2i_args,
                 "model": self.t2i_model,
             },
-            f"image_to_image": {
+            "image_to_image": {
                 "args": self.i2i_args,
                 "model": self.i2i_model,
             },
@@ -358,41 +365,45 @@ class ModelDiversityRewardModel(BaseRewardModel):
         self.stats.generation_time += generation_time
         return synapse
 
-    async def get_rewards(self, responses, rewards, synapse) -> torch.FloatTensor:
-        extract_fn = self.extract_embeddings(self.model.to(self.device))
+    async def get_rewards(
+        self,
+        synapse: bt.Synapse,
+        responses: List[bt.Synapse],
+    ) -> Dict[int, float]:
+        extract_fn = self.extract_embeddings(self.model.to(get_device()))
 
         images = [
-            (
-                T.transforms.ToPILImage()(bt.Tensor.deserialize(response.images[0]))
-                if response.images != []
-                else []
-            )
-            for response, reward in zip(responses, rewards)
+            T.ToPILImage()(bt.Tensor.deserialize(response.images[0]))
+            if response.images
+            else None
+            for response in responses
         ]
 
         validator_synapse = self.generate_image(synapse)
         validator_embeddings = extract_fn(
             {
                 "image": [
-                    T.transforms.ToPILImage()(
-                        bt.Tensor.deserialize(validator_synapse.images[0])
-                    )
+                    T.ToPILImage()(bt.Tensor.deserialize(validator_synapse.images[0]))
                 ]
             }
         )
-        scores = []
-        exact_scores = []
-        for i, image in enumerate(images):
-            if image == []:
-                scores.append(0)
-            else:
-                image_embeddings = extract_fn({"image": [image]})
-                cosine_similarity = F.cosine_similarity(
-                    validator_embeddings["embeddings"], image_embeddings["embeddings"]
-                )
-                scores.append(float(cosine_similarity.item() > self.threshold))
-                exact_scores.append(cosine_similarity.item())
-        return torch.tensor(scores)
 
-    def normalize_rewards(self, rewards: torch.FloatTensor) -> torch.FloatTensor:
+        scores = {}
+        for response, image in zip(responses, images):
+            if image is None:
+                scores[response.dendrite.hotkey] = 0
+                continue
+
+            image_embeddings = extract_fn({"image": [image]})
+            cosine_similar_score = F.cosine_similarity(
+                validator_embeddings["embeddings"],
+                image_embeddings["embeddings"],
+            )
+            scores[response.dendrite.hotkey] = float(
+                cosine_similar_score.item() > self.threshold
+            )
+
+        return scores
+
+    def normalize_rewards(self, rewards: Dict[int, float]) -> Dict[int, float]:
         return rewards

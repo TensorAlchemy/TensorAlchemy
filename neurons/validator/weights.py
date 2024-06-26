@@ -16,7 +16,7 @@ async def set_weights(validator: "StableValidator"):
     try:
         await validator.backend_client.post_weights(validator.hotkeys, raw_weights)
     except PostWeightsError as e:
-        logger.error("error logging weights to the weights api: {e}")
+        logger.error(f"error logging weights to the weights api: {e}")
 
     (
         processed_weight_uids,

@@ -20,7 +20,14 @@ class WandbTimer(Timer):
 
 
 class WandbUtils:
-    def __init__(self, miner, metagraph, config, wallet, event):
+    def __init__(
+        self,
+        miner,
+        metagraph,
+        config,
+        wallet,
+        event,
+    ):
         self.miner = miner
         self.metagraph = metagraph
         self.config = config

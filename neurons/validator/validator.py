@@ -6,15 +6,21 @@ import time
 import traceback
 import uuid
 from asyncio import Queue
-from typing import Dict
 
 import bittensor as bt
 import sentry_sdk
 import torch
 import wandb
 from loguru import logger
+import sentry_sdk
 
-from neurons.constants import DEV_URL, N_NEURONS, PROD_URL
+from neurons.constants import (
+    DEV_URL,
+    N_NEURONS,
+    PROD_URL,
+    VALIDATOR_SENTRY_DSN,
+)
+
 from neurons.protocol import (
     denormalize_image_model,
     ImageGenerationTaskModel,
@@ -26,12 +32,18 @@ from neurons.utils import (
     colored_log,
     get_defaults,
 )
+from neurons.validator.config import (
+    check_config,
+    add_args,
+    get_device,
+    get_config,
+    get_metagraph,
+)
 from neurons.validator.backend.client import TensorAlchemyBackendClient
 from neurons.validator.backend.models import TaskState
-from neurons.validator.config import add_args, check_config, config
 from neurons.validator.forward import run_step
 from neurons.validator.rewards.models.blacklist import BlacklistFilter
-from neurons.validator.rewards.models.diversity import ModelDiversityRewardModel
+from neurons.validator.rewards.models.similarity import ModelSimilarityRewardModel
 from neurons.validator.rewards.models.human import HumanValidationRewardModel
 from neurons.validator.rewards.models.image_reward import ImageRewardModel
 from neurons.validator.rewards.models.nsfw import NSFWRewardModel
@@ -61,18 +73,6 @@ def is_valid_current_directory() -> bool:
 
 
 class StableValidator:
-    @classmethod
-    def check_config(cls, new_config: bt.config):
-        check_config(cls, new_config)
-
-    @classmethod
-    def add_args(cls, parser):
-        add_args(cls, parser)
-
-    @classmethod
-    def config(cls):
-        return config(cls)
-
     def loop_until_registered(self):
         index = None
         while True:
@@ -96,8 +96,16 @@ class StableValidator:
 
     def __init__(self):
         # Init config
-        self.config = StableValidator.config()
-        self.check_config(self.config)
+        self.config = get_config()
+
+        environment: str = "production"
+        if self.config.subtensor.network == "test":
+            environment = "local"
+
+        sentry_sdk.init(
+            environment=environment,
+            dsn=VALIDATOR_SENTRY_DSN,
+        )
 
         bt.logging(
             config=self.config,
@@ -107,14 +115,14 @@ class StableValidator:
         )
 
         # Init device.
-        self.device = torch.device(self.config.alchemy.device)
+        self.device = get_device(torch.device(self.config.alchemy.device))
 
         self.corcel_api_key = os.environ.get("CORCEL_API_KEY")
 
         # Init external API services
         self.openai_service = get_openai_service()
 
-        self.backend_client = TensorAlchemyBackendClient(self.config)
+        self.backend_client = TensorAlchemyBackendClient()
 
         wandb.login(anonymous="must")
 
@@ -149,9 +157,12 @@ class StableValidator:
         logger.info(f"Loaded dendrite pool: {self.dendrite}")
 
         # Init metagraph.
-        self.metagraph = bt.metagraph(
-            netuid=self.config.netuid, network=self.subtensor.network, sync=False
-        )  # Make sure not to sync without passing subtensor
+        self.metagraph = get_metagraph(
+            netuid=self.config.netuid,
+            # Make sure not to sync without passing subtensor
+            network=self.subtensor.network,
+            sync=False,
+        )
 
         # Sync metagraph with subtensor.
         self.metagraph.sync(subtensor=self.subtensor)
@@ -187,13 +198,6 @@ class StableValidator:
         # Init prev_block and step
         self.prev_block = ttl_get_block(self)
         self.step = 0
-
-        # Rewards calculation
-        self.reward_processor = RewardProcessor(
-            metagraph=self.metagraph,
-            device=self.device,
-            backend_client=self.backend_client,
-        )
 
         # Set validator variables
         self.request_frequency = 35
@@ -306,7 +310,6 @@ class StableValidator:
                 # Text to Image Run
                 await run_step(
                     validator=self,
-                    reward_processor=self.reward_processor,
                     task=task,
                     axons=axons,
                     uids=uids,

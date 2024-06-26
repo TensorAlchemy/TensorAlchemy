@@ -11,7 +11,7 @@ from asyncio import QueueEmpty
 from dataclasses import dataclass
 from datetime import datetime
 from threading import Timer
-from typing import Any, Dict, List
+from typing import List
 
 import requests
 import sentry_sdk
@@ -37,9 +37,11 @@ from neurons.constants import (
     WANDB_VALIDATOR_PATH,
 )
 from neurons.exceptions import MinimumValidImagesError
-from neurons.validator.backend.client import TensorAlchemyBackendClient
 from neurons.validator.schemas import Batch
 from neurons.validator.utils import init_wandb
+from neurons.validator.rewards.types import (
+    RewardModelType,
+)
 
 
 @dataclass
@@ -312,7 +314,12 @@ def background_loop(self, is_validator):
 
                 if validator_weights:
                     weights_to_add = []
-                    for rw_name in self.reward_processor.reward_names:
+                    reward_names = [
+                        RewardModelType.IMAGE,
+                        RewardModelType.SIMILARITY,
+                    ]
+
+                    for rw_name in reward_names:
                         if rw_name in validator_weights:
                             weights_to_add.append(validator_weights[rw_name])
 
@@ -327,6 +334,7 @@ def background_loop(self, is_validator):
                         self.reward_weights = torch.tensor(
                             weights_to_add, dtype=torch.float32
                         ).to(self.device)
+
                         logger.info(
                             f"Retrieved the latest validator weights: {self.reward_weights}"
                         )
@@ -380,7 +388,7 @@ def background_loop(self, is_validator):
                 runs = [
                     x
                     for x in os.listdir(f"{wandb_path}/wandb")
-                    if "run-" in x and not "latest-run" in x
+                    if "run-" in x and "latest-run" not in x
                 ]
                 if len(runs) > 0:
                     subprocess.call(
@@ -388,14 +396,17 @@ def background_loop(self, is_validator):
                         shell=True,
                     )
                     logger.info("Cleaned all synced wandb runs.")
-                    subprocess.Popen(["wandb artifact cache cleanup 5GB"], shell=True)
+                    subprocess.Popen(
+                        ["wandb artifact cache cleanup 5GB"],
+                        shell=True,
+                    )
                     logger.info("Cleaned all wandb cache data > 5GB.")
 
                 # Catch any runs that the stock wandb function doesn't
                 runs = [
                     x
                     for x in os.listdir(f"{wandb_path}/wandb")
-                    if "run-" in x and not "latest-run" in x
+                    if "run-" in x and "latest-run" not in x
                 ]
 
                 # Leave the most recent 3 runs

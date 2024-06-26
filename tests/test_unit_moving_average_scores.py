@@ -1,92 +1,112 @@
-import torch
 import pytest
-from dotenv import load_dotenv
+from unittest.mock import patch, MagicMock
+import torch
+from loguru import logger
 
-from neurons.validator import config
+from neurons.validator.config import get_device
 from neurons.validator.forward import update_moving_averages
 
 
-def test_non_zero_moving_averages():
-    device = config.get_default_device()
+def fake_backend_client():
+    class FakeBackendClient:
+        async def post_moving_averages(self, *args, **kwargs):
+            logger.info("[fake] posting moving averages...")
+
+    return FakeBackendClient()
+
+
+@pytest.fixture(autouse=True)
+def mock_backend_client():
+    with patch(
+        "neurons.validator.forward.get_backend_client", side_effect=fake_backend_client
+    ):
+        yield
+
+
+@pytest.fixture
+def mock_metagraph():
+    mock = MagicMock()
+    mock.hotkeys = [f"hotkey_{i}" for i in range(256)]
+    return mock
+
+
+@pytest.mark.asyncio
+async def test_non_zero_moving_averages(mock_metagraph):
     moving_average_scores = torch.zeros(256)
-    rewards = torch.tensor(
-        [
-            0.6522690057754517,
-            0.7715857625007629,
-            0.7447815537452698,
-            0.7694319486618042,
-            0.03637188673019409,
-            0.7205913066864014,
-            0.0890098512172699,
-            0.7766138315200806,
-            0.0,
-            0.0,
-        ]
-    ).to(device)
-    uids = torch.tensor([39, 34, 37, 35, 40, 38, 36, 33, 22, 58]).to(device)
+    rewards = {
+        "hotkey_39": 0.6522690057754517,
+        "hotkey_34": 0.7715857625007629,
+        "hotkey_37": 0.7447815537452698,
+        "hotkey_35": 0.7694319486618042,
+        "hotkey_40": 0.03637188673019409,
+        "hotkey_38": 0.7205913066864014,
+        "hotkey_36": 0.0890098512172699,
+        "hotkey_33": 0.7766138315200806,
+        "hotkey_22": 0.0,
+        "hotkey_58": 0.0,
+    }
 
-    scattered_rewards = moving_average_scores.scatter(0, uids, rewards).to(device)
-
-    moving_average_scores = update_moving_averages(
-        moving_average_scores, scattered_rewards, device
-    )
+    with patch("neurons.validator.forward.get_metagraph", return_value=mock_metagraph):
+        moving_average_scores = await update_moving_averages(
+            moving_average_scores, rewards
+        )
 
     assert moving_average_scores.sum().item() != 0
 
 
-def test_large_rewards():
-    test_uid_index = 39
+@pytest.mark.asyncio
+async def test_large_rewards(mock_metagraph):
     moving_average_scores = torch.zeros(256)
-    device = config.get_default_device()
-    uids = torch.tensor([test_uid_index]).to(device)
-    rewards = torch.tensor([0.7715857625007629 * 20]).to(device)
+    rewards = {"hotkey_39": 0.7715857625007629 * 20}
 
-    scattered_rewards = moving_average_scores.scatter(0, uids, rewards).to(device)
-
-    previous_moving_average = moving_average_scores[test_uid_index]
-    moving_average_scores = update_moving_averages(
-        moving_average_scores, scattered_rewards, device
-    )
-    current_moving_average = moving_average_scores[test_uid_index]
+    with patch("neurons.validator.forward.get_metagraph", return_value=mock_metagraph):
+        previous_moving_average = moving_average_scores[39]
+        moving_average_scores = await update_moving_averages(
+            moving_average_scores, rewards
+        )
+        current_moving_average = moving_average_scores[39]
 
     assert current_moving_average > previous_moving_average
 
 
-def test_rewards_with_nans():
+@pytest.mark.asyncio
+async def test_rewards_with_nans(mock_metagraph):
     moving_average_scores = torch.zeros(256)
-    device = config.get_default_device()
-    rewards = torch.zeros(len(moving_average_scores)).to(device)
-    rewards[0] = float("nan")
+    rewards = {"hotkey_0": float("nan")}
 
-    moving_average_scores = update_moving_averages(
-        moving_average_scores, rewards, device
-    )
+    with patch("neurons.validator.forward.get_metagraph", return_value=mock_metagraph):
+        moving_average_scores = await update_moving_averages(
+            moving_average_scores, rewards
+        )
+
     assert torch.isnan(moving_average_scores).sum().item() == 0
 
 
-def test_zero_rewards():
+@pytest.mark.asyncio
+async def test_zero_rewards(mock_metagraph):
     moving_average_scores = torch.zeros(256)
-    device = config.get_default_device()
-    rewards = torch.zeros(len(moving_average_scores)).to(device)
+    rewards = {f"hotkey_{i}": 0.0 for i in range(256)}
 
-    previous_moving_average_scores_sum = moving_average_scores.sum()
-    moving_average_scores = update_moving_averages(
-        moving_average_scores, rewards, device
-    )
-    current_moving_average_scores_sum = moving_average_scores.sum()
+    with patch("neurons.validator.forward.get_metagraph", return_value=mock_metagraph):
+        previous_moving_average_scores_sum = moving_average_scores.sum()
+        moving_average_scores = await update_moving_averages(
+            moving_average_scores, rewards
+        )
+        current_moving_average_scores_sum = moving_average_scores.sum()
 
     assert previous_moving_average_scores_sum >= current_moving_average_scores_sum
 
 
-def test_ones_rewards():
+@pytest.mark.asyncio
+async def test_ones_rewards(mock_metagraph):
     moving_average_scores = torch.zeros(256)
-    device = config.get_default_device()
-    rewards = torch.ones(len(moving_average_scores)).to(device)
+    rewards = {f"hotkey_{i}": 1.0 for i in range(256)}
 
-    previous_moving_average_scores_sum = moving_average_scores.sum()
-    moving_average_scores = update_moving_averages(
-        moving_average_scores, rewards, device
-    )
-    current_moving_average_scores_sum = moving_average_scores.sum()
+    with patch("neurons.validator.forward.get_metagraph", return_value=mock_metagraph):
+        previous_moving_average_scores_sum = moving_average_scores.sum()
+        moving_average_scores = await update_moving_averages(
+            moving_average_scores, rewards
+        )
+        current_moving_average_scores_sum = moving_average_scores.sum()
 
     assert previous_moving_average_scores_sum < current_moving_average_scores_sum
