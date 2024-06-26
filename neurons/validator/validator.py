@@ -25,11 +25,11 @@ from neurons.protocol import (
     ImageGenerationTaskModel,
     ModelType,
 )
+from neurons.utils.log import colored_log
+from neurons.utils.defaults import get_defaults
 from neurons.utils import (
     BackgroundTimer,
     background_loop,
-    colored_log,
-    get_defaults,
 )
 from neurons.validator.config import (
     get_device,
@@ -340,8 +340,9 @@ class StableValidator:
 
             # If the user interrupts the program, gracefully exit.
             except KeyboardInterrupt:
-                logger.warning("Keyboard interrupt detected. Exiting validator.")
-                sys.exit(1)
+                self.axon.stop()
+                logger.success("Keyboard interrupt detected. Exiting validator.")
+                sys.exit(0)
 
     async def get_image_generation_task(
         self, timeout=60

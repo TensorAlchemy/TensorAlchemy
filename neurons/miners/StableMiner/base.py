@@ -1,7 +1,8 @@
+import os
+import sys
 import argparse
 import asyncio
 import copy
-import os
 import random
 import time
 import traceback
@@ -626,7 +627,7 @@ class BaseMiner(ABC):
             except KeyboardInterrupt:
                 self.axon.stop()
                 logger.success("Miner killed by keyboard interrupt.")
-                break
+                sys.exit(0)
 
             # In case of unforeseen errors,
             # the miner will log the error and continue operations.
