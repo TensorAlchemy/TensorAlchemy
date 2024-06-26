@@ -442,7 +442,7 @@ async def run_step(
                 "step_length": time.time() - start_time,
                 "prompt": prompt if task_type == "TEXT_TO_IMAGE" else None,
                 "uids": uids,
-                "hotkeys": [response.hotkey for response in responses],
+                "hotkeys": [response.dendrite.hotkey for response in responses],
                 "images": [
                     (
                         response.images[0]

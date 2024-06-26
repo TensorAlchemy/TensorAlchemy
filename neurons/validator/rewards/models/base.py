@@ -33,7 +33,7 @@ class BaseRewardModel:
 
         for response in responses:
             score = self.reward(response)
-            hotkey = response.hotkey
+            hotkey = response.dendrite.hotkey
 
             try:
                 index = self.metagraph.hotkeys.index(hotkey)

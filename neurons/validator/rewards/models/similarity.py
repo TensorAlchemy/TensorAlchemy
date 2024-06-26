@@ -392,7 +392,7 @@ class ModelSimilarityRewardModel(BaseRewardModel):
         scores = {}
         for response, image in zip(responses, images):
             if image is None:
-                scores[response.hotkey] = 0
+                scores[response.dendrite.hotkey] = 0
                 continue
 
             image_embeddings = extract_fn({"image": [image]})
@@ -400,7 +400,7 @@ class ModelSimilarityRewardModel(BaseRewardModel):
                 validator_embeddings["embeddings"],
                 image_embeddings["embeddings"],
             )
-            scores[response.hotkey] = float(
+            scores[response.dendrite.hotkey] = float(
                 cosine_similar_score.item() > self.threshold
             )
 
