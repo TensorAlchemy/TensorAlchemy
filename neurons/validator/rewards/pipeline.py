@@ -54,9 +54,7 @@ async def apply_function(
 
     logger.info(
         #
-        f"\n{function.name}:"
-        + f"\n\t\t - {summarize_rewards(result_i)}"
-        + f"\n\t\t - {summarize_rewards(result_i_normalized)}"
+        f"{function.name} - {summarize_rewards(result_i_normalized)}"
     )
 
     return result, event

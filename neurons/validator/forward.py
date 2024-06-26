@@ -107,7 +107,6 @@ class ImageGenerationResponse(BaseModel):
 async def query_axons_async(
     dendrite: bt.dendrite,
     axons: List[AxonInfo],
-    uids: torch.LongTensor,
     synapse: bt.Synapse,
     query_timeout: int,
 ) -> AsyncIterator[Tuple[int, bt.Synapse]]:
@@ -117,7 +116,6 @@ async def query_axons_async(
     Args:
         dendrite (bt.dendrite): The dendrite instance to use for querying.
         axons (List[AxonInfo]): The list of axons to query.
-        uids (torch.LongTensor): The unique identifiers of the axons.
         synapse (bt.Synapse): The synapse object to use for the query.
         query_timeout (int): The timeout duration for the query.
 
@@ -125,47 +123,44 @@ async def query_axons_async(
         Tuple[int, bt.Synapse]: The UID of the axon
                                 and the filled Synapse object.
     """
+    metagraph: bt.metagraph = get_metagraph()
 
-    async def process_stream(axon: AxonInfo):
-        async for response in dendrite.call_stream(
+    for axon in axons:
+        uid: int = metagraph.hotkeys.index(axon.hotkey)
+        print(f"Inbound: {uid} {axon.hotkey=}")
+
+    async def do_call(
+        inbound_axon: bt.AxonInfo,
+    ) -> Tuple[int, bt.Synapse]:
+        uid: int = metagraph.hotkeys.index(axon.hotkey)
+
+        to_return: bt.Synapse = await dendrite.call(
             synapse=synapse,
-            target_axon=axon,
             timeout=query_timeout,
-        ):
-            if isinstance(response, bt.Synapse):
-                # TODO: Bittensor AsyncGenerator has a bug
-                #       it always returns the same axon
-                #
-                # FIXME: Check in bittensor 7.2.0
-                response.axon.uuid = axon.uuid
-                response.axon.port = axon.port
-                response.axon.hotkey = axon.hotkey
-                response.axon.signature = axon.signature
+            target_axon=inbound_axon,
+        )
+        return uid, to_return
 
-                return response
-
-    routines = [process_stream(axon) for axon, uid in zip(axons, uids)]
+    routines = [do_call(axon) for axon in axons]
 
     for future in asyncio.as_completed(routines):
-        result = await future
-        print(f"{result.axon.hotkey=}")
-        yield result
+        uid, result = await future
+        print(f"Outbound: {uid=} {result.axon.hotkey=}")
+        yield uid, result
 
 
 async def query_axons_and_process_responses(
     validator: "StableValidator",
     task: ImageGenerationTaskModel,
     axons: List[AxonInfo],
-    uids: torch.LongTensor,
     synapse: bt.Synapse,
     query_timeout: int,
 ) -> List[bt.Synapse]:
     """Request image generation from axons"""
     responses = []
-    async for response in query_axons_async(
+    async for uid, response in query_axons_async(
         validator.dendrite,
         axons,
-        uids,
         synapse,
         query_timeout,
     ):
@@ -401,7 +396,6 @@ async def run_step(
         validator,
         task,
         axons,
-        uids,
         synapse,
         validator.query_timeout,
     )
