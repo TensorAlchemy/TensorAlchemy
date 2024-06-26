@@ -32,10 +32,10 @@ class BaseRewardModel:
         _synapse: bt.Synapse,
         responses: List[bt.Synapse],
     ) -> torch.Tensor:
-        rewards = torch.zeros(len(bt.metagraph.n)).to(get_device())
+        rewards = torch.zeros(len(self.metagraph.n)).to(get_device())
 
         for response in responses:
-            uid = bt.metagraph.hotkeys.index(response.dendrite.hotkey)
+            uid = self.metagraph.hotkeys.index(response.dendrite.hotkey)
             rewards[uid] = self.reward(response)
 
         return rewards
