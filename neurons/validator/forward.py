@@ -43,7 +43,7 @@ transform = T.Compose([T.PILToTensor()])
 
 async def update_moving_averages(
     previous_ma_scores: torch.FloatTensor,
-    rewards: Dict[str, float],
+    rewards: torch.FloatTensor,
     hotkey_blacklist: Optional[List[str]] = None,
     coldkey_blacklist: Optional[List[str]] = None,
     alpha: Optional[float] = MOVING_AVERAGE_ALPHA,
@@ -56,23 +56,14 @@ async def update_moving_averages(
 
     metagraph: bt.metagraph = get_metagraph()
 
-    # Convert rewards dict to tensor
-    rewards_tensor = torch.zeros_like(previous_ma_scores)
-    for hotkey, reward in rewards.items():
-        try:
-            idx = metagraph.hotkeys.index(hotkey)
-            rewards_tensor[idx] = reward
-        except ValueError:
-            logger.warning(f"Hotkey {hotkey} not found in metagraph")
-
-    rewards_tensor = torch.nan_to_num(
-        rewards_tensor,
+    rewards = torch.nan_to_num(
+        rewards,
         nan=0.0,
         posinf=0.0,
         neginf=0.0,
     ).to(get_device())
 
-    moving_average_scores: torch.FloatTensor = alpha * rewards_tensor + (
+    moving_average_scores: torch.FloatTensor = alpha * rewards + (
         1 - alpha
     ) * previous_ma_scores.to(get_device())
 
@@ -86,10 +77,10 @@ async def update_moving_averages(
         logger.error(f"failed to post moving averages: {e}")
 
     try:
-        for i, average in enumerate(moving_average_scores):
-            if (metagraph.axons[i].hotkey in hotkey_blacklist) or (
-                metagraph.axons[i].coldkey in coldkey_blacklist
-            ):
+        for i, (hotkey, coldkey) in enumerate(
+            zip(metagraph.hotkeys, metagraph.coldkeys)
+        ):
+            if hotkey in hotkey_blacklist or coldkey in coldkey_blacklist:
                 moving_average_scores[i] = 0
 
     except Exception as e:
@@ -438,7 +429,8 @@ async def run_step(
 
     # Update event and save it to wandb
     event = automated_rewards.event
-    rewards_list = automated_rewards.rewards[uids].tolist()
+    rewards_list = rewards_tensor[uids].tolist()
+
     try:
         # Log the step event.
         event.update(
@@ -446,7 +438,6 @@ async def run_step(
                 "block": ttl_get_block(validator),
                 "step_length": time.time() - start_time,
                 "prompt_t2i": prompt if task_type == "TEXT_TO_IMAGE" else None,
-                # "prompt_i2i": prompt if task_type == "IMAGE_TO_IMAGE" else None,
                 "uids": uids.tolist(),
                 "hotkeys": [
                     validator.metagraph.axons[uid.item()].hotkey for uid in uids

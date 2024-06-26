@@ -31,7 +31,7 @@ class HumanValidationRewardModel(BaseRewardModel):
             logger.error(f"Error while getting votes: {e}")
             return torch.zeros(self.metagraph.n).to(get_device())
 
-        if self.human_voting_scores:
+        if human_voting_scores:
             for inner_dict in human_voting_scores.values():
                 for hotkey, value in inner_dict.items():
                     human_voting_scores_dict[hotkey] = (
