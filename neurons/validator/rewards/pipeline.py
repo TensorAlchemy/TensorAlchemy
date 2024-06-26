@@ -92,7 +92,7 @@ async def apply_masking_functions(
     event = {}
     masking_functions: List[PackedRewardModel] = get_masking_functions(model_type)
 
-    mask = {response.dendrite.uid: 1.0 for response in responses}
+    mask = {response.dendrite.uuid: 1.0 for response in responses}
 
     for function in masking_functions:
         mask_i, mask_i_normalized = await function.apply(synapse, responses)
@@ -138,7 +138,7 @@ async def apply_reward_functions(
 ) -> tuple[Dict[int, float], dict]:
     reward_functions: List[PackedRewardModel] = get_reward_functions(model_type)
 
-    rewards = {response.dendrite.uid: 0.0 for response in responses}
+    rewards = {response.dendrite.uuid: 0.0 for response in responses}
     event: Dict = {}
     for function in reward_functions:
         rewards, event = await apply_reward_function(
