@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 import torch
 import bittensor as bt
@@ -61,10 +61,14 @@ async def apply_function(
     return result, event
 
 
+ResultCombiner = Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
+
+
 async def apply_functions(
-    reward_functions: List[PackedRewardModel],
+    functions: List[PackedRewardModel],
     synapse: bt.Synapse,
     responses: List[bt.Synapse],
+    combine: ResultCombiner = torch.maximum,
 ) -> Tuple[torch.Tensor, Dict]:
     """
     Apply a list of reward or masking functions sequentially.
@@ -80,7 +84,7 @@ async def apply_functions(
     event: Dict = {}
     results = torch.ones(get_metagraph().n).to(get_device())
 
-    for function in reward_functions:
+    for function in functions:
         rewards, event = await apply_function(
             function,
             synapse,
@@ -88,7 +92,10 @@ async def apply_functions(
             event,
         )
 
-        results *= rewards
+        # Use our passed function to combine results
+        # this allows us different types of combination
+        # depending on if it's a mask or reward
+        results = combine(results, rewards)
 
     return results, event
 
@@ -105,6 +112,7 @@ async def apply_reward_functions(
         get_reward_functions(model_type),
         synapse,
         responses,
+        combine=lambda results, rewards: results * rewards,
     )
 
 
@@ -120,6 +128,7 @@ async def apply_masking_functions(
         get_masking_functions(model_type),
         synapse,
         responses,
+        combine=torch.maximum,
     )
 
 
