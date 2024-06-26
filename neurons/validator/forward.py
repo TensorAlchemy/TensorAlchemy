@@ -482,10 +482,13 @@ async def run_step(
     except Exception as err:
         logger.error(f"Error updating event dict: {err}")
 
-    log_event_to_wandb(
-        validator.wandb,
-        event,
-        prompt,
-    )
+    try:
+        log_event_to_wandb(
+            validator.wandb,
+            event,
+            prompt,
+        )
+    except Exception as e:
+        logger.error(f"Failed while logging to wandb: {e}")
 
     return event

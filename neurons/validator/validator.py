@@ -306,6 +306,7 @@ class StableValidator:
                     stats=self.stats,
                 )
                 # Re-sync with the network. Updates the metagraph.
+
                 try:
                     self.sync()
                 except Exception as e:
@@ -333,16 +334,16 @@ class StableValidator:
                         )
                         self.wandb_loaded = False
 
-            # If we encounter an unexpected error, log it for debugging.
-            except Exception as e:
-                logger.error(traceback.format_exc())
-                sentry_sdk.capture_exception(e)
-
             # If the user interrupts the program, gracefully exit.
             except KeyboardInterrupt:
                 self.axon.stop()
                 logger.success("Keyboard interrupt detected. Exiting validator.")
                 sys.exit(0)
+
+            # If we encounter an unexpected error, log it for debugging.
+            except Exception as e:
+                logger.error(traceback.format_exc())
+                sentry_sdk.capture_exception(e)
 
     async def get_image_generation_task(
         self,
@@ -399,6 +400,7 @@ class StableValidator:
                     + f" {TaskState.REJECTED.value} endpoint: {e}"
                 )
             return None
+
         return task
 
     async def sync(self):
