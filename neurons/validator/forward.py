@@ -125,27 +125,23 @@ async def query_axons_async(
     """
     metagraph: bt.metagraph = get_metagraph()
 
-    for axon in axons:
-        uid: int = metagraph.hotkeys.index(axon.hotkey)
-        print(f"Inbound: {uid} {axon.hotkey=}")
-
     async def do_call(
         inbound_axon: bt.AxonInfo,
     ) -> Tuple[int, bt.Synapse]:
-        uid: int = metagraph.hotkeys.index(axon.hotkey)
+        uid: int = metagraph.hotkeys.index(inbound_axon.hotkey)
 
         to_return: bt.Synapse = await dendrite.call(
             synapse=synapse,
             timeout=query_timeout,
             target_axon=inbound_axon,
         )
+
         return uid, to_return
 
     routines = [do_call(axon) for axon in axons]
 
     for future in asyncio.as_completed(routines):
         uid, result = await future
-        print(f"Outbound: {uid=} {result.axon.hotkey=}")
         yield uid, result
 
 
