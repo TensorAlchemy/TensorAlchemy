@@ -214,7 +214,7 @@ class BaseRewardModel:
     def get_successful_generations(
         self,
         rewards: torch.FloatTensor,
-        responses: List[bt.synapse],
+        responses: List[bt.Synapse],
     ) -> List[bt.Synapse]:
         # Get all completions from responding calls.
         return [

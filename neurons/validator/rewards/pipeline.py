@@ -81,7 +81,7 @@ def get_masking_functions(_model_type: ModelType) -> List[PackedRewardModel]:
 
 async def apply_masking_functions(
     model_type: ModelType,
-    synapse: bt.synapse,
+    synapse: bt.Synapse,
     responses: list,
     rewards: torch.Tensor,
 ) -> tuple[torch.Tensor, dict]:
@@ -107,7 +107,7 @@ async def apply_masking_functions(
 
 async def apply_reward_function(
     reward_function: PackedRewardModel,
-    synapse: bt.synapse,
+    synapse: bt.Synapse,
     responses: list,
     rewards: torch.Tensor,
     event: Optional[Dict] = None,
@@ -131,7 +131,7 @@ async def apply_reward_function(
 
 async def apply_reward_functions(
     model_type: ModelType,
-    synapse: bt.synapse,
+    synapse: bt.Synapse,
     responses: list,
     rewards: torch.Tensor,
 ) -> tuple[torch.Tensor, dict]:
