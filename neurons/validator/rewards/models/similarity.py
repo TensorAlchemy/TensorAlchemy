@@ -42,8 +42,8 @@ from neurons.validator.rewards.types import RewardModelType
 
 class SimilarityRewardModel(BaseRewardModel):
     @property
-    def name(self) -> str:
-        return str(RewardModelType.SIMILARITY)
+    def name(self) -> RewardModelType:
+        return RewardModelType.SIMILARITY
 
     def __init__(self):
         super().__init__()
@@ -136,7 +136,7 @@ class SimilarityRewardModel(BaseRewardModel):
 
 class ModelSimilarityRewardModel(BaseRewardModel):
     @property
-    def name(self) -> str:
+    def name(self) -> RewardModelType:
         return RewardModelType.SIMILARITY
 
     def get_config(self) -> bt.config:

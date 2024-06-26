@@ -3,6 +3,7 @@ from typing import Dict, List, Optional, Tuple
 import torch
 import bittensor as bt
 from loguru import logger
+from pydantic import BaseModel
 
 from neurons.protocol import ModelType
 from neurons.validator.config import get_device, get_metagraph
@@ -13,13 +14,31 @@ from neurons.validator.rewards.models import (
     HumanValidationRewardModel,
     ImageRewardModel,
     NSFWRewardModel,
+    BaseRewardModel,
 )
 from neurons.validator.rewards.types import (
     MaskedRewards,
-    PackedRewardModel,
     RewardModelType,
     AutomatedRewards,
 )
+
+
+class PackedRewardModel(BaseModel):
+    weight: float
+    model: BaseRewardModel
+
+    class Config:
+        arbitrary_types_allowed = True
+
+    @property
+    def name(self) -> str:
+        return str(self.model.name)
+
+    def apply(
+        self, *args, **kwargs
+    ) -> Tuple[torch.FloatTensor, torch.FloatTensor,]:
+        return self.model.apply(*args, **kwargs)
+
 
 ModelStorage = Dict[RewardModelType, PackedRewardModel]
 
@@ -125,8 +144,10 @@ async def apply_masking_functions(
         mask_i, mask_i_normalized = await function.apply(synapse, responses)
         mask *= mask_i_normalized
 
-        event[function.name] = mask_i.tolist()
-        event[function.name + "_normalized"] = mask_i_normalized.tolist()
+        event[function.name] = {}
+        event[function.name]["score"] = mask_i.tolist()
+        event[function.name]["normalized"] = mask_i_normalized.tolist()
+
         logger.info(f"{function.name} {mask_i_normalized.tolist()}")
 
     return mask, event

@@ -301,6 +301,7 @@ async def create_batch_for_upload(
             images.append(im_b64.decode())
             should_drop_entries.append(1)
 
+    print(masked_rewards.event)
     # Update batches to be sent to the human validation platform
     # if batch_id not in validator.batches.keys():
     return Batch(
@@ -313,8 +314,8 @@ async def create_batch_for_upload(
         miner_coldkeys=[metagraph.coldkeys[uid] for uid in uids],
         # Scores
         # TODO: Move these to a more abstract dict
-        nsfw_scores=masked_rewards.event[RewardModelType.NSFW],
-        blacklist_scores=masked_rewards.event[RewardModelType.BLACKLIST],
+        nsfw_scores=masked_rewards.event[RewardModelType.NSFW]["score"],
+        blacklist_scores=masked_rewards.event[RewardModelType.BLACKLIST]["normalized"],
     )
 
 

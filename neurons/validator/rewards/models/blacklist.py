@@ -11,8 +11,8 @@ from neurons.validator.rewards.types import RewardModelType
 
 class BlacklistFilter(BaseRewardModel):
     @property
-    def name(self) -> str:
-        return str(RewardModelType.BLACKLIST)
+    def name(self) -> RewardModelType:
+        return RewardModelType.BLACKLIST
 
     def __init__(self):
         super().__init__()

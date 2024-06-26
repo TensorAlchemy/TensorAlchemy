@@ -12,8 +12,8 @@ from neurons.validator.rewards.types import RewardModelType
 
 class ImageRewardModel(BaseRewardModel):
     @property
-    def name(self) -> str:
-        return str(RewardModelType.IMAGE)
+    def name(self) -> RewardModelType:
+        return RewardModelType.IMAGE
 
     def __init__(self):
         super().__init__()

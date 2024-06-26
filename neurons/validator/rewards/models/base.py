@@ -6,12 +6,13 @@ import torch
 from loguru import logger
 
 from neurons.validator.config import get_device, get_metagraph
+from neurons.validator.rewards.types import RewardModelType
 
 
 class BaseRewardModel:
     @property
     @abstractmethod
-    def name(self) -> str:
+    def name(self) -> RewardModelType:
         ...
 
     def __str__(self) -> str:

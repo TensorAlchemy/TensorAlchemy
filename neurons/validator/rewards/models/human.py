@@ -13,8 +13,8 @@ from neurons.validator.config import get_backend_client, get_device
 
 class HumanValidationRewardModel(BaseRewardModel):
     @property
-    def name(self) -> str:
-        return str(RewardModelType.HUMAN)
+    def name(self) -> RewardModelType:
+        return RewardModelType.HUMAN
 
     async def get_rewards(
         self,

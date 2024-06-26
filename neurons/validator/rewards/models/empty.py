@@ -6,8 +6,8 @@ from neurons.validator.rewards.types import RewardModelType
 
 class EmptyScoreRewardModel(BaseRewardModel):
     @property
-    def name(self) -> str:
-        return str(RewardModelType.EMPTY)
+    def name(self) -> RewardModelType:
+        return RewardModelType.EMPTY
 
     def reward(self, _response: bt.Synapse) -> float:
         return 0.0
