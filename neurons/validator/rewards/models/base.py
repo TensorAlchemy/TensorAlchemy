@@ -33,14 +33,14 @@ class BaseRewardModel:
 
         for response in responses:
             score = self.reward(response)
-            hotkey = response.dendrite.hotkey
+            hotkey = response.axon.hotkey
 
             try:
                 index = self.metagraph.hotkeys.index(hotkey)
                 rewards[index] = score
-                # logger.info(
-                #     f"Assigned score {score} to index {index} for hotkey {hotkey}"
-                # )
+                logger.info(
+                    f"Assigned score {score} to index {index} for hotkey {hotkey}"
+                )
             except ValueError:
                 logger.error(f"Hotkey {hotkey} not found in metagraph")
 

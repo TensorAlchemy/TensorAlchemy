@@ -42,6 +42,4 @@ class ImageRewardModel(BaseRewardModel):
             image_scores = torch.tensor(scores)
             mean_image_score = torch.mean(image_scores)
 
-            print(mean_image_score.item())
-
             return mean_image_score.item()

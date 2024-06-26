@@ -163,7 +163,6 @@ async def test_nsfw_image(nsfw_reward_model):
 
     rewards = await nsfw_reward_model.get_rewards(response_no_nsfw, responses)
 
-    print(rewards)
     assert rewards["hotkey_1"] == 0.0  # NSFW image should get 0.0 reward
     assert rewards["hotkey_2"] == 1.0  # Non-NSFW image should get 1.0 reward
 

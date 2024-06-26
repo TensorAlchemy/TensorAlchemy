@@ -2,6 +2,7 @@ import asyncio
 import base64
 import copy
 import time
+import concurrent.futures
 
 from dataclasses import asdict
 from datetime import datetime
@@ -104,43 +105,45 @@ class ImageGenerationResponse(BaseModel):
         return self.synapse.images
 
 
+import asyncio
+import bittensor as bt
+from typing import List, Tuple, AsyncIterator
+
+
 async def query_axons_async(
     dendrite: bt.dendrite,
-    axons: List[AxonInfo],
+    axons: List[bt.AxonInfo],
     synapse: bt.Synapse,
     query_timeout: int,
 ) -> AsyncIterator[Tuple[int, bt.Synapse]]:
     """
     Asynchronously queries a list of axons and yields the responses.
-
     Args:
         dendrite (bt.dendrite): The dendrite instance to use for querying.
         axons (List[AxonInfo]): The list of axons to query.
         synapse (bt.Synapse): The synapse object to use for the query.
         query_timeout (int): The timeout duration for the query.
-
     Yields:
-        Tuple[int, bt.Synapse]: The UID of the axon
-                                and the filled Synapse object.
+        Tuple[int, bt.Synapse]: The UID of the axon and the filled Synapse object.
     """
     metagraph: bt.metagraph = get_metagraph()
 
-    async def do_call(
-        inbound_axon: bt.AxonInfo,
-    ) -> Tuple[int, bt.Synapse]:
+    async def do_call(inbound_axon: bt.AxonInfo) -> Tuple[int, bt.Synapse]:
         uid: int = metagraph.hotkeys.index(inbound_axon.hotkey)
 
-        to_return: bt.Synapse = await dendrite.call(
+        to_return: List[bt.Synapse] = await dendrite.forward(
             synapse=synapse,
             timeout=query_timeout,
-            target_axon=inbound_axon,
+            axons=[inbound_axon],
         )
 
-        return uid, to_return
+        return uid, to_return[0]
 
-    routines = [do_call(axon) for axon in axons]
+    # Create tasks for all axons
+    tasks = [asyncio.create_task(do_call(axon)) for axon in axons]
 
-    for future in asyncio.as_completed(routines):
+    # Use asyncio.as_completed to yield results as they complete
+    for future in asyncio.as_completed(tasks):
         uid, result = await future
         yield uid, result
 
@@ -344,7 +347,7 @@ def get_uids(responses: List[bt.Synapse]) -> torch.Tensor:
     return torch.tensor(
         [
             #
-            metagraph.hotkeys.index(response.dendrite.hotkey)
+            metagraph.hotkeys.index(response.axon.hotkey)
             for response in responses
         ],
         dtype=torch.long,
@@ -462,7 +465,7 @@ async def run_step(
                 "step_length": time.time() - start_time,
                 "prompt": prompt if task_type == "TEXT_TO_IMAGE" else None,
                 "uids": uids,
-                "hotkeys": [response.dendrite.hotkey for response in responses],
+                "hotkeys": [response.axon.hotkey for response in responses],
                 "images": [
                     (
                         response.images[0]
