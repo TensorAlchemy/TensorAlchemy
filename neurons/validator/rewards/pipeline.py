@@ -78,19 +78,19 @@ async def apply_functions(
     the final reward is a product of multiple factors.
     """
     event: Dict = {}
-    rewards = torch.zeros(get_metagraph().n).to(get_device())
+    results = torch.zeros(get_metagraph().n).to(get_device())
 
     for function in reward_functions:
-        new_rewards, event = await apply_function(
+        rewards, event = await apply_function(
             function,
             synapse,
             responses,
             event,
         )
 
-        rewards *= new_rewards
+        results *= rewards
 
-    return rewards, event
+    return results, event
 
 
 async def apply_reward_functions(
@@ -160,7 +160,10 @@ async def get_automated_rewards(
     event.update(masking_event)
 
     # Apply mask to rewards
-    rewards *= mask
+    # NOTE: If mask is (1) that means we had a trigger
+    #       so we want to reduce score by the effect
+    #       of the mask.
+    rewards *= 1.0 - mask
 
     return AutomatedRewards(
         event=event,
