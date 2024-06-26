@@ -78,7 +78,7 @@ async def apply_functions(
     the final reward is a product of multiple factors.
     """
     event: Dict = {}
-    results = torch.zeros(get_metagraph().n).to(get_device())
+    results = torch.ones(get_metagraph().n).to(get_device())
 
     for function in reward_functions:
         rewards, event = await apply_function(
