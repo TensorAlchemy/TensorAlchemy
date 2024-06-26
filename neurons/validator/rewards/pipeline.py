@@ -6,6 +6,7 @@ from loguru import logger
 from pydantic import BaseModel
 
 from neurons.protocol import ModelType
+from neurons.utils.log import summarize_rewards
 from neurons.validator.config import get_device, get_metagraph
 from neurons.validator.rewards.models import (
     EmptyScoreRewardModel,
@@ -140,15 +141,22 @@ async def apply_masking_functions(
 
     mask = torch.ones(get_metagraph().n).to(get_device())
 
-    for function in masking_functions:
-        mask_i, mask_i_normalized = await function.apply(synapse, responses)
+    for mask_function in masking_functions:
+        mask_i, mask_i_normalized = await mask_function.apply(
+            synapse,
+            responses,
+        )
         mask *= mask_i_normalized
 
-        event[function.name] = {}
-        event[function.name]["score"] = mask_i.tolist()
-        event[function.name]["normalized"] = mask_i_normalized.tolist()
+        event[mask_function.name] = {}
+        event[mask_function.name]["score"] = mask_i.tolist()
+        event[mask_function.name]["normalized"] = mask_i_normalized.tolist()
 
-        logger.info(f"{function.name} {mask_i_normalized.tolist()}")
+        logger.info(
+            #
+            f"{mask_function.name}, "
+            + f"{summarize_rewards(mask_i_normalized)}"
+        )
 
     return mask, event
 
@@ -163,14 +171,21 @@ async def apply_reward_function(
     if event is None:
         event = {}
 
-    reward_i, reward_i_normalized = await reward_function.apply(synapse, responses)
+    reward_i, reward_i_normalized = await reward_function.apply(
+        synapse,
+        responses,
+    )
     rewards += reward_function.weight * reward_i_normalized
 
     event[reward_function.name] = {}
     event[reward_function.name]["score"] = reward_i.tolist()
     event[reward_function.name]["normalized"] = reward_i_normalized.tolist()
 
-    logger.info(f"{reward_function.name}, {reward_i_normalized.tolist()}")
+    logger.info(
+        #
+        f"{reward_function.name}, "
+        + f"{summarize_rewards(reward_i_normalized)}"
+    )
 
     return rewards, event
 
