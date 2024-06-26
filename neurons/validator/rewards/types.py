@@ -24,12 +24,16 @@ class PackedRewardModel(BaseModel):
 
 
 class RewardModelType(str, Enum):
+    # Masking models
+    # TODO: Maybe move these out
+    NSFW = "NSFW"
+    BLACKLIST = "BLACKLIST"
+
+    # Reward models
     EMPTY = "EMPTY"
     HUMAN = "HUMAN"
     IMAGE = "IMAGE"
-    NSFW = "NSFW_FILTER"
     SIMILARITY = "SIMILARITY"
-    BLACKLIST = "BLACKLIST_FILTER"
 
 
 class AutomatedRewards(BaseModel):

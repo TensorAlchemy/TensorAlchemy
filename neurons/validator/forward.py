@@ -26,6 +26,7 @@ from neurons.validator.event import EventSchema
 from neurons.validator.rewards.types import MaskedRewards, AutomatedRewards
 from neurons.validator.schemas import Batch
 from neurons.validator.utils import ttl_get_block
+from neurons.validator.rewards.types import RewardModelType
 from neurons.validator.config import (
     get_device,
     get_metagraph,
@@ -306,12 +307,14 @@ async def create_batch_for_upload(
         prompt=prompt,
         computes=images,
         batch_id=batch_id,
-        nsfw_scores=masked_rewards.event["nsfw_filter"],
-        blacklist_scores=masked_rewards.event["blacklist_filter"],
         should_drop_entries=should_drop_entries,
         validator_hotkey=str(validator_wallet.hotkey.ss58_address),
         miner_hotkeys=[metagraph.hotkeys[uid] for uid in uids],
         miner_coldkeys=[metagraph.coldkeys[uid] for uid in uids],
+        # Scores
+        # TODO: Move these to a more abstract dict
+        nsfw_scores=masked_rewards.event[RewardModelType.NSFW],
+        blacklist_scores=masked_rewards.event[RewardModelType.BLACKLIST],
     )
 
 
