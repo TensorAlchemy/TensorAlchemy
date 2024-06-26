@@ -31,8 +31,8 @@ class PackedRewardModel(BaseModel):
         arbitrary_types_allowed = True
 
     @property
-    def name(self) -> str:
-        return str(self.model.name)
+    def name(self) -> RewardModelType:
+        return self.model.name
 
     def apply(
         self, *args, **kwargs
@@ -166,8 +166,10 @@ async def apply_reward_function(
     reward_i, reward_i_normalized = await reward_function.apply(synapse, responses)
     rewards += reward_function.weight * reward_i_normalized
 
-    event[reward_function.name] = reward_i.tolist()
-    event[reward_function.name + "_normalized"] = reward_i_normalized.tolist()
+    event[reward_function.name] = {}
+    event[reward_function.name]["score"] = reward_i.tolist()
+    event[reward_function.name]["normalized"] = reward_i_normalized.tolist()
+
     logger.info(f"{reward_function.name}, {reward_i_normalized.tolist()}")
 
     return rewards, event

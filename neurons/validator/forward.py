@@ -416,7 +416,6 @@ async def run_step(
         validator.model_type,
         synapse,
         responses,
-        uids,
         task_type,
     )
 
