@@ -34,9 +34,9 @@ class ModelType(Enum):
 class ImageGenerationTaskModel(BaseModel):
     task_id: str
     prompt: str
-    negative_prompt: Optional[str]
-    prompt_image: Optional[bt.Tensor]
-    images: Optional[typing.List[bt.Tensor]]
+    negative_prompt: Optional[str] = None
+    prompt_image: Optional[bt.Tensor] = None
+    images: Optional[typing.List[bt.Tensor]] = None
     num_images_per_prompt: int
     height: int
     width: int
@@ -44,7 +44,7 @@ class ImageGenerationTaskModel(BaseModel):
     seed: int
     steps: int
     task_type: str
-    model_type: Optional[str]
+    model_type: Optional[str] = None
 
 
 def denormalize_image_model(

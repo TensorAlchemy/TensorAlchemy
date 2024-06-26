@@ -30,11 +30,13 @@ from neurons.validator.schemas import Batch
 
 
 class TensorAlchemyBackendClient:
-    def __init__(self):
+    def __init__(self, hotkey: bt.Keypair = None):
         self.config = get_config()
 
-        self.wallet = bt.wallet(config=self.config)
-        self.hotkey = self.wallet.hotkey
+        if hotkey:
+            self.hotkey = hotkey
+        else:
+            self.hotkey = bt.wallet(config=self.config).hotkey
 
         self.api_url = DEV_URL
         if self.config.subtensor.network != "test":
