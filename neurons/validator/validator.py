@@ -47,7 +47,6 @@ from neurons.validator.rewards.models.similarity import ModelSimilarityRewardMod
 from neurons.validator.rewards.models.human import HumanValidationRewardModel
 from neurons.validator.rewards.models.image_reward import ImageRewardModel
 from neurons.validator.rewards.models.nsfw import NSFWRewardModel
-from neurons.validator.rewards.reward import BaseRewardModel, RewardProcessor
 from neurons.validator.schemas import Batch
 from neurons.validator.services.openai.service import get_openai_service
 from neurons.validator.utils import (
