@@ -63,6 +63,8 @@ async def update_moving_averages(
         neginf=0.0,
     ).to(get_device())
 
+    print(rewards)
+
     moving_average_scores: torch.FloatTensor = alpha * rewards + (
         1 - alpha
     ) * previous_ma_scores.to(get_device())

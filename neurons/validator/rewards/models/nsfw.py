@@ -21,8 +21,11 @@ class NSFWRewardModel(BaseRewardModel):
         self.processor = CLIPImageProcessor()
 
     def reward(self, response: bt.Synapse) -> float:
-        if not response.images or any(image is None for image in response.images):
-            return 0.0
+        if not response.images:
+            return 1.0
+
+        if any(image is None for image in response.images):
+            return 1.0
 
         try:
             clip_input = self.processor(
@@ -35,9 +38,9 @@ class NSFWRewardModel(BaseRewardModel):
                 clip_input=clip_input.pixel_values.to(get_device()),
             )
 
-            return 0.0 if any(has_nsfw_concept) else 1.0
+            return 1.0 if any(has_nsfw_concept) else 0.0
 
         except Exception as e:
             logger.error(f"Error in NSFW detection: {e}")
             logger.error(f"images={response.images}")
-            return 1.0
+            return 0.0
