@@ -1,7 +1,21 @@
+from enum import Enum
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 from neurons.validator.rewards.types import RewardModelType
+
+
+def convert_enum_keys_to_strings(data) -> dict:
+    if isinstance(data, dict):
+        return {
+            k.value if isinstance(k, Enum) else str(k): convert_enum_keys_to_strings(v)
+            for k, v in data.items()
+        }
+
+    if isinstance(data, list):
+        return [convert_enum_keys_to_strings(item) for item in data]
+
+    return data
 
 
 @dataclass
@@ -31,13 +45,15 @@ class EventSchema:
     def from_dict(event_dict: dict) -> "EventSchema":
         """Converts a dictionary to an EventSchema object."""
 
-        rewards = {
-            RewardModelType.BLACKLIST: event_dict.get(RewardModelType.BLACKLIST),
-            RewardModelType.SIMILARITY: event_dict.get(RewardModelType.SIMILARITY),
-            RewardModelType.HUMAN: event_dict.get(RewardModelType.HUMAN),
-            RewardModelType.IMAGE: event_dict.get(RewardModelType.IMAGE),
-            RewardModelType.NSFW: event_dict.get(RewardModelType.NSFW),
-        }
+        rewards = convert_enum_keys_to_strings(
+            {
+                RewardModelType.BLACKLIST: event_dict.get(RewardModelType.BLACKLIST),
+                RewardModelType.SIMILARITY: event_dict.get(RewardModelType.SIMILARITY),
+                RewardModelType.HUMAN: event_dict.get(RewardModelType.HUMAN),
+                RewardModelType.IMAGE: event_dict.get(RewardModelType.IMAGE),
+                RewardModelType.NSFW: event_dict.get(RewardModelType.NSFW),
+            }
+        )
 
         return EventSchema(
             task_type=event_dict["task_type"],

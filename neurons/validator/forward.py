@@ -2,10 +2,11 @@ import asyncio
 import base64
 import copy
 import time
+
 from dataclasses import asdict
 from datetime import datetime
 from io import BytesIO
-from typing import Dict, List, AsyncIterator, Optional
+from typing import List, AsyncIterator, Optional
 
 import bittensor as bt
 import torch
@@ -22,7 +23,7 @@ from neurons.utils.defaults import Stats
 from neurons.utils.log import colored_log, sh
 
 from neurons.validator.backend.exceptions import PostMovingAveragesError
-from neurons.validator.event import EventSchema
+from neurons.validator.event import EventSchema, convert_enum_keys_to_strings
 from neurons.validator.rewards.types import MaskedRewards, AutomatedRewards
 from neurons.validator.schemas import Batch
 from neurons.validator.utils import ttl_get_block
@@ -225,6 +226,8 @@ def log_responses(responses: List[ImageGeneration], prompt: str):
 
 
 def log_event_to_wandb(wandb, event: dict, prompt: str):
+    event = convert_enum_keys_to_strings(event)
+
     logger.info(f"Events: {str(event)}")
     logger.log("EVENTS", "events", **event)
 
@@ -456,6 +459,10 @@ async def run_step(
     except Exception as err:
         logger.error(f"Error updating event dict: {err}")
 
-    log_event_to_wandb(validator.wandb, event, prompt)
+    log_event_to_wandb(
+        validator.wandb,
+        event,
+        prompt,
+    )
 
     return event
