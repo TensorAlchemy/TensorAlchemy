@@ -27,6 +27,9 @@ class ImageRewardModel(BaseRewardModel):
                     for image in response.images
                 ]
 
+                if not images:
+                    raise ValueError("No images")
+
             except Exception:
                 logger.error("ImageReward score is 0. No image in response.")
                 return 0.0
