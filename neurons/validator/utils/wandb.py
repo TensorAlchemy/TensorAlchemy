@@ -10,7 +10,7 @@ from loguru import logger
 from neurons.constants import (
     WANDB_VALIDATOR_PATH,
 )
-from neurons.validator.rewards.pipeline import REWARD_MODELS
+from neurons.validator.rewards.pipeline import get_reward_models
 from neurons.validator.utils.version import get_validator_version
 
 
@@ -25,7 +25,7 @@ def init_wandb(validator: "StableValidator", reinit=False):
     if validator.config.mock:
         tags.append("mock")
 
-    for fn_name in REWARD_MODELS:
+    for fn_name in get_reward_models():
         tags.append(str(fn_name))
 
     wandb_config = {

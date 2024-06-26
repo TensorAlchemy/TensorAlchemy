@@ -24,35 +24,50 @@ from neurons.validator.rewards.types import (
 ModelStorage = Dict[RewardModelType, PackedRewardModel]
 
 # Init Reward Models
-REWARD_MODELS: ModelStorage = {
-    RewardModelType.EMPTY: PackedRewardModel(
-        weight=0.0,
-        model=EmptyScoreRewardModel(),
-    ),
-    RewardModelType.IMAGE: PackedRewardModel(
-        weight=0.8,
-        model=ImageRewardModel(),
-    ),
-    RewardModelType.SIMILARITY: PackedRewardModel(
-        weight=0.2,
-        model=ModelSimilarityRewardModel(),
-    ),
-    RewardModelType.HUMAN: PackedRewardModel(
-        weight=0.1 / 32,
-        model=HumanValidationRewardModel(),
-    ),
-}
+REWARD_MODELS: ModelStorage = None
+MASKING_MODELS: ModelStorage = None
 
-MASKING_MODELS: ModelStorage = {
-    RewardModelType.NSFW: PackedRewardModel(
-        weight=1.0,
-        model=NSFWRewardModel(),
-    ),
-    RewardModelType.BLACKLIST: PackedRewardModel(
-        weight=1.0,
-        model=BlacklistFilter(),
-    ),
-}
+
+def get_reward_models() -> ModelStorage:
+    global REWARD_MODELS
+    if not REWARD_MODELS:
+        REWARD_MODELS = {
+            RewardModelType.EMPTY: PackedRewardModel(
+                weight=0.0,
+                model=EmptyScoreRewardModel(),
+            ),
+            RewardModelType.IMAGE: PackedRewardModel(
+                weight=0.8,
+                model=ImageRewardModel(),
+            ),
+            RewardModelType.SIMILARITY: PackedRewardModel(
+                weight=0.2,
+                model=ModelSimilarityRewardModel(),
+            ),
+            RewardModelType.HUMAN: PackedRewardModel(
+                weight=0.1 / 32,
+                model=HumanValidationRewardModel(),
+            ),
+        }
+
+    return REWARD_MODELS
+
+
+def get_masking_models() -> ModelStorage:
+    global MASKING_MODELS
+    if not MASKING_MODELS:
+        MASKING_MODELS = {
+            RewardModelType.NSFW: PackedRewardModel(
+                weight=1.0,
+                model=NSFWRewardModel(),
+            ),
+            RewardModelType.BLACKLIST: PackedRewardModel(
+                weight=1.0,
+                model=BlacklistFilter(),
+            ),
+        }
+
+    return MASKING_MODELS
 
 
 def get_function(
@@ -66,39 +81,49 @@ def get_function(
 def get_reward_functions(model_type: ModelType) -> List[PackedRewardModel]:
     if model_type != ModelType.ALCHEMY:
         return [
-            get_function(REWARD_MODELS, RewardModelType.IMAGE),
-            get_function(REWARD_MODELS, RewardModelType.HUMAN),
+            get_function(get_reward_models(), RewardModelType.IMAGE),
+            get_function(get_reward_models(), RewardModelType.HUMAN),
         ]
     return [
-        get_function(REWARD_MODELS, RewardModelType.IMAGE),
-        get_function(REWARD_MODELS, RewardModelType.SIMILARITY),
-        get_function(REWARD_MODELS, RewardModelType.HUMAN),
+        get_function(get_reward_models(), RewardModelType.IMAGE),
+        get_function(get_reward_models(), RewardModelType.SIMILARITY),
+        get_function(get_reward_models(), RewardModelType.HUMAN),
     ]
 
 
 def get_masking_functions(_model_type: ModelType) -> List[PackedRewardModel]:
     return [
-        get_function(MASKING_MODELS, RewardModelType.NSFW),
-        get_function(MASKING_MODELS, RewardModelType.BLACKLIST),
+        get_function(get_masking_models(), RewardModelType.NSFW),
+        get_function(get_masking_models(), RewardModelType.BLACKLIST),
     ]
+
+
+def get_uids(responses: List[bt.Synapse]) -> torch.Tensor:
+    metagraph: bt.metagraph = get_metagraph()
+
+    return torch.tensor(
+        [
+            #
+            metagraph.hotkeys.index(response.dendrite.hotkey)
+            for response in responses
+        ],
+        dtype=torch.long,
+    ).to(get_device())
 
 
 async def apply_masking_functions(
     model_type: ModelType,
     synapse: bt.Synapse,
-    responses: list,
+    responses: List[bt.Synapse],
 ) -> Tuple[torch.Tensor, dict]:
     event = {}
     masking_functions: List[PackedRewardModel] = get_masking_functions(model_type)
 
-    mask = torch.ones(len(get_metagraph().n)).to(get_device())
-    uids = torch.tensor(
-        [response.dendrite.uid for response in responses], dtype=torch.long
-    ).to(get_device())
+    mask = torch.ones(get_metagraph().n).to(get_device())
 
     for function in masking_functions:
         mask_i, mask_i_normalized = await function.apply(synapse, responses)
-        mask[uids] *= mask_i_normalized
+        mask *= mask_i_normalized
 
         event[function.name] = mask_i.tolist()
         event[function.name + "_normalized"] = mask_i_normalized.tolist()
@@ -110,19 +135,15 @@ async def apply_masking_functions(
 async def apply_reward_function(
     reward_function: PackedRewardModel,
     synapse: bt.Synapse,
-    responses: list,
+    responses: List[bt.Synapse],
     rewards: torch.Tensor,
     event: Optional[Dict] = None,
 ) -> Tuple[torch.Tensor, dict]:
     if event is None:
         event = {}
 
-    uids = torch.tensor(
-        [response.dendrite.uid for response in responses], dtype=torch.long
-    ).to(get_device())
-
     reward_i, reward_i_normalized = await reward_function.apply(synapse, responses)
-    rewards[uids] += reward_function.weight * reward_i_normalized
+    rewards += reward_function.weight * reward_i_normalized
 
     event[reward_function.name] = reward_i.tolist()
     event[reward_function.name + "_normalized"] = reward_i_normalized.tolist()
@@ -134,11 +155,11 @@ async def apply_reward_function(
 async def apply_reward_functions(
     model_type: ModelType,
     synapse: bt.Synapse,
-    responses: list,
+    responses: List[bt.Synapse],
 ) -> tuple[torch.Tensor, dict]:
     reward_functions: List[PackedRewardModel] = get_reward_functions(model_type)
 
-    rewards = torch.zeros(len(get_metagraph().n)).to(get_device())
+    rewards = torch.zeros(get_metagraph().n).to(get_device())
     event: Dict = {}
     for function in reward_functions:
         rewards, event = await apply_reward_function(
