@@ -32,61 +32,51 @@ def get_uids(responses: List[bt.Synapse]) -> torch.Tensor:
     ).to(get_device())
 
 
-async def apply_masking_functions(
-    model_type: ModelType,
+async def apply_function(
+    function: PackedRewardModel,
     synapse: bt.Synapse,
     responses: List[bt.Synapse],
-) -> Tuple[torch.Tensor, dict]:
-    event = {}
-    masking_functions: List[PackedRewardModel] = get_masking_functions(model_type)
-
-    mask = torch.ones(get_metagraph().n).to(get_device())
-
-    for mask_function in masking_functions:
-        mask_i, mask_i_normalized = await mask_function.apply(
-            synapse,
-            responses,
-        )
-        mask *= mask_i_normalized
-
-        event[mask_function.name] = {}
-        event[mask_function.name]["score"] = mask_i.tolist()
-        event[mask_function.name]["normalized"] = mask_i_normalized.tolist()
-
-        logger.info(
-            #
-            f"{mask_function.name}, "
-            + f"{summarize_rewards(mask_i_normalized)}"
-        )
-
-    return mask, event
-
-
-async def apply_reward_function(
-    reward_function: PackedRewardModel,
-    synapse: bt.Synapse,
-    responses: List[bt.Synapse],
-    rewards: torch.Tensor,
     event: Optional[Dict] = None,
 ) -> Tuple[torch.Tensor, dict]:
     if event is None:
         event = {}
 
-    reward_i, reward_i_normalized = await reward_function.apply(
+    result_i, result_i_normalized = await function.apply(
         synapse,
         responses,
     )
-    rewards += reward_function.weight * reward_i_normalized
+    result = function.weight * result_i_normalized
 
-    event[reward_function.name] = {}
-    event[reward_function.name]["score"] = reward_i.tolist()
-    event[reward_function.name]["normalized"] = reward_i_normalized.tolist()
+    event[function.name] = {}
+    event[function.name]["score"] = result_i.tolist()
+    event[function.name]["normalized"] = result_i_normalized.tolist()
 
     logger.info(
         #
-        f"{reward_function.name}, "
-        + f"{summarize_rewards(reward_i_normalized)}"
+        f"{function.name}, "
+        + f"{summarize_rewards(result_i_normalized)}"
     )
+
+    return result, event
+
+
+async def apply_functions(
+    reward_functions: List[PackedRewardModel],
+    synapse: bt.Synapse,
+    responses: List[bt.Synapse],
+) -> Tuple[torch.Tensor, Dict]:
+    event: Dict = {}
+    rewards = torch.zeros(get_metagraph().n).to(get_device())
+
+    for function in reward_functions:
+        new_rewards, event = await apply_function(
+            function,
+            synapse,
+            responses,
+            event,
+        )
+
+        rewards *= new_rewards
 
     return rewards, event
 
@@ -95,21 +85,24 @@ async def apply_reward_functions(
     model_type: ModelType,
     synapse: bt.Synapse,
     responses: List[bt.Synapse],
-) -> tuple[torch.Tensor, dict]:
-    reward_functions: List[PackedRewardModel] = get_reward_functions(model_type)
+) -> Tuple[torch.Tensor, Dict]:
+    return await apply_functions(
+        get_reward_functions(model_type),
+        synapse,
+        responses,
+    )
 
-    rewards = torch.zeros(get_metagraph().n).to(get_device())
-    event: Dict = {}
-    for function in reward_functions:
-        rewards, event = await apply_reward_function(
-            function,
-            synapse,
-            responses,
-            rewards,
-            event,
-        )
 
-    return rewards, event
+async def apply_masking_functions(
+    model_type: ModelType,
+    synapse: bt.Synapse,
+    responses: List[bt.Synapse],
+) -> Tuple[torch.Tensor, Dict]:
+    return await apply_functions(
+        get_masking_functions(model_type),
+        synapse,
+        responses,
+    )
 
 
 async def get_automated_rewards(
