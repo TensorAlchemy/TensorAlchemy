@@ -54,8 +54,9 @@ async def apply_function(
 
     logger.info(
         #
-        f"{function.name}, "
-        + f"{summarize_rewards(result_i_normalized)}"
+        f"\n{function.name}:"
+        + f"\n\t\t - {summarize_rewards(result_i)}"
+        + f"\n\t\t - {summarize_rewards(result_i_normalized)}"
     )
 
     return result, event
@@ -68,7 +69,8 @@ async def apply_functions(
     functions: List[PackedRewardModel],
     synapse: bt.Synapse,
     responses: List[bt.Synapse],
-    combine: ResultCombiner = torch.maximum,
+    initial_seed: torch.Tensor,
+    combine: ResultCombiner,
 ) -> Tuple[torch.Tensor, Dict]:
     """
     Apply a list of reward or masking functions sequentially.
@@ -82,7 +84,7 @@ async def apply_functions(
     the final reward is a product of multiple factors.
     """
     event: Dict = {}
-    results = torch.ones(get_metagraph().n).to(get_device())
+    results = initial_seed
 
     for function in functions:
         rewards, event = await apply_function(
@@ -113,6 +115,7 @@ async def apply_reward_functions(
         synapse,
         responses,
         combine=lambda results, rewards: results * rewards,
+        initial_seed=torch.ones(get_metagraph().n).to(get_device()),
     )
 
 
@@ -129,6 +132,7 @@ async def apply_masking_functions(
         synapse,
         responses,
         combine=torch.maximum,
+        initial_seed=torch.zeros(get_metagraph().n).to(get_device()),
     )
 
 

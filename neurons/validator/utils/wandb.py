@@ -25,9 +25,6 @@ def init_wandb(validator: "StableValidator", reinit=False):
     if validator.config.mock:
         tags.append("mock")
 
-    for fn_name in get_reward_models():
-        tags.append(str(fn_name))
-
     wandb_config = {
         key: copy.deepcopy(validator.config.get(key, None))
         for key in ("neuron", "alchemy", "reward", "netuid", "wandb")

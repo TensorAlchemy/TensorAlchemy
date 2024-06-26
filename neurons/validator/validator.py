@@ -345,7 +345,8 @@ class StableValidator:
                 sys.exit(0)
 
     async def get_image_generation_task(
-        self, timeout=60
+        self,
+        timeout: int = 60,
     ) -> ImageGenerationTaskModel | None:
         """
         Fetch new image generation task from backend or generate new one
@@ -354,7 +355,9 @@ class StableValidator:
         # NOTE: Will wait for around 60 seconds
         #       trying to get a task from the user
         # before going on and creating a synthetic task
-        task = await self.backend_client.poll_task(timeout=timeout)
+        # task = await self.backend_client.poll_task(timeout=timeout)
+
+        task = None
 
         # No organic task found
         if task is None:

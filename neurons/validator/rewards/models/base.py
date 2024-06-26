@@ -22,10 +22,6 @@ class BaseRewardModel:
         return str(self.name)
 
     def __init__(self) -> None:
-        self.count = 0
-        self.mean = 0.0
-        self.var = 0.0
-        self.count_limit = 3000
         self.metagraph = get_metagraph()
 
     async def get_rewards(
@@ -36,8 +32,17 @@ class BaseRewardModel:
         rewards = torch.zeros(self.metagraph.n).to(get_device())
 
         for response in responses:
-            uid = self.metagraph.hotkeys.index(response.dendrite.hotkey)
-            rewards[uid] = self.reward(response)
+            score = self.reward(response)
+            hotkey = response.hotkey
+
+            try:
+                index = self.metagraph.hotkeys.index(hotkey)
+                rewards[index] = score
+                logger.info(
+                    f"Assigned score {score} to index {index} for hotkey {hotkey}"
+                )
+            except ValueError:
+                logger.error(f"Hotkey {hotkey} not found in metagraph")
 
         return rewards
 
@@ -45,7 +50,7 @@ class BaseRewardModel:
     def reward(self, response) -> float:
         return 0.0
 
-    def normalize_rewards(self, rewards: Dict[int, float]) -> torch.Tensor:
+    def normalize_rewards(self, rewards: torch.Tensor) -> torch.Tensor:
         return rewards
 
     async def apply(
@@ -57,6 +62,8 @@ class BaseRewardModel:
         rewards = await self.get_rewards(synapse, responses)
 
         # Normalize rewards
+        print("Rewards before normalization:", rewards)  # Debug print
         normalized_rewards = self.normalize_rewards(rewards)
+        print("Rewards after normalization:", normalized_rewards)  # Debug print
 
         return rewards, normalized_rewards

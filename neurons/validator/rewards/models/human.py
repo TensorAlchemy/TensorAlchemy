@@ -41,9 +41,9 @@ class HumanValidationRewardModel(BaseRewardModel):
         rewards = torch.zeros(self.metagraph.n).to(get_device())
 
         for response in responses:
-            uid = self.metagraph.hotkeys.index(response.dendrite.hotkey)
+            uid = self.metagraph.hotkeys.index(response.hotkey)
             rewards[uid] = human_voting_scores_dict.get(
-                response.dendrite.hotkey,
+                response.hotkey,
                 0.0,
             )
 
