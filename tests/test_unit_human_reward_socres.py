@@ -7,11 +7,8 @@ import bittensor as bt
 
 from neurons.protocol import ImageGeneration, ModelType
 from neurons.validator.rewards.types import RewardModelType
-from neurons.validator.rewards.pipeline import (
-    get_function,
-    apply_reward_function,
-    REWARD_MODELS,
-)
+from neurons.validator.rewards.pipeline import apply_reward_function
+from neurons.validator.rewards.models import get_function, get_reward_models
 
 
 def generate_synapse() -> bt.Synapse:
@@ -79,7 +76,7 @@ async def test_apply_human_voting_weight():
     ):
         # First, apply EmptyScoreRewardModel
         empty_rewards, _ = await apply_reward_function(
-            get_function(REWARD_MODELS, RewardModelType.EMPTY),
+            get_function(get_reward_models(), RewardModelType.EMPTY),
             generate_synapse(),
             responses,
             {hotkey: 0.0 for hotkey in test_hotkeys},
@@ -90,7 +87,7 @@ async def test_apply_human_voting_weight():
 
         # Now, apply HumanValidationRewardModel
         human_rewards, _ = await apply_reward_function(
-            get_function(REWARD_MODELS, RewardModelType.HUMAN),
+            get_function(get_reward_models(), RewardModelType.HUMAN),
             generate_synapse(),
             responses,
             empty_rewards,

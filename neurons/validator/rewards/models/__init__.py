@@ -3,6 +3,8 @@ from typing import Dict, List, Tuple
 import torch
 from pydantic import BaseModel
 
+from neurons.protocol import ModelType
+
 from neurons.validator.rewards.models.base import BaseRewardModel
 from neurons.validator.rewards.models.empty import EmptyScoreRewardModel
 from neurons.validator.rewards.models.blacklist import BlacklistFilter
@@ -11,7 +13,7 @@ from neurons.validator.rewards.models.human import HumanValidationRewardModel
 from neurons.validator.rewards.models.image_reward import ImageRewardModel
 from neurons.validator.rewards.models.nsfw import NSFWRewardModel
 
-from neurons.validator.rewards.types import RewardModelType, ModelType
+from neurons.validator.rewards.types import RewardModelType
 
 
 class PackedRewardModel(BaseModel):

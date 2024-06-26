@@ -10,7 +10,7 @@ from loguru import logger
 from neurons.constants import (
     WANDB_VALIDATOR_PATH,
 )
-from neurons.validator.rewards.pipeline import get_reward_models
+from neurons.validator.rewards.models import get_reward_models
 from neurons.validator.utils.version import get_validator_version
 
 
