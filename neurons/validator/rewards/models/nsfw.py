@@ -1,5 +1,5 @@
-import bittensor as bt
 from typing import Dict, List
+import bittensor as bt
 from loguru import logger
 from transformers import CLIPImageProcessor
 from neurons.safety import StableDiffusionSafetyChecker
@@ -21,7 +21,6 @@ class NSFWRewardModel(BaseRewardModel):
         self.processor = CLIPImageProcessor()
 
     def reward(self, response: bt.Synapse) -> float:
-        # delete all none images
         if not response.images or any(image is None for image in response.images):
             return 0.0
 
@@ -47,10 +46,10 @@ class NSFWRewardModel(BaseRewardModel):
         self,
         _synapse: bt.Synapse,
         responses: List[bt.Synapse],
-    ) -> Dict[int, float]:
+    ) -> Dict[str, float]:
         return {
             response.dendrite.hotkey: self.reward(response) for response in responses
         }
 
-    def normalize_rewards(self, rewards: Dict[int, float]) -> Dict[int, float]:
+    def normalize_rewards(self, rewards: Dict[str, float]) -> Dict[str, float]:
         return rewards

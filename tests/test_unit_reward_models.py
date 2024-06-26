@@ -14,31 +14,35 @@ def mock_tensor():
 
 
 @pytest.fixture
-def mock_image_generation(mock_tensor):
+def blacklist_filter():
+    return BlacklistFilter()
+
+
+@pytest.fixture
+def mock_image_generation():
     def _create_image_generation(images, height=1024, width=1024, prompt=""):
-        return ImageGeneration(
+        synapse = ImageGeneration(
             generation_type="TEXT_TO_IMAGE",
             seed=-1,
             model_type=ModelType.ALCHEMY.value,
-            images=[mock_tensor for _ in range(images)],
+            images=[MagicMock(spec=bt.Tensor) for _ in range(images)],
             height=height,
             width=width,
             prompt=prompt,
             num_images_per_prompt=images,
         )
+        synapse.dendrite = MagicMock()
+        return synapse
 
     return _create_image_generation
-
-
-@pytest.fixture
-def blacklist_filter():
-    return BlacklistFilter()
 
 
 @pytest.fixture
 def nsfw_reward_model():
     with patch("neurons.validator.rewards.models.nsfw.StableDiffusionSafetyChecker"):
         with patch("neurons.validator.rewards.models.nsfw.CLIPImageProcessor"):
+            from neurons.validator.rewards.models.nsfw import NSFWRewardModel
+
             return NSFWRewardModel()
 
 
@@ -99,16 +103,18 @@ async def test_nsfw_image(nsfw_reward_model, mock_image_generation):
             ),
         ]
 
-        # Add dendrite attribute with hotkey
-        responses[0].dendrite = MagicMock(hotkey="hotkey_1")
-        responses[1].dendrite = MagicMock(hotkey="hotkey_2")
+        # Set hotkeys
+        responses[0].dendrite.hotkey = "hotkey_1"
+        responses[1].dendrite.hotkey = "hotkey_2"
 
         rewards = await nsfw_reward_model.get_rewards(responses[1], responses)
 
         print(rewards)
+        assert rewards["hotkey_1"] == 0.0
+        assert rewards["hotkey_2"] == 1.0
 
-        assert rewards["hotkey_1"] == 0
-        assert rewards["hotkey_2"] == 1
+        # Test that the NSFW checker was called twice (once for each image)
+        assert mock_forward.call_count == 2
 
 
 if __name__ == "__main__":
