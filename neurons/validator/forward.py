@@ -418,20 +418,20 @@ async def run_step(
         task_type,
     )
 
-    scattered_rewards: torch.Tensor = validator.moving_average_scores.scatter(
-        0, uids, automated_rewards.rewards[uids]
-    ).to(get_device())
+    # No need for scattering, directly use the rewards
+    rewards_tensor = automated_rewards.rewards
 
-    scattered_rewards_adjusted = filter_rewards(
+    # Apply isalive filtering
+    rewards_tensor_adjusted = filter_rewards(
         validator.isalive_dict,
         validator.isalive_threshold,
-        scattered_rewards,
+        rewards_tensor,
     )
 
     # Update moving averages
     validator.moving_average_scores = await update_moving_averages(
         validator.moving_average_scores,
-        scattered_rewards_adjusted,
+        rewards_tensor_adjusted,
         hotkey_blacklist=validator.hotkey_blacklist,
         coldkey_blacklist=validator.coldkey_blacklist,
     )
