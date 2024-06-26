@@ -62,8 +62,6 @@ class BaseRewardModel:
         rewards = await self.get_rewards(synapse, responses)
 
         # Normalize rewards
-        print("Rewards before normalization:", rewards)  # Debug print
         normalized_rewards = self.normalize_rewards(rewards)
-        print("Rewards after normalization:", normalized_rewards)  # Debug print
 
         return rewards, normalized_rewards

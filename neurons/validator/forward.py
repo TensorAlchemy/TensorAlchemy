@@ -109,15 +109,13 @@ async def query_single_axon(
     axon: AxonInfo,
     synapse: bt.Synapse,
     query_timeout: int,
-) -> ImageGenerationResponse:
-    start_time = time.time()
+) -> bt.Synapse:
     responses = await dendrite(
         [axon],
         synapse,
         timeout=query_timeout,
     )
-    total_time = time.time() - start_time
-    return ImageGenerationResponse(axon=axon, synapse=responses[0], time=total_time)
+    return responses[0]
 
 
 async def query_axons_async(
@@ -126,14 +124,12 @@ async def query_axons_async(
     uids: torch.LongTensor,
     synapse: bt.Synapse,
     query_timeout: int,
-) -> AsyncIterator[ImageGenerationResponse]:
+) -> AsyncIterator[bt.Synapse]:
     routines = [
         query_single_axon(dendrite, axon, synapse, query_timeout) for axon in axons
     ]
-    uid_by_axon = {id(axon): uid for uid, axon in zip(uids, axons)}
     for future in asyncio.as_completed(routines):
-        result: ImageGenerationResponse = await future
-        result.uid = int(uid_by_axon[id(result.axon)])
+        result: bt.Synapse = await future
         yield result
 
 
@@ -144,21 +140,22 @@ async def query_axons_and_process_responses(
     uids: torch.LongTensor,
     synapse: bt.Synapse,
     query_timeout: int,
-) -> List[ImageGenerationResponse]:
+) -> List[bt.Synapse]:
     """Request image generation from axons"""
     responses = []
     async for response in query_axons_async(
-        validator.dendrite, axons, uids, synapse, query_timeout
+        validator.dendrite,
+        axons,
+        uids,
+        synapse,
+        query_timeout,
     ):
-        logger.info(
-            f"axon={response.axon.hotkey} uid={response.uid}"
-            f" responded in {response.time:.2f}s"
-        )
         masked_rewards = await get_masked_rewards(
             validator.model_type,
             synapse,
-            responses=[response.synapse],
+            responses=[response],
         )
+
         # Create batch from single response and enqueue uploading
         # Batch will be merged at backend side
         batch_for_upload = await create_batch_for_upload(
@@ -171,9 +168,6 @@ async def query_axons_and_process_responses(
         )
         validator.batches_upload_queue.put_nowait(batch_for_upload)
         responses.append(response)
-
-    # Responses with images should be first in list
-    responses.sort(key=lambda r: r.has_images(), reverse=True)
 
     return responses
 
@@ -268,12 +262,12 @@ async def create_batch_for_upload(
     responses: List[ImageGenerationResponse],
     masked_rewards: MaskedRewards,
 ):
-    uids = [response.uid for response in responses]
+    uids = get_uids(responses)
 
     should_drop_entries = []
     images = []
     for response, reward in zip(responses, masked_rewards.rewards):
-        if response.has_images() and reward != 0:
+        if response.is_success and reward != 0:
             im_file = BytesIO()
             T.transforms.ToPILImage()(bt.Tensor.deserialize(response.images[0])).save(
                 im_file, format="PNG"
@@ -334,6 +328,19 @@ def display_run_info(stats: Stats, task_type: str, prompt: str):
     )
 
 
+def get_uids(responses: List[bt.Synapse]) -> torch.Tensor:
+    metagraph: bt.metagraph = get_metagraph()
+
+    return torch.tensor(
+        [
+            #
+            metagraph.hotkeys.index(response.dendrite.hotkey)
+            for response in responses
+        ],
+        dtype=torch.long,
+    ).to(get_device())
+
+
 async def run_step(
     validator: "StableValidator",
     task: ImageGenerationTaskModel,
@@ -372,13 +379,17 @@ async def run_step(
     )
 
     responses = await query_axons_and_process_responses(
-        validator, task, axons, uids, synapse, validator.query_timeout
+        validator,
+        task,
+        axons,
+        uids,
+        synapse,
+        validator.query_timeout,
     )
 
     log_query_to_history(validator, uids)
 
-    uids = [response.uid for response in responses]
-    responses = [r.synapse for r in responses]
+    uids = get_uids(responses)
 
     colored_log(f"{sh('Info')} -> {synapse_info}", color="magenta")
     colored_log(
