@@ -20,19 +20,19 @@ class HumanValidationRewardModel(BaseRewardModel):
         self,
         _synapse: bt.Synapse,
         responses: List[bt.Synapse],
-    ) -> Dict[str, float]:
+    ) -> torch.Tensor:
         logger.info("Extracting human votes...")
 
         human_voting_scores_dict = {}
 
         try:
-            self.human_voting_scores = await get_backend_client().get_votes()
+            human_voting_scores = await get_backend_client().get_votes()
         except Exception as e:
             logger.error(f"Error while getting votes: {e}")
-            return {response.dendrite.hotkey: 0.0 for response in responses}
+            return torch.zeros(self.metagraph.n).to(get_device())
 
         if self.human_voting_scores:
-            for inner_dict in self.human_voting_scores.values():
+            for inner_dict in human_voting_scores.values():
                 for hotkey, value in inner_dict.items():
                     human_voting_scores_dict[hotkey] = (
                         human_voting_scores_dict.get(hotkey, 0) + value

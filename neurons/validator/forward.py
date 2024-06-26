@@ -301,7 +301,6 @@ async def create_batch_for_upload(
             images.append(im_b64.decode())
             should_drop_entries.append(1)
 
-    print(masked_rewards.event)
     # Update batches to be sent to the human validation platform
     # if batch_id not in validator.batches.keys():
     return Batch(
