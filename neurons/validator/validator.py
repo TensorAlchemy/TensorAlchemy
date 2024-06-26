@@ -12,7 +12,6 @@ import sentry_sdk
 import torch
 import wandb
 from loguru import logger
-import sentry_sdk
 
 from neurons.constants import (
     DEV_URL,
@@ -33,8 +32,6 @@ from neurons.utils import (
     get_defaults,
 )
 from neurons.validator.config import (
-    check_config,
-    add_args,
     get_device,
     get_config,
     get_metagraph,
@@ -42,21 +39,14 @@ from neurons.validator.config import (
 from neurons.validator.backend.client import TensorAlchemyBackendClient
 from neurons.validator.backend.models import TaskState
 from neurons.validator.forward import run_step
-from neurons.validator.rewards.models.blacklist import BlacklistFilter
-from neurons.validator.rewards.models.similarity import ModelSimilarityRewardModel
-from neurons.validator.rewards.models.human import HumanValidationRewardModel
-from neurons.validator.rewards.models.image_reward import ImageRewardModel
-from neurons.validator.rewards.models.nsfw import NSFWRewardModel
-from neurons.validator.schemas import Batch
 from neurons.validator.services.openai.service import get_openai_service
+from neurons.validator.utils.wandb import init_wandb, reinit_wandb
+from neurons.validator.utils.version import get_validator_version
 from neurons.validator.utils import (
+    ttl_get_block,
     generate_random_prompt_gpt,
     get_device_name,
     get_random_uids,
-    init_wandb,
-    reinit_wandb,
-    ttl_get_block,
-    get_validator_version,
 )
 from neurons.validator.weights import set_weights
 

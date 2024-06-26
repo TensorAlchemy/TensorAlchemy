@@ -1,49 +1,29 @@
 # Utils for checkpointing and saving the model.
 import asyncio
-import copy
-import os
 import random
 import time
 import traceback
-from functools import lru_cache, update_wrapper, wraps
+from functools import lru_cache, update_wrapper
 from math import floor
 from typing import Any, Callable, List, Optional
 
 import bittensor as bt
 import numpy as np
-import pandas as pd
 import requests
 import torch
 import torch.nn as nn
-import wandb
 from loguru import logger
 
 
 from neurons.constants import (
     N_NEURONS_TO_QUERY,
     VPERMIT_TAO,
-    WANDB_VALIDATOR_PATH,
 )
 from neurons.protocol import IsAlive
-from neurons.validator.rewards.pipeline import REWARD_MODELS
 from neurons.validator.services.openai.service import (
     get_openai_service,
     OpenAIRequestFailed,
 )
-
-
-def get_validator_version() -> str:
-    """Returns version of validator (i.e. 1.0.1)"""
-    import neurons.validator
-
-    return neurons.validator.__version__
-
-
-def get_validator_spec_version() -> int:
-    """Returns numeric representation of validator's version (i.e. 10001)"""
-    import neurons.validator
-
-    return neurons.validator.__spec_version__
 
 
 def _ttl_hash_gen(seconds: int):
@@ -60,7 +40,7 @@ def ttl_cache(maxsize: int = 128, typed: bool = False, ttl: int = -1):
 
     def wrapper(func: Callable) -> Callable:
         @lru_cache(maxsize, typed)
-        def ttl_func(ttl_hash, *args, **kwargs):
+        def ttl_func(_ttl_hash, *args, **kwargs):
             return func(*args, **kwargs)
 
         def wrapped(*args, **kwargs) -> Any:
@@ -286,12 +266,11 @@ def calculate_mean_dissimilarity(dissimilarity_matrix):
         # All elements are the same (no range), set all values to 0.5
         mean_dissimilarities = [0.5] * num_images
     # clamp to [0,1]
-    mean_dissimilarities = [min(1, max(0, value)) for value in mean_dissimilarities]
-
-    # Ensure sum of values is 1 (normalize)
-    # sum_values = sum(mean_dissimilarities)
-    # if sum_values != 0:
-    # mean_dissimilarities = [value / sum_values for value in mean_dissimilarities]
+    mean_dissimilarities = [
+        #
+        min(1, max(0, value))
+        for value in mean_dissimilarities
+    ]
 
     return mean_dissimilarities
 
@@ -699,115 +678,6 @@ def generate_followup_prompt_gpt(
     return None
 
 
-def init_wandb(validator: "StableValidator", reinit=False):
-    """Starts a new wandb run."""
-    tags = [
-        validator.wallet.hotkey.ss58_address,
-        get_validator_version(),
-        f"netuid_{validator.metagraph.netuid}",
-    ]
-
-    if validator.config.mock:
-        tags.append("mock")
-
-    for fn_name in REWARD_MODELS:
-        tags.append(str(fn_name))
-
-    wandb_config = {
-        key: copy.deepcopy(validator.config.get(key, None))
-        for key in ("neuron", "alchemy", "reward", "netuid", "wandb")
-    }
-    wandb_config["alchemy"].pop("full_path", None)
-
-    if not os.path.exists(WANDB_VALIDATOR_PATH):
-        os.makedirs(WANDB_VALIDATOR_PATH, exist_ok=True)
-
-    project = "ImageAlchemyTest"
-
-    if validator.config.netuid == 26:
-        project = "ImageAlchemy"
-
-    validator.wandb = wandb.init(
-        anonymous="allow",
-        reinit=reinit,
-        project=project,
-        entity="tensoralchemists",
-        config=wandb_config,
-        dir=WANDB_VALIDATOR_PATH,
-        tags=tags,
-    )
-    logger.success(f"Started a new wandb run called {validator.wandb.name}.")
-
-
-def reinit_wandb(self):
-    """Reinitializes wandb, rolling over the run."""
-    if self.wandb:
-        try:
-            self.wandb.finish()
-        except Exception:
-            pass
-    init_wandb(self, reinit=True)
-
-
-def get_promptdb_backup(netuid, prompt_history=[], limit=1):
-    api = wandb.Api()
-    project = "ImageAlchemy" if netuid == 26 else "ImageAlchemyTest"
-    runs = api.runs(f"tensoralchemists/{project}")
-
-    for run in runs:
-        if len(prompt_history) >= limit:
-            break
-        if run.historyLineCount >= 100:
-            history = run.history()
-            if ("prompt_t2i" not in history.columns) or (
-                "prompt_i2i" not in history.columns
-            ):
-                continue
-            for i in range(0, len(history) - 1, 2):
-                if len(prompt_history) >= limit:
-                    break
-
-                if (
-                    pd.isna(history.loc[i, "prompt_t2i"])
-                    or (history.loc[i, "prompt_t2i"] is None)
-                    or (i == len(history))
-                    or (history.loc[i + 1, "prompt_i2i"] is None)
-                    or pd.isna(history.loc[i + 1, "prompt_i2i"])
-                ):
-                    continue
-
-                prompt_tuple = (
-                    history.loc[i, "prompt_t2i"],
-                    history.loc[i + 1, "prompt_i2i"],
-                )
-
-                if prompt_tuple in prompt_history:
-                    continue
-
-                prompt_history.append(prompt_tuple)
-
-    return prompt_history
-
-
-def get_device_name(device: torch.device):
-    """Returns name of GPU model"""
-    try:
-        if device.type == "cuda":
-            # Fetch the device index and then get the device name
-            device_name = torch.cuda.get_device_name(
-                device.index
-                if device.index is not None
-                else torch.cuda.current_device()
-            )
-            return device_name
-
-        # Return 'CPU' as it does not have a specific name like GPUs do
-        return "CPU"
-    except Exception as e:
-        logger.error(f"failed to get device name: {e}")
-        return "n/a"
-
-
 def measure_time(func):
     """This decorator logs time of function execution"""
 
@@ -836,3 +706,22 @@ def measure_time(func):
         return async_measure_time_wrapper
     else:
         return sync_measure_time_wrapper
+
+
+def get_device_name(device: torch.device):
+    """Returns name of GPU model"""
+    try:
+        if device.type == "cuda":
+            # Fetch the device index and then get the device name
+            device_name = torch.cuda.get_device_name(
+                device.index
+                if device.index is not None
+                else torch.cuda.current_device()
+            )
+            return device_name
+
+        # Return 'CPU' as it does not have a specific name like GPUs do
+        return "CPU"
+    except Exception as e:
+        logger.error(f"failed to get device name: {e}")
+        return "n/a"

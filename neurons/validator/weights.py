@@ -3,7 +3,7 @@ import torch
 from loguru import logger
 
 from neurons.validator.backend.exceptions import PostWeightsError
-from neurons.validator.utils import get_validator_spec_version
+from neurons.validator.utils.version import get_validator_spec_version
 
 
 async def set_weights(validator: "StableValidator"):

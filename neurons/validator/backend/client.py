@@ -240,7 +240,7 @@ class TensorAlchemyBackendClient:
     async def _include_validator_version(self, request: httpx.Request):
         """Put validator's version in request headers"""
         try:
-            from neurons.validator.utils import get_validator_version
+            from neurons.validator.utils.version import get_validator_version
 
             request.headers.update({"X-Validator-Version": get_validator_version()})
         except Exception:
