@@ -1,5 +1,8 @@
 import bittensor as bt
 from typing import Dict, List
+
+from loguru import logger
+
 from neurons.validator.rewards.models.base import BaseRewardModel
 from neurons.validator.rewards.types import RewardModelType
 
@@ -25,6 +28,7 @@ class BlacklistFilter(BaseRewardModel):
             try:
                 img = bt.Tensor.deserialize(image)
             except Exception:
+                logger.warning("Could not deserialise image")
                 return 0.0
 
             # Check if the image is black image
@@ -35,11 +39,11 @@ class BlacklistFilter(BaseRewardModel):
             if not isinstance(image, bt.Tensor):
                 return 0.0
 
-            # check image size
-            if not image.shape[1] == response.height:
+            if image.shape[1] != response.width:
                 return 0.0
 
-            if not image.shape[2] == response.width:
+            # check image size
+            if image.shape[2] != response.height:
                 return 0.0
 
         return 1.0

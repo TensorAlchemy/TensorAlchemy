@@ -50,12 +50,12 @@ def mock_image_generation():
 
 def create_mock_synapse(images, height, width, hotkey):
     synapse = ImageGeneration(
-        generation_type="TEXT_TO_IMAGE",
         seed=-1,
-        model_type=ModelType.ALCHEMY.value,
+        width=width,
         images=images,
         height=height,
-        width=width,
+        generation_type="TEXT_TO_IMAGE",
+        model_type=ModelType.ALCHEMY.value,
         num_images_per_prompt=len(images),
     )
     synapse.dendrite = bt.TerminalInfo(hotkey=hotkey)
@@ -65,9 +65,19 @@ def create_mock_synapse(images, height, width, hotkey):
 @pytest.mark.asyncio
 async def test_black_image(blacklist_filter):
     normal_image = bt.Tensor.serialize(
-        torch.full([3, 1024, 1024], 254, dtype=torch.float)
+        torch.full(
+            [3, 1024, 1024],
+            255,
+            dtype=torch.float,
+        )
     )
-    black_image = bt.Tensor.serialize(torch.full([3, 1024, 1024], 0, dtype=torch.float))
+    black_image = bt.Tensor.serialize(
+        torch.full(
+            [3, 1024, 1024],
+            0,
+            dtype=torch.float,
+        )
+    )
 
     responses = [
         create_mock_synapse([normal_image], 1024, 1024, "hotkey_1"),
@@ -83,10 +93,18 @@ async def test_black_image(blacklist_filter):
 @pytest.mark.asyncio
 async def test_incorrect_image_size(blacklist_filter):
     correct_size_image = bt.Tensor.serialize(
-        torch.full([3, 1024, 1024], 254, dtype=torch.float)
+        torch.full(
+            [3, 1024, 1024],
+            255,
+            dtype=torch.float,
+        )
     )
     incorrect_size_image = bt.Tensor.serialize(
-        torch.full([3, 100, 1024], 254, dtype=torch.float)
+        torch.full(
+            [3, 100, 1024],
+            255,
+            dtype=torch.float,
+        )
     )
 
     responses = [
