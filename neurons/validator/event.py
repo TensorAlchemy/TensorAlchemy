@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from neurons.validator.rewards.types import RewardModelType
 
@@ -17,12 +17,7 @@ class EventSchema:
     model_type: str
 
     # Reward data
-    rewards: List[float]
-    blacklist_filter: Optional[List[float]]
-    nsfw_filter: Optional[List[float]]
-    similarity_reward_model: Optional[List[float]]
-    image_reward_model: Optional[List[float]]
-    human_reward_model: Optional[List[float]]
+    rewards: Dict[str, List[float]]
 
     # Bittensor data
     stake: List[float]
@@ -52,16 +47,15 @@ class EventSchema:
             uids=event_dict["uids"],
             hotkeys=event_dict["hotkeys"],
             prompt_t2i=event_dict["prompt_t2i"],
-            prompt_i2i=event_dict["prompt_i2i"],
             step_length=event_dict["step_length"],
             images=event_dict["images"],
-            rewards=event_dict["rewards"],
-            **rewards,
+            rewards=rewards,
             set_weights=None,
             stake=event_dict["stake"],
             rank=event_dict["rank"],
             vtrust=event_dict["vtrust"],
             dividends=event_dict["dividends"],
             emissions=event_dict["emissions"],
+            # prompt_i2i=event_dict["prompt_i2i"],
             # moving_averages=event_dict["moving_averages"]
         )

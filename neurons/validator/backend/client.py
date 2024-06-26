@@ -81,6 +81,10 @@ class TensorAlchemyBackendClient:
                 return None
             return return_value
 
+        logger.info(
+            f"polling backend for incoming image generation task ({timeout}s) ..."
+        )
+
         return await _poll_task_with_retry()
 
     async def get_task(self, timeout: int = 3) -> ImageGenerationTaskModel | None:

@@ -355,11 +355,10 @@ class StableValidator:
         #       trying to get a task from the user
         # before going on and creating a synthetic task
 
-        logger.info(
-            f"polling backend for incoming image generation task ({timeout}s) ..."
-        )
+        # task = await self.backend_client.poll_task(timeout=timeout)
 
-        task = await self.backend_client.poll_task(timeout=timeout)
+        # TODO
+        task = None
 
         # No organic task found
         if task is None:
