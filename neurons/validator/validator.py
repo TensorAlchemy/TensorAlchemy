@@ -242,7 +242,7 @@ class StableValidator:
 
         # Start the batch streaming background loop
         # self.batches = {}
-        self.batches_upload_queue: Queue[Batch] = Queue()
+        self.batches_upload_queue = Queue()
 
         # Start the generic background loop
         self.storage_client = None
@@ -278,7 +278,7 @@ class StableValidator:
         except Exception:
             pass
 
-        self.model_type = ModelType.ALCHEMY.value
+        self.model_type = ModelType.CUSTOM
 
     async def run(self):
         # Main Validation Loop
@@ -373,10 +373,7 @@ class StableValidator:
 
         # No organic task found
         if task is None:
-            if self.step % 2 == 0:
-                self.model_type = ModelType.ALCHEMY.value.lower()
-            else:
-                self.model_type = ModelType.CUSTOM.value.lower()
+            self.model_type = ModelType.CUSTOM
             prompt = await generate_random_prompt_gpt(self)
             if not prompt:
                 logger.error("failed to generate prompt for synthetic task")

@@ -1,4 +1,5 @@
 import torch
+from typing import Dict, Any, Callable
 from base import BaseMiner
 from diffusers import (
     AutoPipelineForImage2Image,
@@ -12,10 +13,18 @@ from utils import colored_log, warm_up
 
 
 class StableMiner(BaseMiner):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
-        # Load the model
+        self.t2i_model_custom: AutoPipelineForText2Image
+        self.t2i_model_alchemy: AutoPipelineForText2Image
+        self.i2i_model_custom: AutoPipelineForImage2Image
+        self.i2i_model_alchemy: AutoPipelineForImage2Image
+        self.safety_checker: StableDiffusionSafetyChecker
+        self.processor: CLIPImageProcessor
+        self.mapping: Dict[str, Dict[str, Any]]
+
+        # Load the models
         self.load_models()
 
         # Optimize model
@@ -27,77 +36,74 @@ class StableMiner(BaseMiner):
         # Start the miner loop
         self.loop()
 
-    def load_models(self):
-        # Load the text-to-image model
-        self.t2i_model_custom = AutoPipelineForText2Image.from_pretrained(
-            self.config.miner.custom_model,
-            torch_dtype=torch.float16,
-            use_safetensors=True,
-            variant="fp16",
-        ).to(self.config.miner.device)
-        self.t2i_model_custom.set_progress_bar_config(disable=True)
-        self.t2i_model_custom.scheduler = DPMSolverMultistepScheduler.from_config(
-            self.t2i_model_custom.scheduler.config
-        )
+    def load_models(self) -> None:
+        # Text-to-image
+        self.t2i_model_custom = self.load_t2i_model(self.config.miner.model)
+        self.t2i_model_alchemy = self.load_t2i_model(self.config.miner.alchemy_model)
 
-        self.t2i_model_alchemy = AutoPipelineForText2Image.from_pretrained(
-            self.config.miner.alchemy_model,
-            torch_dtype=torch.float16,
-            use_safetensors=True,
-            variant="fp16",
-        ).to(self.config.miner.device)
-        self.t2i_model_alchemy.set_progress_bar_config(disable=True)
-        self.t2i_model_alchemy.scheduler = DPMSolverMultistepScheduler.from_config(
-            self.t2i_model_alchemy.scheduler.config
-        )
-
-        # Load the image to image model using the same pipeline (efficient)
-        self.i2i_model_custom = AutoPipelineForImage2Image.from_pipe(
-            self.t2i_model_custom
-        ).to(
-            self.config.miner.device,
-        )
-        self.i2i_model_custom.set_progress_bar_config(disable=True)
-        self.i2i_model_custom.scheduler = DPMSolverMultistepScheduler.from_config(
-            self.i2i_model_custom.scheduler.config
-        )
-
-        self.i2i_model_alchemy = AutoPipelineForImage2Image.from_pipe(
-            self.t2i_model_alchemy
-        ).to(
-            self.config.miner.device,
-        )
-        self.i2i_model_alchemy.set_progress_bar_config(disable=True)
-        self.i2i_model_alchemy.scheduler = DPMSolverMultistepScheduler.from_config(
-            self.i2i_model_alchemy.scheduler.config
-        )
+        # Image-to-image
+        self.i2i_model_custom = self.load_i2i_model(self.t2i_model_custom)
+        self.i2i_model_alchemy = self.load_i2i_model(self.t2i_model_alchemy)
 
         self.safety_checker = StableDiffusionSafetyChecker.from_pretrained(
             "CompVis/stable-diffusion-safety-checker"
         ).to(self.config.miner.device)
         self.processor = CLIPImageProcessor()
 
-        # Set up mapping for the different synapse types
+        self.setup_mapping()
+
+    def load_t2i_model(self, model_name: str) -> AutoPipelineForText2Image:
+        model = AutoPipelineForText2Image.from_pretrained(
+            model_name,
+            torch_dtype=torch.float16,
+            use_safetensors=True,
+            variant="fp16",
+        ).to(self.config.miner.device)
+
+        model.set_progress_bar_config(disable=True)
+        model.scheduler = DPMSolverMultistepScheduler.from_config(
+            model.scheduler.config
+        )
+
+        return model
+
+    def load_i2i_model(
+        self, t2i_model: AutoPipelineForText2Image
+    ) -> AutoPipelineForImage2Image:
+        model = AutoPipelineForImage2Image.from_pipe(t2i_model).to(
+            self.config.miner.device
+        )
+
+        model.set_progress_bar_config(disable=True)
+        model.scheduler = DPMSolverMultistepScheduler.from_config(
+            model.scheduler.config
+        )
+
+        return model
+
+    def setup_mapping(self) -> None:
         self.mapping = {
-            f"text_to_image{ModelType.ALCHEMY.value.lower()}": {
+            # Text-to-image
+            f"text_to_image_{ModelType.ALCHEMY}": {
                 "args": self.t2i_args,
                 "model": self.t2i_model_alchemy,
             },
-            f"text_to_image{ModelType.CUSTOM.value.lower()}": {
+            f"text_to_image_{ModelType.CUSTOM}": {
                 "args": self.t2i_args,
                 "model": self.t2i_model_custom,
             },
-            f"image_to_image{ModelType.ALCHEMY.value.lower()}": {
+            # Image-to-image
+            f"image_to_image_{ModelType.ALCHEMY}": {
                 "args": self.i2i_args,
                 "model": self.i2i_model_alchemy,
             },
-            f"image_to_image{ModelType.CUSTOM.value.lower()}": {
+            f"image_to_image_{ModelType.CUSTOM}": {
                 "args": self.i2i_args,
                 "model": self.i2i_model_custom,
             },
         }
 
-    def optimize_models(self):
+    def optimize_models(self) -> None:
         if self.config.miner.optimize:
             self.t2i_model_alchemy.unet = torch.compile(
                 self.t2i_model_alchemy.unet, mode="reduce-overhead", fullgraph=True
@@ -106,7 +112,7 @@ class StableMiner(BaseMiner):
             # Warm up model
             colored_log(
                 ">>> Warming up model with compile... "
-                + "this takes roughly two minutes...",
+                "this takes roughly two minutes...",
                 color="yellow",
             )
             warm_up(self.t2i_model_alchemy, self.t2i_args)

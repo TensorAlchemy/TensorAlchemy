@@ -26,7 +26,7 @@ from pydantic import BaseModel, Field
 import bittensor as bt
 
 
-class ModelType(Enum):
+class ModelType(str, Enum):
     ALCHEMY = "ALCHEMY"
     CUSTOM = "CUSTOM"
 

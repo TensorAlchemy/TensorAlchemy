@@ -7,13 +7,12 @@ import time
 import traceback
 import typing
 from abc import ABC
-from typing import Dict
+from typing import Any, Dict
 
 import torch
 import torchvision.transforms as transforms
 import torchvision.transforms as T
 from loguru import logger
-from neurons.constants import VPERMIT_TAO
 from neurons.protocol import ImageGeneration, IsAlive, ModelType
 from neurons.utils import (
     BackgroundTimer,
@@ -65,7 +64,8 @@ class BaseMiner(ABC):
         self.storage_client = None
 
         # Initialise event dict
-        self.event = {}
+        self.event: Dict[str, Any] = {}
+        self.mapping: Dict[str, Dict] = {}
 
         # Establish subtensor connection
         logger.info("Establishing subtensor connection")
@@ -105,7 +105,11 @@ class BaseMiner(ABC):
 
         # Start the generic background loop
         self.background_steps = 1
-        self.background_timer = BackgroundTimer(300, background_loop, [self, False])
+        self.background_timer = BackgroundTimer(
+            300,
+            background_loop,
+            [self, False],
+        )
         self.background_timer.daemon = True
         self.background_timer.start()
 
@@ -287,9 +291,7 @@ class BaseMiner(ABC):
             )
         else:
             local_args = copy.deepcopy(
-                self.mapping[
-                    f"{synapse.generation_type}{ModelType.ALCHEMY.value.lower()}"
-                ]["args"]
+                self.mapping[f"{synapse.generation_type}{ModelType.ALCHEMY}"]["args"]
             )
         local_args["prompt"] = [clean_nsfw_from_prompt(synapse.prompt)]
         local_args["width"] = synapse.width
@@ -312,13 +314,11 @@ class BaseMiner(ABC):
         # local_args["num_inference_steps"] = 10
         # Get the model
         if synapse.model_type is not None:
-            model = self.mapping[f"{synapse.generation_type}{synapse.model_type}"][
-                "model"
-            ]
+            model_name: str = f"{synapse.generation_type}_{synapse.model_type}"
+            model = self.mapping[model_name]["model"]
         else:
-            model = self.mapping[
-                f"{synapse.generation_type}{ModelType.ALCHEMY.value.lower()}"
-            ]["model"]
+            model_name: str = f"{synapse.generation_type}_{ModelType.ALCHEMY}"
+            model = self.mapping[model_name]["model"]
 
         if synapse.generation_type == "image_to_image":
             local_args["image"] = T.transforms.ToPILImage()(
@@ -341,20 +341,23 @@ class BaseMiner(ABC):
                     bt.Tensor.serialize(self.transform(image)) for image in images
                 ]
                 colored_log(
-                    f"{sh('Generating')} -> Succesful image generation after {attempt+1} attempt(s).",
+                    f"{sh('Generating')} -> Succesful image generation after"
+                    + f" {attempt+1} attempt(s).",
                     color="cyan",
                 )
                 break
             except Exception as e:
                 logger.error(
-                    f"Error in attempt number {attempt+1} to generate an image: {e}... sleeping for 5 seconds..."
+                    f"Error in attempt number {attempt+1} to generate an image:"
+                    + f" {e}... sleeping for 5 seconds..."
                 )
                 await asyncio.sleep(5)
                 if attempt == 2:
                     images = []
                     synapse.images = []
                     logger.info(
-                        f"Failed to generate any images after {attempt+1} attempts."
+                        f"Failed to generate any images after"
+                        + f" {attempt+1} attempts."
                     )
 
         # Count timeouts
@@ -382,10 +385,12 @@ class BaseMiner(ABC):
         # Log time to generate image
         generation_time = time.perf_counter() - start_time
         self.stats.generation_time += generation_time
+
+        average_time: float = self.stats.generation_time / self.stats.total_requests
         colored_log(
             str(sh("Time"))
             + f" -> {generation_time:.2f}s "
-            + f"| Average: {self.stats.generation_time / self.stats.total_requests:.2f}s",
+            + f"| Average: {average_time:.2f}s",
             color="yellow",
         )
         return synapse
@@ -407,7 +412,8 @@ class BaseMiner(ABC):
         ):
             priority = 25000
             logger.info(
-                f"Setting the priority of whitelisted key {synapse.dendrite.hotkey} to {priority}"
+                f"Setting the priority of whitelisted key"
+                + f" {synapse.dendrite.hotkey} to {priority}"
             )
 
         try:
