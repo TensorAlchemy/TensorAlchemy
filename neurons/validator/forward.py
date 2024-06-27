@@ -240,7 +240,7 @@ def log_event_to_wandb(wandb, event: dict, prompt: str):
     event = convert_enum_keys_to_strings(event)
 
     logger.info(f"Events: {str(event)}")
-    logger.log("EVENTS", "events", **event)
+    # logger.log("EVENTS", "events", **event)
 
     # Log the event to wandb.
     wandb_event = copy.deepcopy(event)
