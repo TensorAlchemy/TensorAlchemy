@@ -286,9 +286,9 @@ async def create_batch_for_upload(
     for response, reward in zip(responses, masked_rewards.rewards):
         if response.is_success and reward != 0:
             im_file = BytesIO()
-            T.transforms.ToPILImage()(bt.Tensor.deserialize(response.images[0])).save(
-                im_file, format="PNG"
-            )
+            T.transforms.ToPILImage()(
+                bt.Tensor.deserialize(response.images[0]),
+            ).save(im_file, format="PNG")
             # im_bytes: image in binary format.
             im_bytes = im_file.getvalue()
             im_b64 = base64.b64encode(im_bytes)
@@ -297,9 +297,6 @@ async def create_batch_for_upload(
         else:
             # Generated image has zero reward, we are dropping it
             im_file = BytesIO()
-            T.transforms.ToPILImage()(
-                torch.full([3, 1024, 1024], 255, dtype=torch.float)
-            ).save(im_file, format="PNG")
             # im_bytes: image in binary format.
             im_bytes = im_file.getvalue()
             im_b64 = base64.b64encode(im_bytes)
