@@ -1,9 +1,12 @@
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
-from functools import wraps
+import requests
+from unittest.mock import patch, MagicMock
+from io import BytesIO
 
 import torch
 import bittensor as bt
+import torchvision.transforms as transforms
+from PIL import Image
 
 from neurons.protocol import ImageGeneration, ModelType
 from neurons.validator.rewards.models.blacklist import BlacklistFilter
@@ -42,7 +45,7 @@ def create_mock_synapse(images, height, width, hotkey):
         model_type=ModelType.ALCHEMY.value,
         num_images_per_prompt=len(images),
     )
-    synapse.dendrite = bt.TerminalInfo(hotkey=hotkey)
+    synapse.axon = bt.TerminalInfo(hotkey=hotkey)
     return synapse
 
 
@@ -58,8 +61,8 @@ async def test_black_image(mock_meta, blacklist_filter):
     black_image = bt.Tensor.serialize(torch.full([3, 1024, 1024], 0, dtype=torch.float))
 
     responses = [
-        create_mock_synapse([normal_image], 1024, 1024, "hotkey_1"),
-        create_mock_synapse([black_image], 1024, 1024, "hotkey_2"),
+        create_mock_synapse([normal_image], 1024, 1024, "hotkey_0"),
+        create_mock_synapse([black_image], 1024, 1024, "hotkey_1"),
     ]
 
     rewards = await blacklist_filter.get_rewards(responses[0], responses)
@@ -82,8 +85,8 @@ async def test_incorrect_image_size(mock_meta, blacklist_filter):
     )
 
     responses = [
-        create_mock_synapse([correct_size_image], 1024, 1024, "hotkey_1"),
-        create_mock_synapse([incorrect_size_image], 100, 1024, "hotkey_2"),
+        create_mock_synapse([correct_size_image], 1024, 1024, "hotkey_0"),
+        create_mock_synapse([incorrect_size_image], 100, 1024, "hotkey_1"),
     ]
 
     rewards = await blacklist_filter.get_rewards(responses[0], responses)
@@ -98,11 +101,29 @@ async def test_incorrect_image_size(mock_meta, blacklist_filter):
     return_value=mock_meta,
 )
 async def test_nsfw_image(mock_meta, nsfw_reward_model):
-    nsfw_image = bt.Tensor.serialize(torch.rand(3, 512, 512))
-    safe_image = bt.Tensor.serialize(torch.rand(3, 512, 512))
+    nsfw_image_url = "https://image.civitai.com/xG1nkqKTMzGDvpLrqFT7WA/a05eaa75-ac8c-4460-b6b0-b7eb47e06987/width=1024/00027-4120052916.jpeg"
 
-    response_nsfw = create_mock_synapse([nsfw_image], 512, 512, "hotkey_1")
-    response_safe = create_mock_synapse([safe_image], 512, 512, "hotkey_2")
+    transform = transforms.Compose([transforms.PILToTensor()])
+    nsfw_image = bt.Tensor.serialize(
+        transform(
+            Image.open(
+                BytesIO(
+                    requests.get(nsfw_image_url).content,
+                )
+            )
+        )
+    )
+
+    safe_image = bt.Tensor.serialize(
+        transform(
+            Image.open(
+                r"tests/non_nsfw.jpeg",
+            )
+        )
+    )
+
+    response_nsfw = create_mock_synapse([nsfw_image], 512, 512, "hotkey_0")
+    response_safe = create_mock_synapse([safe_image], 512, 512, "hotkey_1")
 
     responses = [response_nsfw, response_safe]
 
