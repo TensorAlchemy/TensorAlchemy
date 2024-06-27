@@ -421,8 +421,7 @@ class BaseMiner(ABC):
             caller_uid = self.metagraph.hotkeys.index(synapse.axon.hotkey)
             priority = max(priority, float(self.metagraph.S[caller_uid]))
             logger.info(
-                f"Prioritizing key {synapse.axon.hotkey}"
-                + f" with value: {priority}."
+                f"Prioritizing key {synapse.axon.hotkey}" + f" with value: {priority}."
             )
         except Exception:
             pass
@@ -430,7 +429,10 @@ class BaseMiner(ABC):
         return priority
 
     def _base_blacklist(
-        self, synapse, vpermit_tao_limit=0.001, rate_limit=1
+        self,
+        synapse,
+        vpermit_tao_limit=VPERMIT_TAO,
+        rate_limit=1,
     ) -> typing.Tuple[bool, str]:
         try:
             # Get the name of the synapse
