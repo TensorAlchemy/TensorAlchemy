@@ -77,6 +77,7 @@ async def test_apply_human_voting_weight():
     from neurons.validator.config import get_metagraph
     from neurons.validator.rewards.pipeline import apply_function
     from neurons.validator.rewards.models import (
+        RewardModelType,
         PackedRewardModel,
         EmptyScoreRewardModel,
         HumanValidationRewardModel,
@@ -116,7 +117,7 @@ async def test_apply_human_voting_weight():
     assert torch.all(empty_rewards == 0)
 
     # Now, apply HumanValidationRewardModel
-    human_rewards, human_rewards_normalised = await apply_function(
+    human_rewards, event = await apply_function(
         PackedRewardModel(
             weight=1.0,
             model=HumanValidationRewardModel(),
@@ -125,8 +126,7 @@ async def test_apply_human_voting_weight():
         responses,
     )
 
-    print(human_rewards)
-    print(human_rewards_normalised)
+    human_rewards_normalized = event[RewardModelType.HUMAN]["normalized"]
 
     # Assert rewards have changed for UIDs with votes
     assert human_rewards[0].item() > 0
@@ -135,16 +135,16 @@ async def test_apply_human_voting_weight():
     assert human_rewards[3].item() > human_rewards[2].item()
 
     # Assert rewards have changed for normalized UIDs with votes
-    assert human_rewards_normalised[0].item() > 0
-    assert human_rewards_normalised[1].item() > human_rewards_normalised[0].item()
-    assert human_rewards_normalised[2].item() > human_rewards_normalised[1].item()
-    assert human_rewards_normalised[3].item() > human_rewards_normalised[2].item()
+    assert human_rewards_normalized[0] > 0
+    assert human_rewards_normalized[1] > human_rewards_normalized[0]
+    assert human_rewards_normalized[2] > human_rewards_normalized[1]
+    assert human_rewards_normalized[3] > human_rewards_normalized[2]
 
     assert len(human_rewards) == 5
 
     # This UID didn't receive any votes
     assert human_rewards[4].item() == 0
-    assert human_rewards_normalised[4].item() == 0
+    assert human_rewards_normalized[4] == 0
 
 
 def generate_synapse() -> bt.Synapse:

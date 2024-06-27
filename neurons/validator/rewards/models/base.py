@@ -73,10 +73,9 @@ class BaseRewardModel:
         if rewards.sum() == 0:
             return rewards
 
-        y_delta: float = rewards - rewards.min()
         y_range: float = rewards.max() - rewards.min() + 1e-8
 
-        return y_delta / y_range
+        return rewards - rewards.min() / y_range
 
     async def apply(
         self,
