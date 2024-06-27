@@ -89,7 +89,7 @@ async def test_apply_human_voting_weight():
     responses = []
     for _uid, hotkey in enumerate(get_metagraph().hotkeys):
         response = generate_synapse()
-        response.dendrite = bt.TerminalInfo(
+        response.axon = bt.TerminalInfo(
             status_code=200,
             status_message="Success",
             process_time=0.1,

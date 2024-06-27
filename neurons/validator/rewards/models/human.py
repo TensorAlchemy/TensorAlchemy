@@ -26,10 +26,6 @@ def process_voting_scores(
 
 
 class HumanValidationRewardModel(BaseRewardModel):
-    def __init__(self):
-        super().__init__()
-        self.human_voting_scores_dict: Dict[str, float] = {}
-
     @property
     def name(self) -> RewardModelType:
         return RewardModelType.HUMAN
