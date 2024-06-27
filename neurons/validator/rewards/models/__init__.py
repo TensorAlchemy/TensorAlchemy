@@ -52,10 +52,10 @@ def get_reward_models() -> ModelStorage:
                 weight=0.8,
                 model=ImageRewardModel(),
             ),
-            RewardModelType.SIMILARITY: PackedRewardModel(
-                weight=0.2,
-                model=ModelSimilarityRewardModel(),
-            ),
+            # RewardModelType.SIMILARITY: PackedRewardModel(
+            #     weight=0.2,
+            #     model=ModelSimilarityRewardModel(),
+            # ),
             RewardModelType.HUMAN: PackedRewardModel(
                 weight=0.1 / 32,
                 model=HumanValidationRewardModel(),
@@ -96,6 +96,9 @@ def get_reward_functions(model_type: ModelType) -> List[PackedRewardModel]:
             get_function(get_reward_models(), RewardModelType.IMAGE),
             get_function(get_reward_models(), RewardModelType.HUMAN),
         ]
+
+    raise NotImplementedError("Alchemy model not yet imlepmented")
+
     return [
         get_function(get_reward_models(), RewardModelType.IMAGE),
         get_function(get_reward_models(), RewardModelType.SIMILARITY),
