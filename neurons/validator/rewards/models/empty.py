@@ -9,5 +9,5 @@ class EmptyScoreRewardModel(BaseRewardModel):
     def name(self) -> RewardModelType:
         return RewardModelType.EMPTY
 
-    def reward(self, _response: bt.Synapse) -> float:
+    def get_reward(self, _response: bt.Synapse) -> float:
         return 0.0

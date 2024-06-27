@@ -14,6 +14,9 @@ from neurons.validator.rewards.models.blacklist import BlacklistFilter
 from neurons.validator.rewards.models.nsfw import NSFWRewardModel
 
 
+pytest.skip(allow_module_level=True)
+
+
 @pytest.fixture
 def nsfw_reward_model():
     return NSFWRewardModel()

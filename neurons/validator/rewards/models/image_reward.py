@@ -19,7 +19,7 @@ class ImageRewardModel(BaseRewardModel):
         super().__init__()
         self.scoring_model = RM.load("ImageReward-v1.0", device=get_device())
 
-    def reward(self, response: bt.Synapse) -> float:
+    def get_reward(self, response: bt.Synapse) -> float:
         with torch.no_grad():
             try:
                 images = [

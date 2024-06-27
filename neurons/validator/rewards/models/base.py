@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import List, Tuple, Dict
+from typing import Callable, List, Tuple, Dict
 
 import bittensor as bt
 import torch
@@ -21,37 +21,62 @@ class BaseRewardModel:
     def __repr__(self) -> str:
         return str(self.name)
 
-    def __init__(self) -> None:
-        self.metagraph = get_metagraph()
+    def __init__(self):
+        if not hasattr(self, "get_reward"):
+            raise TypeError(
+                #
+                f"Subclasse {self.__class__.__name__} "
+                + "must implement reward method"
+            )
 
-    async def get_rewards(
+    async def build_rewards_tensor(
         self,
+        method: Callable,
         _synapse: bt.Synapse,
         responses: List[bt.Synapse],
     ) -> torch.Tensor:
-        rewards = torch.zeros(self.metagraph.n).to(get_device())
+        if not callable(method):
+            raise NotImplementedError(f"{method.__name__} is not callable!")
 
+        rewards = torch.zeros(get_metagraph().n).to(get_device())
         for response in responses:
-            score = self.reward(response)
+            score = method(response)
             hotkey = response.axon.hotkey
-
             try:
-                index = self.metagraph.hotkeys.index(hotkey)
+                index = get_metagraph().hotkeys.index(hotkey)
                 rewards[index] = score
                 logger.info(
-                    f"Assigned score {score} to index {index} for hotkey {hotkey}"
+                    f"Assigned score {score}"
+                    + f" to index {index}"
+                    + f" for hotkey {hotkey}"
                 )
             except ValueError:
                 logger.error(f"Hotkey {hotkey} not found in metagraph")
 
         return rewards
 
-    @abstractmethod
-    def reward(self, response) -> float:
+    async def get_rewards(
+        self,
+        synapse: bt.Synapse,
+        responses: List[bt.Synapse],
+    ) -> torch.Tensor:
+        return await self.build_rewards_tensor(
+            self.get_reward,
+            synapse,
+            responses,
+        )
+
+    def get_reward(self, _response: bt.Synapse) -> float:
         return 0.0
 
     def normalize_rewards(self, rewards: torch.Tensor) -> torch.Tensor:
-        return rewards
+        if rewards.sum() == 0:
+            return rewards
+
+        y_delta: float = rewards - rewards.min()
+        y_range: float = rewards.max() - rewards.min() + 1e-8
+
+        return y_delta / y_range
 
     async def apply(
         self,

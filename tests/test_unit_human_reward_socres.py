@@ -5,9 +5,15 @@ import bittensor as bt
 
 from neurons.protocol import ImageGeneration, ModelType
 from neurons.validator.rewards.types import RewardModelType
-from neurons.validator.rewards.pipeline import apply_reward_function
+from neurons.validator.rewards.pipeline import apply_function
 from neurons.validator.rewards.models import get_function, get_reward_models
 from neurons.validator.config import get_device
+
+from neurons.validator.rewards.models import (
+    ModelStorage,
+    PackedRewardModel,
+    HumanValidationRewardModel,
+)
 
 
 def generate_synapse() -> bt.Synapse:
@@ -27,10 +33,19 @@ def generate_synapse() -> bt.Synapse:
     )
 
 
+def mock_reward_models() -> ModelStorage:
+    return {
+        RewardModelType.HUMAN: PackedRewardModel(
+            weight=0.1 / 32,
+            model=HumanValidationRewardModel(),
+        ),
+    }
+
+
 @pytest.mark.asyncio
 async def test_apply_human_voting_weight():
     # Setup
-    test_uids = torch.tensor([1, 2, 3, 4, 5])  # Example UIDs
+    test_uids = torch.tensor([0, 1, 2, 3, 4])  # Example UIDs
     test_hotkeys = [f"hotkey_{uid.item()}" for uid in test_uids]
 
     # Mock metagraph
@@ -42,19 +57,19 @@ async def test_apply_human_voting_weight():
     mock_backend_client = AsyncMock()
     mock_votes = {
         "round_1": {
-            "hotkey_1": 10,
-            "hotkey_2": 5,
+            "hotkey_0": 1,
+            "hotkey_1": 2,
         },
         "round_2": {
-            "hotkey_3": 8,
-            "hotkey_4": 3,
+            "hotkey_2": 3,
+            "hotkey_3": 4,
         },
     }
     mock_backend_client.get_votes.return_value = mock_votes
 
     # Create mock responses as Synapse objects
     responses = []
-    for uid, hotkey in zip(test_uids, test_hotkeys):
+    for _uid, hotkey in zip(test_uids, test_hotkeys):
         response = generate_synapse()
         response.dendrite = bt.TerminalInfo(
             status_code=200,
@@ -74,40 +89,49 @@ async def test_apply_human_voting_weight():
         "neurons.validator.rewards.models.human.get_backend_client",
         return_value=mock_backend_client,
     ), patch(
-        "neurons.validator.rewards.models.human.get_metagraph",
+        "neurons.validator.config.get_metagraph",
         return_value=mock_metagraph,
+    ), patch(
+        "neurons.validator.rewards.models.get_reward_models",
+        return_value=mock_reward_models,
     ):
         # First, apply EmptyScoreRewardModel
-        empty_rewards, _ = await apply_reward_function(
+        empty_rewards, _ = await apply_function(
             get_function(get_reward_models(), RewardModelType.EMPTY),
             generate_synapse(),
             responses,
-            torch.zeros(mock_metagraph.n).to(get_device()),
-            test_uids,
         )
 
         # Assert all rewards are 0
         assert torch.all(empty_rewards == 0)
 
         # Now, apply HumanValidationRewardModel
-        human_rewards, _ = await apply_reward_function(
+        human_rewards, human_rewards_normalised = await apply_function(
             get_function(get_reward_models(), RewardModelType.HUMAN),
             generate_synapse(),
             responses,
-            empty_rewards,
-            test_uids,
         )
 
-        # Assert rewards have changed for UIDs with votes
-        assert human_rewards[1] > 0
-        assert human_rewards[2] > 0
-        assert human_rewards[3] > 0
-        assert human_rewards[4] > 0
-        assert human_rewards[5] == 0  # This UID didn't receive any votes
+        print(human_rewards)
+        print(human_rewards_normalised)
 
-        # Assert relative magnitudes
-        assert human_rewards[1] > human_rewards[2]  # UID 1 got more votes than UID 2
-        assert human_rewards[3] > human_rewards[4]  # UID 3 got more votes than UID 4
+        # Assert rewards have changed for UIDs with votes
+        assert human_rewards[0].item() > 0
+        assert human_rewards[1].item() > human_rewards[0].item()
+        assert human_rewards[2].item() > human_rewards[1].item()
+        assert human_rewards[3].item() > human_rewards[2].item()
+
+        # Assert rewards have changed for normalized UIDs with votes
+        assert human_rewards_normalised[0].item() > 0
+        assert human_rewards_normalised[1].item() > human_rewards_normalised[0].item()
+        assert human_rewards_normalised[2].item() > human_rewards_normalised[1].item()
+        assert human_rewards_normalised[3].item() > human_rewards_normalised[2].item()
+
+        assert len(human_rewards) < 6
+
+        # This UID didn't receive any votes
+        assert human_rewards[4].item() == 0
+        assert human_rewards_normalised[4].item() == 0
 
         # Verify that the backend client's get_votes method was called
         mock_backend_client.get_votes.assert_awaited_once()

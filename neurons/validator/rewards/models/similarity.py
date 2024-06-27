@@ -366,6 +366,12 @@ class ModelSimilarityRewardModel(BaseRewardModel):
         self.stats.generation_time += generation_time
         return synapse
 
+    async def get_reward(
+        self,
+        _response: bt.Synapse,
+    ) -> float:
+        return 0.0
+
     async def get_rewards(
         self,
         synapse: bt.Synapse,

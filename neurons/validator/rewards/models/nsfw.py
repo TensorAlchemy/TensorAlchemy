@@ -20,7 +20,7 @@ class NSFWRewardModel(BaseRewardModel):
         ).to(get_device())
         self.processor = CLIPImageProcessor()
 
-    def reward(self, response: bt.Synapse) -> float:
+    def get_reward(self, response: bt.Synapse) -> float:
         if not response.images:
             return 1.0
 

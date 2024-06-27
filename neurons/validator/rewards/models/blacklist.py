@@ -19,7 +19,7 @@ class BlacklistFilter(BaseRewardModel):
         self.question_blacklist = []
         self.answer_blacklist = []
 
-    def reward(self, response: bt.Synapse) -> float:
+    def get_reward(self, response: bt.Synapse) -> float:
         # Check the number of returned images in the response
         if len(response.images) != response.num_images_per_prompt:
             return 1.0
