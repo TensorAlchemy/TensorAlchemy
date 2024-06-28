@@ -351,6 +351,20 @@ class BaseMiner(ABC):
                 local_args["generator"] = [
                     torch.Generator(device=self.config.miner.device).manual_seed(seed)
                 ]
+
+                def callback_dynamic_cfg(pipe, step_index, timestep, callback_kwargs):
+                    # adjust the batch_size of prompt_embeds according to guidance_scale
+                    if step_index == int(model.num_timesteps * 0.4):
+                        prompt_embeds = callback_kwargs["prompt_embeds"]
+                        prompt_embeds = prompt_embeds.chunk(2)[-1]
+
+                        # update guidance_scale and prompt_embeds
+                        model._guidance_scale = 0.0
+                        callback_kwargs["prompt_embeds"] = prompt_embeds
+                    return callback_kwargs
+
+                local_args["callback_on_step_end"] = callback_dynamic_cfg
+                local_args["callback_on_step_end_tensor_inputs"] = ["prompt_embeds"]
                 images = model(**local_args).images
 
                 synapse.images = [
