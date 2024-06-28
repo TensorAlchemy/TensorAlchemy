@@ -24,7 +24,8 @@ class BlacklistFilter(BaseRewardModel):
         if len(response.images) != response.num_images_per_prompt:
             return 1.0
 
-        # If any images in the response fail the reward for that response is 0.0
+        # If any images in the response fail the reward for that response is
+        # 0.0
         for image in response.images:
             # Check if the image can be serialized
             try:

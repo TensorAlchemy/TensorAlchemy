@@ -91,8 +91,10 @@ async def test_incorrect_image_size(mock_meta, blacklist_filter):
 
     rewards = await blacklist_filter.get_rewards(responses[0], responses)
 
-    assert rewards[0].item() == 0.0  # Correct size image should not be blacklisted
-    assert rewards[1].item() == 1.0  # Incorrect size image should be blacklisted
+    # Correct size image should not be blacklisted
+    assert rewards[0].item() == 0.0
+    # Incorrect size image should be blacklisted
+    assert rewards[1].item() == 1.0
 
 
 @pytest.mark.asyncio

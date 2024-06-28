@@ -1,5 +1,8 @@
 import argparse
-import os, requests, re, subprocess
+import os
+import requests
+import re
+import subprocess
 import shutil
 
 model_name = "https://civitai.com/api/download/models/147497"

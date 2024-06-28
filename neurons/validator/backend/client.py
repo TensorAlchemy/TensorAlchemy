@@ -259,5 +259,6 @@ class TensorAlchemyBackendClient:
         if response.status_code == 502:
             return "Bad Gateway"
 
-        # Limit response text to 1024 symbols to prevent spamming in validator logs
+        # Limit response text to 1024 symbols to prevent spamming in validator
+        # logs
         return response.text[:1024]

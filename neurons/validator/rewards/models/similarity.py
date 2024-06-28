@@ -54,7 +54,8 @@ class SimilarityRewardModel(BaseRewardModel):
         self.hidden_dim = self.model.config.hidden_size
         self.transformation_chain = T.Compose(
             [
-                # We first resize the input image to 256x256 and then we take center crop.
+                # We first resize the input image to 256x256 and then we take
+                # center crop.
                 T.Resize(int((256 / 224) * self.extractor.size["height"])),
                 T.CenterCrop(self.extractor.size["height"]),
                 T.ToTensor(),
@@ -73,7 +74,8 @@ class SimilarityRewardModel(BaseRewardModel):
             images = batch["image"]
             # `transformation_chain` is a compostion of preprocessing
             # transformations we apply to the input images to prepare them
-            # for the model. For more details, check out the accompanying Colab Notebook.
+            # for the model. For more details, check out the accompanying Colab
+            # Notebook.
             image_batch_transformed = torch.stack(
                 [self.transformation_chain(image) for image in images]
             )
@@ -183,7 +185,8 @@ class ModelSimilarityRewardModel(BaseRewardModel):
         self.hidden_dim = self.model.config.hidden_size
         self.transformation_chain = T.Compose(
             [
-                # We first resize the input image to 256x256 and then we take center crop.
+                # We first resize the input image to 256x256 and then we take
+                # center crop.
                 T.Resize(int((256 / 224) * self.extractor.size["height"])),
                 T.CenterCrop(self.extractor.size["height"]),
                 T.ToTensor(),
@@ -273,7 +276,8 @@ class ModelSimilarityRewardModel(BaseRewardModel):
             images = batch["image"]
             # `transformation_chain` is a compostion of preprocessing
             # transformations we apply to the input images to prepare them
-            # for the model. For more details, check out the accompanying Colab Notebook.
+            # for the model. For more details, check out the accompanying Colab
+            # Notebook.
             image_batch_transformed = torch.stack(
                 [self.transformation_chain(image) for image in images]
             )

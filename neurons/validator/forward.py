@@ -1,3 +1,4 @@
+from typing import List, Tuple, AsyncIterator
 import asyncio
 import base64
 import copy
@@ -103,11 +104,6 @@ class ImageGenerationResponse(BaseModel):
     @property
     def images(self):
         return self.synapse.images
-
-
-import asyncio
-import bittensor as bt
-from typing import List, Tuple, AsyncIterator
 
 
 async def query_axons_async(
