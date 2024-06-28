@@ -1,4 +1,3 @@
-import torch
 from typing import Any, Dict, Optional
 
 import torch
@@ -30,7 +29,6 @@ class StableMiner(BaseMiner):
         self.i2i_model_alchemy: Optional[DiffusionPipeline] = None
 
         super().__init__()
-
         self.safety_checker: Optional[StableDiffusionSafetyChecker] = None
         self.processor: Optional[CLIPImageProcessor] = None
         self.model_configs: Dict[str, Dict[str, ModelConfig]] = {}
@@ -118,9 +116,13 @@ class StableMiner(BaseMiner):
             logger.error(f"Error loading text-to-image model: {e}")
             raise
 
-    def load_i2i_model(self, t2i_model: DiffusionPipeline) -> DiffusionPipeline:
+    def load_i2i_model(
+        self, t2i_model: AutoPipelineForText2Image
+    ) -> AutoPipelineForImage2Image:
         try:
-            model = DiffusionPipeline.from_pipe(t2i_model).to(self.config.miner.device)
+            model = AutoPipelineForImage2Image.from_pipe(t2i_model).to(
+                self.config.miner.device
+            )
 
             model.set_progress_bar_config(disable=True)
             model.scheduler = DPMSolverMultistepScheduler.from_config(
