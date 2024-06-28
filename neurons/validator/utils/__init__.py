@@ -1,7 +1,5 @@
 # Utils for checkpointing and saving the model.
 import asyncio
-import copy
-import os
 import random
 import time
 import traceback
@@ -9,67 +7,23 @@ from functools import lru_cache, update_wrapper
 from math import floor
 from typing import Any, Callable, List, Optional
 
+import bittensor as bt
 import numpy as np
-import pandas as pd
 import requests
 import torch
 import torch.nn as nn
-
-import wandb
-import bittensor as bt
 from loguru import logger
 
-from neurons.protocol import IsAlive, denormalize_image_model
-from neurons.validator.signed_requests import SignedRequests
+
 from neurons.constants import (
     N_NEURONS_TO_QUERY,
     VPERMIT_TAO,
-    WANDB_VALIDATOR_PATH,
 )
-
-
-def get_validator_version() -> str:
-    """Returns version of validator (i.e. 1.0.1)"""
-    import neurons.validator
-
-    return neurons.validator.__version__
-
-
-def get_validator_spec_version() -> int:
-    """Returns numeric representation of validator's version (i.e. 10001)"""
-    import neurons.validator
-
-    return neurons.validator.__spec_version__
-
-
-# Get tasks from the client server
-async def get_task(validator, timeout=5):
-    task = None
-    for _i in range(60):
-        await asyncio.sleep(1)
-        try:
-            response = SignedRequests(validator=validator).get(
-                f"{validator.api_url}/tasks", timeout=timeout
-            )
-
-            # No tasks found
-            if response.status_code == 404:
-                continue
-
-        except Exception as error:
-            logger.warning(
-                #
-                f"Failed to get task from {validator.api_url}/tasks: "
-                + str(error),
-            )
-
-            continue
-
-        if response.status_code == 200:
-            task = response.json()
-            return denormalize_image_model(**task)
-
-    return task
+from neurons.protocol import IsAlive
+from neurons.validator.services.openai.service import (
+    get_openai_service,
+    OpenAIRequestFailed,
+)
 
 
 def _ttl_hash_gen(seconds: int):
@@ -86,7 +40,7 @@ def ttl_cache(maxsize: int = 128, typed: bool = False, ttl: int = -1):
 
     def wrapper(func: Callable) -> Callable:
         @lru_cache(maxsize, typed)
-        def ttl_func(ttl_hash, *args, **kwargs):
+        def ttl_func(_ttl_hash, *args, **kwargs):
             return func(*args, **kwargs)
 
         def wrapped(*args, **kwargs) -> Any:
@@ -119,10 +73,11 @@ async def check_uid(dendrite, self, uid, response_times):
             return True
         else:
             try:
-                self.isalive_failed_count[uid] += 1
+                self.isalive_dict[uid] += 1
                 key = self.metagraph.axons[uid].hotkey
                 self.miner_query_history_fail_count[key] += 1
-                # If miner doesn't respond for 3 iterations rest it's count to the average to avoid spamming
+                # If miner doesn't respond for 3 iterations rest it's count to
+                # the average to avoid spamming
                 if self.miner_query_history_fail_count[key] >= 3:
                     self.miner_query_history_duration[key] = time.perf_counter()
                     self.miner_query_history_count[key] = int(
@@ -165,7 +120,10 @@ def check_uid_availability(
 
 
 async def get_random_uids(
-    self, dendrite, k: int, exclude: List[int] = None
+    self,
+    dendrite,
+    k: int,
+    exclude: List[int] = None,
 ) -> torch.LongTensor:
     """Returns k available random uids from the metagraph.
     Args:
@@ -199,6 +157,7 @@ async def get_random_uids(
     # candidate_uids = [i for i,_ in sorted(zip(candidate_uids, [self.miner_query_history_count[self.metagraph.axons[uid].hotkey] for uid in candidate_uids]))]
 
     # Random sort candidate_uids
+    random.seed(time.time())
     random.shuffle(candidate_uids)
 
     # Find the first K uids that respond with IsAlive
@@ -312,12 +271,11 @@ def calculate_mean_dissimilarity(dissimilarity_matrix):
         # All elements are the same (no range), set all values to 0.5
         mean_dissimilarities = [0.5] * num_images
     # clamp to [0,1]
-    mean_dissimilarities = [min(1, max(0, value)) for value in mean_dissimilarities]
-
-    # Ensure sum of values is 1 (normalize)
-    # sum_values = sum(mean_dissimilarities)
-    # if sum_values != 0:
-    # mean_dissimilarities = [value / sum_values for value in mean_dissimilarities]
+    mean_dissimilarities = [
+        #
+        min(1, max(0, value))
+        for value in mean_dissimilarities
+    ]
 
     return mean_dissimilarities
 
@@ -352,28 +310,6 @@ def corcel_parse_response(text):
 
     logger.info(f"Returning parsed text: {split}")
     return split
-
-
-def call_openai(client, model, prompt):
-    response = client.chat.completions.create(
-        model=model,
-        messages=[
-            {
-                "role": "system",
-                "content": prompt,
-            },
-        ],
-        temperature=1,
-        max_tokens=256,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0,
-    )
-    logger.info(f"OpenAI response object: {response}")
-    response = response.choices[0].message.content
-    if response:
-        logger.info(f"Prompt generated with OpenAI: {response}")
-    return response
 
 
 def call_corcel(self, prompt):
@@ -411,7 +347,8 @@ def call_corcel(self, prompt):
         response = response.json()[0]["choices"][0]["delta"]["content"]
     except requests.exceptions.ReadTimeout as e:
         logger.info(
-            f"Corcel request timed out after 15 seconds... falling back to OpenAI..."
+            "Corcel request timed out after 15 seconds..."
+            + " falling back to OpenAI..."
         )
 
     if response:
@@ -455,7 +392,13 @@ def get_random_creature():
             "turtle",
             "fox",
             "owl",
-            "human being",
+            "human",
+            "man",
+            "woman",
+            "girl",
+            "boy",
+            "robot",
+            "drone",
         ]
     )
 
@@ -516,6 +459,7 @@ def get_random_adjective():
             "ethereal",
             "vibrant",
             "serene",
+            "bustling",
             "whimsical",
             "luminous",
             "enigmatic",
@@ -657,11 +601,16 @@ def generate_story_prompt() -> str:
     return to_return
 
 
-def generate_random_prompt_gpt(
+async def generate_random_prompt_gpt(
     self,
     model: str = "gpt-4",
     prompt: Optional[str] = None,
 ):
+    """Generates random prompt for image generation
+
+    Returns None if there was some error during generation
+    (i.e OpenAI request failed etc.)
+    """
     response = None
     if not prompt:
         prompt = generate_story_prompt()
@@ -681,22 +630,11 @@ def generate_random_prompt_gpt(
             logger.error("Falling back to OpenAI if available...")
 
     if not response:
-        if self.openai_client:
-            for _ in range(2):
-                try:
-                    response = call_openai(self.openai_client, model, prompt)
-                except Exception as e:
-                    logger.error(f"An unexpected error occurred calling OpenAI: {e}")
-                    logger.error("Sleeping for 10 seconds and retrying once...")
-                    time.sleep(10)
-
-                if response:
-                    break
-        else:
-            logger.warning(
-                "Attempted to use OpenAI as a fallback "
-                + "but the OPENAI_API_KEY is not set."
-            )
+        openai_service = get_openai_service()
+        try:
+            response = await openai_service.create_completion_request(model, prompt)
+        except OpenAIRequestFailed as e:
+            logger.info(f"error during creation of completion prompt: {e}")
 
     # Remove any double quotes from the output
     if response:
@@ -745,94 +683,34 @@ def generate_followup_prompt_gpt(
     return None
 
 
-def init_wandb(self, reinit=False):
-    """Starts a new wandb run."""
-    tags = [
-        self.wallet.hotkey.ss58_address,
-        get_validator_version(),
-        f"netuid_{self.metagraph.netuid}",
-    ]
+def measure_time(func):
+    """This decorator logs time of function execution"""
 
-    if self.config.mock:
-        tags.append("mock")
+    @wraps(func)
+    def sync_measure_time_wrapper(*args, **kwargs):
+        start_time = time.perf_counter()
+        result = func(*args, **kwargs)
+        end_time = time.perf_counter()
+        total_time = end_time - start_time
+        logger.warning(
+            f"[measure_time] function {func.__name__} took {total_time:.2f} seconds"
+        )
+        return result
 
-    for fn in self.reward_functions:
-        tags.append(str(fn.name))
+    async def async_measure_time_wrapper(*args, **kwargs):
+        start_time = time.perf_counter()
+        result = await func(*args, **kwargs)
+        end_time = time.perf_counter()
+        total_time = end_time - start_time
+        logger.warning(
+            f"[measure_time] async function {func.__name__} took {total_time:.2f} seconds"
+        )
+        return result
 
-    wandb_config = {
-        key: copy.deepcopy(self.config.get(key, None))
-        for key in ("neuron", "alchemy", "reward", "netuid", "wandb")
-    }
-    wandb_config["alchemy"].pop("full_path", None)
-
-    if not os.path.exists(WANDB_VALIDATOR_PATH):
-        os.makedirs(WANDB_VALIDATOR_PATH, exist_ok=True)
-
-    project = "ImageAlchemyTest"
-
-    if self.config.netuid == 26:
-        project = "ImageAlchemy"
-
-    self.wandb = wandb.init(
-        anonymous="allow",
-        reinit=reinit,
-        project=project,
-        entity="tensoralchemists",
-        config=wandb_config,
-        dir=WANDB_VALIDATOR_PATH,
-        tags=tags,
-    )
-    logger.success(f"Started a new wandb run called {self.wandb.name}.")
-
-
-def reinit_wandb(self):
-    """Reinitializes wandb, rolling over the run."""
-    if self.wandb:
-        try:
-            self.wandb.finish()
-        except Exception:
-            pass
-    init_wandb(self, reinit=True)
-
-
-def get_promptdb_backup(netuid, prompt_history=[], limit=1):
-    api = wandb.Api()
-    project = "ImageAlchemy" if netuid == 26 else "ImageAlchemyTest"
-    runs = api.runs(f"tensoralchemists/{project}")
-
-    for run in runs:
-        if len(prompt_history) >= limit:
-            break
-        if run.historyLineCount >= 100:
-            history = run.history()
-            if ("prompt_t2i" not in history.columns) or (
-                "prompt_i2i" not in history.columns
-            ):
-                continue
-            for i in range(0, len(history) - 1, 2):
-                if len(prompt_history) >= limit:
-                    break
-
-                if (
-                    pd.isna(history.loc[i, "prompt_t2i"])
-                    or (history.loc[i, "prompt_t2i"] is None)
-                    or (i == len(history))
-                    or (history.loc[i + 1, "prompt_i2i"] is None)
-                    or pd.isna(history.loc[i + 1, "prompt_i2i"])
-                ):
-                    continue
-
-                prompt_tuple = (
-                    history.loc[i, "prompt_t2i"],
-                    history.loc[i + 1, "prompt_i2i"],
-                )
-
-                if prompt_tuple in prompt_history:
-                    continue
-
-                prompt_history.append(prompt_tuple)
-
-    return prompt_history
+    if asyncio.iscoroutinefunction(func):
+        return async_measure_time_wrapper
+    else:
+        return sync_measure_time_wrapper
 
 
 def get_device_name(device: torch.device):

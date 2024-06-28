@@ -4,7 +4,8 @@
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
 # documentation files (the “Software”), to deal in the Software without restriction, including without limitation
 # the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
 
 # The above copyright notice and this permission notice shall be included in all copies or substantial portions of
 # the Software.
@@ -16,6 +17,8 @@
 # DEALINGS IN THE SOFTWARE.
 
 # Define the version of the template module.
+from . import constants, protocol, safety
+
 __version__ = "1.0.0"
 version_split = __version__.split(".")
 __spec_version__ = (
@@ -25,4 +28,3 @@ __spec_version__ = (
 )
 
 # Import all submodules.
-from . import constants, protocol, safety

@@ -5,7 +5,8 @@
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
 # documentation files (the “Software”), to deal in the Software without restriction, including without limitation
 # the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
 
 # The above copyright notice and this permission notice shall be included in all copies or substantial portions of
 # the Software.
@@ -17,7 +18,8 @@
 # DEALINGS IN THE SOFTWARE.
 
 import typing
-from typing import Dict, Optional
+from enum import Enum
+from typing import Optional
 
 import pydantic
 from pydantic import BaseModel, Field
@@ -25,12 +27,17 @@ from pydantic import BaseModel, Field
 import bittensor as bt
 
 
+class ModelType(str, Enum):
+    ALCHEMY = "ALCHEMY"
+    CUSTOM = "CUSTOM"
+
+
 class ImageGenerationTaskModel(BaseModel):
     task_id: str
     prompt: str
-    negative_prompt: Optional[str]
-    prompt_image: Optional[bt.Tensor]
-    images: Optional[typing.List[bt.Tensor]]
+    negative_prompt: Optional[str] = None
+    prompt_image: Optional[bt.Tensor] = None
+    images: Optional[typing.List[bt.Tensor]] = None
     num_images_per_prompt: int
     height: int
     width: int
@@ -38,6 +45,7 @@ class ImageGenerationTaskModel(BaseModel):
     seed: int
     steps: int
     task_type: str
+    model_type: Optional[str] = None
 
 
 def denormalize_image_model(
@@ -85,3 +93,4 @@ class ImageGeneration(bt.Synapse):
     guidance_scale: float = pydantic.Field(7.5, allow_mutation=False)
     seed: int = pydantic.Field(1024, allow_mutation=False)
     steps: int = pydantic.Field(50, allow_mutation=False)
+    model_type: str = pydantic.Field(ModelType.ALCHEMY, allow_mutation=False)

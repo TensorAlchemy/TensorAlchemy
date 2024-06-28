@@ -1,51 +1,58 @@
 import asyncio
 import copy
 import os
-import subprocess
 import sys
 import time
 import traceback
 import uuid
-from time import sleep
+import queue
+from multiprocessing import Manager, Queue
 
+import bittensor as bt
 import sentry_sdk
 import torch
+import wandb
 from loguru import logger
-from neurons.constants import DEV_URL, N_NEURONS, PROD_URL
-from neurons.protocol import denormalize_image_model
+
+from neurons.constants import (
+    DEV_URL,
+    N_NEURONS,
+    PROD_URL,
+    VALIDATOR_SENTRY_DSN,
+)
+
+from neurons.protocol import (
+    denormalize_image_model,
+    ImageGenerationTaskModel,
+    ModelType,
+)
+from neurons.utils.log import colored_log
+from neurons.utils.defaults import get_defaults
 from neurons.utils import (
     BackgroundTimer,
+    MultiprocessBackgroundTimer,
     background_loop,
-    clean_nsfw_from_prompt,
-    colored_log,
-    get_defaults,
-    update_task_state,
 )
+from neurons.validator.schemas import Batch
+from neurons.validator.config import (
+    get_device,
+    get_config,
+    get_metagraph,
+    get_backend_client,
+)
+from neurons.validator.backend.client import TensorAlchemyBackendClient
 from neurons.validator.backend.models import TaskState
-from neurons.validator.config import add_args, check_config, config
 from neurons.validator.forward import run_step
-from neurons.validator.reward import (
-    BlacklistFilter,
-    HumanValidationRewardModel,
-    ImageRewardModel,
-    NSFWRewardModel,
-)
+from neurons.validator.services.openai.service import get_openai_service
+from neurons.validator.utils.wandb import init_wandb, reinit_wandb
+from neurons.validator.utils.version import get_validator_version
 from neurons.validator.utils import (
+    ttl_get_block,
     generate_random_prompt_gpt,
     get_device_name,
     get_random_uids,
-    get_task,
-    init_wandb,
-    reinit_wandb,
-    ttl_get_block,
-    get_validator_version,
 )
 from neurons.validator.weights import set_weights
-from openai import OpenAI
-from passwordgenerator import pwgenerator
-
-import bittensor as bt
-import wandb
 
 
 def is_valid_current_directory() -> bool:
@@ -58,19 +65,48 @@ def is_valid_current_directory() -> bool:
     return False
 
 
+async def upload_image(
+    backend_client: TensorAlchemyBackendClient,
+    batches_upload_queue: Queue,
+) -> None:
+    queue_size: int = batches_upload_queue.qsize()
+    if queue_size > 0:
+        logger.info(f"{queue_size} batches in queue")
+
+    batch: Batch = batches_upload_queue.get(block=False)
+    logger.info(
+        #
+        f"uploading ({len(batch.computes)} compute "
+        + f"for batch {batch.batch_id} ..."
+    )
+    await backend_client.post_batch(batch)
+
+
+def upload_images_loop(batches_upload_queue: Queue) -> None:
+    # Send new batches to the Human Validation Bot
+    try:
+        backend_client: TensorAlchemyBackendClient = get_backend_client()
+        asyncio.run(
+            asyncio.gather(
+                *[
+                    upload_image(backend_client, batches_upload_queue)
+                    for _i in range(32)
+                ]
+            )
+        )
+
+    except queue.Empty:
+        return
+
+    except Exception as e:
+        logger.info(
+            "An error occurred trying to submit a batch: "
+            + f"{e}\n{traceback.format_exc()}"
+        )
+        sentry_sdk.capture_exception(e)
+
+
 class StableValidator:
-    @classmethod
-    def check_config(cls, new_config: bt.config):
-        check_config(cls, new_config)
-
-    @classmethod
-    def add_args(cls, parser):
-        add_args(cls, parser)
-
-    @classmethod
-    def config(cls):
-        return config(cls)
-
     def loop_until_registered(self):
         index = None
         while True:
@@ -94,8 +130,16 @@ class StableValidator:
 
     def __init__(self):
         # Init config
-        self.config = StableValidator.config()
-        self.check_config(self.config)
+        self.config = get_config()
+
+        environment: str = "production"
+        if self.config.subtensor.network == "test":
+            environment = "local"
+
+        sentry_sdk.init(
+            environment=environment,
+            dsn=VALIDATOR_SENTRY_DSN,
+        )
 
         bt.logging(
             config=self.config,
@@ -105,24 +149,14 @@ class StableValidator:
         )
 
         # Init device.
-        self.device = torch.device(self.config.alchemy.device)
+        self.device = get_device(torch.device(self.config.alchemy.device))
 
-        self.openai_client = None
-
-        openai_api_key = os.environ.get("OPENAI_API_KEY")
         self.corcel_api_key = os.environ.get("CORCEL_API_KEY")
 
-        if not openai_api_key:
-            logger.error("Please set the OPENAI_API_KEY environment variable.")
-        else:
-            self.openai_client = OpenAI(api_key=openai_api_key)
+        # Init external API services
+        self.openai_service = get_openai_service()
 
-        if not self.corcel_api_key and not openai_api_key:
-            raise ValueError(
-                "You must set either the CORCEL_API_KEY or "
-                + "OPENAI_API_KEY environment variables. "
-                + "It is preferable to use both."
-            )
+        self.backend_client = TensorAlchemyBackendClient()
 
         wandb.login(anonymous="must")
 
@@ -157,9 +191,12 @@ class StableValidator:
         logger.info(f"Loaded dendrite pool: {self.dendrite}")
 
         # Init metagraph.
-        self.metagraph = bt.metagraph(
-            netuid=self.config.netuid, network=self.subtensor.network, sync=False
-        )  # Make sure not to sync without passing subtensor
+        self.metagraph = get_metagraph(
+            netuid=self.config.netuid,
+            # Make sure not to sync without passing subtensor
+            network=self.subtensor.network,
+            sync=False,
+        )
 
         # Sync metagraph with subtensor.
         self.metagraph.sync(subtensor=self.subtensor)
@@ -195,33 +232,6 @@ class StableValidator:
         # Init prev_block and step
         self.prev_block = ttl_get_block(self)
         self.step = 0
-
-        # Init reward function
-        self.reward_functions = [ImageRewardModel()]
-
-        # Init reward function
-        self.reward_weights = torch.tensor(
-            [
-                1.0,
-                0,
-            ],
-            dtype=torch.float32,
-        ).to(self.device)
-
-        self.reward_weights = self.reward_weights / self.reward_weights.sum(
-            dim=-1
-        ).unsqueeze(-1)
-
-        self.reward_names = ["image_reward_model"]
-
-        self.human_voting_scores = torch.zeros((self.metagraph.n)).to(self.device)
-        self.human_voting_weight = 0.10 / 32
-        self.human_voting_reward_model = HumanValidationRewardModel(
-            self, self.metagraph, self.api_url
-        )
-
-        # Init masking function
-        self.masking_functions = [BlacklistFilter(), NSFWRewardModel()]
 
         # Set validator variables
         self.request_frequency = 35
@@ -264,9 +274,6 @@ class StableValidator:
         # Get vali index
         self.validator_index = self.get_validator_index()
 
-        # Start the batch streaming background loop
-        self.batches = {}
-
         # Start the generic background loop
         self.storage_client = None
         self.background_steps = 1
@@ -277,6 +284,17 @@ class StableValidator:
         )
         self.background_timer.daemon = True
         self.background_timer.start()
+
+        # Start the batch streaming background loop
+        manager = Manager()
+        self.batches_upload_queue: Queue = manager.Queue(maxsize=2048)
+
+        self.upload_images_process = MultiprocessBackgroundTimer(
+            0.2,
+            upload_images_loop,
+            args=[self.batches_upload_queue],
+        )
+        self.upload_images_process.start()
 
         # Create a Dict for storing miner query history
         try:
@@ -301,6 +319,8 @@ class StableValidator:
         except Exception:
             pass
 
+        self.model_type = ModelType.CUSTOM
+
     async def run(self):
         # Main Validation Loop
         logger.info("Starting validator loop.")
@@ -315,60 +335,13 @@ class StableValidator:
 
                 axons = [self.metagraph.axons[uid] for uid in uids]
 
-                # NOTE: Will wait for around 30 seconds
-                #       trying to get a task from the user
-                # before going on and creating a synthetic task
-                task = await get_task(self)
-
-                # No organic task found
+                task = await self.get_image_generation_task()
                 if task is None:
-                    # NOTE: Generate synthetic request
-                    task = denormalize_image_model(
-                        id=str(uuid.uuid4()),
-                        image_count=1,
-                        task_type="TEXT_TO_IMAGE",
-                        guidance_scale=7.5,
-                        negative_prompt=None,
-                        prompt=generate_random_prompt_gpt(self),
-                        seed=-1,
-                        steps=50,
-                        width=1024,
-                        height=1024,
+                    logger.warning(
+                        "image generation task was not generated successfully."
                     )
 
-                # Task has been found for oragnic request
-                else:
-                    # If the task has some NSFW text in the prompt
-                    # TODO: We should replace this with OpenAI
-                    is_bad_prompt: bool = task.prompt != clean_nsfw_from_prompt(
-                        task.prompt
-                    )
-
-                    if is_bad_prompt:
-                        try:
-                            logger.warning(
-                                #
-                                "Prompt was marked as NSFW and rejected:"
-                                + task.task_id
-                            )
-                            update_task_state(
-                                self.wallet.hotkey,
-                                self.api_url,
-                                task.task_id,
-                                TaskState.REJECTED,
-                            )
-                        except Exception:
-                            logger.info(
-                                f"Failed to post {task.task_id} to the"
-                                + f" {TaskState.REJECTED.value} endpoint"
-                            )
-                        finally:
-                            continue
-
-                if task.prompt is None:
-                    logger.warning("The prompt was not generated successfully.")
-
-                    # Prevent loop from forming if the prompt
+                    # Prevent loop from forming if the task
                     # error occurs on the first step
                     if self.step == 0:
                         self.step += 1
@@ -376,10 +349,18 @@ class StableValidator:
                     continue
 
                 # Text to Image Run
-                run_step(self, task, axons, uids)
-                # Re-sync with the network. Updates the metagraph.
+                await run_step(
+                    validator=self,
+                    task=task,
+                    axons=axons,
+                    uids=uids,
+                    model_type=self.model_type,
+                    stats=self.stats,
+                )
+
                 try:
-                    self.sync()
+                    # Re-sync with the network. Updates the metagraph.
+                    await self.sync()
                 except Exception as e:
                     logger.error(
                         "An unexpected error occurred"
@@ -405,17 +386,83 @@ class StableValidator:
                         )
                         self.wandb_loaded = False
 
+            # If the user interrupts the program, gracefully exit.
+            except KeyboardInterrupt:
+                logger.success("Keyboard interrupt detected. Exiting validator.")
+
+                self.axon.stop()
+
+                self.upload_images_process.cancel()
+                self.upload_images_process.join()
+                sys.exit(0)
+
             # If we encounter an unexpected error, log it for debugging.
             except Exception as e:
                 logger.error(traceback.format_exc())
                 sentry_sdk.capture_exception(e)
 
-            # If the user interrupts the program, gracefully exit.
-            except KeyboardInterrupt:
-                logger.warning("Keyboard interrupt detected. Exiting validator.")
-                sys.exit(1)
+    async def get_image_generation_task(
+        self,
+        timeout: int = 60,
+    ) -> ImageGenerationTaskModel | None:
+        """
+        Fetch new image generation task from backend or generate new one
+        Returns task or None if task cannot be generated
+        """
+        # NOTE: Will wait for around 60 seconds
+        #       trying to get a task from the user
+        # before going on and creating a synthetic task
+        try:
+            # task = await self.backend_client.poll_task(timeout=timeout)
+            task = None
+        # Allow validator to just skip this step if they like
+        except KeyboardInterrupt:
+            pass
 
-    def sync(self):
+        # No organic task found
+        if task is None:
+            self.model_type = ModelType.CUSTOM
+            prompt = await generate_random_prompt_gpt(self)
+            if not prompt:
+                logger.error("failed to generate prompt for synthetic task")
+                return None
+            # NOTE: Generate synthetic request
+            return denormalize_image_model(
+                id=str(uuid.uuid4()),
+                image_count=1,
+                task_type="TEXT_TO_IMAGE",
+                guidance_scale=7.5,
+                negative_prompt=None,
+                prompt=prompt,
+                seed=-1,
+                steps=50,
+                width=1024,
+                height=1024,
+            )
+
+        is_bad_prompt = await self.openai_service.check_prompt_for_nsfw(task.prompt)
+
+        if is_bad_prompt:
+            try:
+                logger.warning(
+                    #
+                    "Prompt was marked as NSFW and rejected:"
+                    + task.task_id
+                )
+                await self.backend_client.update_task_state(
+                    task.task_id,
+                    TaskState.REJECTED,
+                )
+            except Exception as e:
+                logger.info(
+                    f"Failed to post {task.task_id} to the"
+                    + f" {TaskState.REJECTED.value} endpoint: {e}"
+                )
+            return None
+
+        return task
+
+    async def sync(self):
         """
         Wrapper for synchronizing the state of the network for the given miner or validator.
         """
@@ -426,7 +473,7 @@ class StableValidator:
             self.resync_metagraph()
 
         if self.should_set_weights():
-            set_weights(self)
+            await set_weights(self)
             self.prev_block = ttl_get_block(self)
 
     def get_validator_index(self):
@@ -484,6 +531,8 @@ class StableValidator:
             min_len = min(len(self.hotkeys), len(self.scores))
             new_moving_average[:min_len] = self.scores[:min_len]
             self.scores = new_moving_average
+
+            # Start following this UID
             for uid in self.metagraph.n.item():
                 if uid not in self.isalive_dict:
                     self.isalive_dict[uid] = 0

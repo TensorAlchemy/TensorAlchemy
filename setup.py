@@ -5,7 +5,8 @@
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
 # documentation files (the “Software”), to deal in the Software without restriction, including without limitation
 # the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
 
 # The above copyright notice and this permission notice shall be included in all copies or substantial portions of
 # the Software.
@@ -19,7 +20,6 @@
 import re
 import os
 import codecs
-import pathlib
 from os import path
 from io import open
 from setuptools import setup, find_packages
@@ -39,7 +39,8 @@ def read_requirements(path):
                     processed_requirements.append(pkg_name.group(2))
                 else:
                     # You may decide to raise an exception here,
-                    # if you want to ensure every VCS link has an # egg=<package_name> at the end
+                    # if you want to ensure every VCS link has an #
+                    # egg=<package_name> at the end
                     continue
             else:
                 processed_requirements.append(req)
