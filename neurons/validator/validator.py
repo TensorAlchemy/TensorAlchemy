@@ -70,7 +70,7 @@ def upload_images_loop(batches_upload_queue: Queue) -> None:
     backend_client: TensorAlchemyBackendClient = get_backend_client()
 
     try:
-        while batch := batches_upload_queue.get_nowait():
+        while batch := batches_upload_queue.get(block=False):
             logger.info(
                 f"uploading ({len(batch.computes)} compute "
                 f"for batch {batch.batch_id} ..."
@@ -269,7 +269,7 @@ class StableValidator:
 
         # Start the batch streaming background loop
         manager = Manager()
-        self.batches_upload_queue: Queue = manager.Queue(maxsize=1_000)
+        self.batches_upload_queue: Queue = manager.Queue(maxsize=100)
 
         self.upload_images_process = MultiprocessBackgroundTimer(
             0.2,
