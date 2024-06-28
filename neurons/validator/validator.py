@@ -339,9 +339,9 @@ class StableValidator:
                     model_type=self.model_type,
                     stats=self.stats,
                 )
-                # Re-sync with the network. Updates the metagraph.
 
                 try:
+                    # Re-sync with the network. Updates the metagraph.
                     self.sync()
                 except Exception as e:
                     logger.error(
