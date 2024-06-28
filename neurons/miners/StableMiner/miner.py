@@ -40,11 +40,15 @@ class StableMiner(BaseMiner):
     def load_models(self) -> None:
         # Text-to-image
         self.t2i_model_custom = self.load_t2i_model(self.config.miner.model)
-        self.t2i_model_alchemy = self.load_t2i_model(self.config.miner.alchemy_model)
 
         # Image-to-image
         self.i2i_model_custom = self.load_i2i_model(self.t2i_model_custom)
-        self.i2i_model_alchemy = self.load_i2i_model(self.t2i_model_alchemy)
+
+        # TODO: Alchemy model
+        self.t2i_model_alchemy = (
+            None  # self.load_t2i_model(self.config.miner.alchemy_model)
+        )
+        self.i2i_model_alchemy = None  # self.load_i2i_model(self.t2i_model_alchemy)
 
         self.safety_checker = StableDiffusionSafetyChecker.from_pretrained(
             "CompVis/stable-diffusion-safety-checker"
@@ -105,6 +109,9 @@ class StableMiner(BaseMiner):
         }
 
     def optimize_models(self) -> None:
+        # TODO: Alchemy model
+        return
+
         if self.config.miner.optimize:
             self.t2i_model_alchemy.unet = torch.compile(
                 self.t2i_model_alchemy.unet, mode="reduce-overhead", fullgraph=True
