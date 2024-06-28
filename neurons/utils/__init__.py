@@ -1,16 +1,14 @@
-import asyncio
-import json
 import os
-import shutil
-import subprocess
 import sys
+import json
+import shutil
 import traceback
-from asyncio import QueueEmpty
+import subprocess
+import multiprocessing
+
 from datetime import datetime
 from threading import Timer
 
-import requests
-import sentry_sdk
 import torch
 
 import _thread
@@ -46,6 +44,24 @@ class BackgroundTimer(Timer):
         self.function(*self.args, **self.kwargs)
         while not self.finished.wait(self.interval):
             self.function(*self.args, **self.kwargs)
+
+
+class MultiprocessBackgroundTimer(multiprocessing.Process):
+    def __init__(self, interval, function, args=None, kwargs=None):
+        super().__init__()
+        self.interval = interval
+        self.function = function
+        self.args = args if args is not None else []
+        self.kwargs = kwargs if kwargs is not None else {}
+        self.finished = multiprocessing.Event()
+
+    def run(self):
+        while not self.finished.is_set():
+            self.function(*self.args, **self.kwargs)
+            self.finished.wait(self.interval)
+
+    def cancel(self):
+        self.finished.set()
 
 
 def get_coldkey_for_hotkey(self, hotkey):
@@ -91,26 +107,6 @@ def background_loop(self, is_validator):
                 sys.exit(0)
         except Exception as e:
             logger.info(f">>> An unexpected error occurred syncing the metagraph: {e}")
-
-    # Send new batches to the Human Validation Bot
-    try:
-        if (self.background_steps % 1 == 0) and is_validator:
-            try:
-                while batch := self.batches_upload_queue.get_nowait():
-                    logger.info(
-                        f"uploading ({len(batch.computes)} compute "
-                        f"for batch {batch.batch_id} ..."
-                    )
-                    asyncio.run(self.backend_client.post_batch(batch))
-            except QueueEmpty:
-                pass
-
-    except Exception as e:
-        logger.info(
-            f"An error occurred trying to submit a batch: "
-            + f"{e}\n{traceback.format_exc()}"
-        )
-        sentry_sdk.capture_exception(e)
 
     # Update the whitelists and blacklists
     if self.background_steps % 5 == 0:

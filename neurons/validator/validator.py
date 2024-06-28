@@ -5,7 +5,8 @@ import sys
 import time
 import traceback
 import uuid
-from asyncio import Queue
+import queue
+from multiprocessing import Manager, Queue
 
 import bittensor as bt
 import sentry_sdk
@@ -29,12 +30,14 @@ from neurons.utils.log import colored_log
 from neurons.utils.defaults import get_defaults
 from neurons.utils import (
     BackgroundTimer,
+    MultiprocessBackgroundTimer,
     background_loop,
 )
 from neurons.validator.config import (
     get_device,
     get_config,
     get_metagraph,
+    get_backend_client,
 )
 from neurons.validator.backend.client import TensorAlchemyBackendClient
 from neurons.validator.backend.models import TaskState
@@ -59,6 +62,30 @@ def is_valid_current_directory() -> bool:
         return True
 
     return False
+
+
+def upload_images_loop(batches_upload_queue: Queue) -> None:
+    # Send new batches to the Human Validation Bot
+
+    backend_client: TensorAlchemyBackendClient = get_backend_client()
+
+    try:
+        while batch := batches_upload_queue.get_nowait():
+            logger.info(
+                f"uploading ({len(batch.computes)} compute "
+                f"for batch {batch.batch_id} ..."
+            )
+            asyncio.run(backend_client.post_batch(batch))
+
+    except queue.Empty:
+        return
+
+    except Exception as e:
+        logger.info(
+            "An error occurred trying to submit a batch: "
+            + f"{e}\n{traceback.format_exc()}"
+        )
+        sentry_sdk.capture_exception(e)
 
 
 class StableValidator:
@@ -229,10 +256,6 @@ class StableValidator:
         # Get vali index
         self.validator_index = self.get_validator_index()
 
-        # Start the batch streaming background loop
-        # self.batches = {}
-        self.batches_upload_queue = Queue()
-
         # Start the generic background loop
         self.storage_client = None
         self.background_steps = 1
@@ -243,6 +266,17 @@ class StableValidator:
         )
         self.background_timer.daemon = True
         self.background_timer.start()
+
+        # Start the batch streaming background loop
+        manager = Manager()
+        self.batches_upload_queue: Queue = manager.Queue(maxsize=1_000)
+
+        self.upload_images_process = MultiprocessBackgroundTimer(
+            0.2,
+            upload_images_loop,
+            args=[self.batches_upload_queue],
+        )
+        self.upload_images_process.start()
 
         # Create a Dict for storing miner query history
         try:
@@ -345,6 +379,10 @@ class StableValidator:
                 logger.error(traceback.format_exc())
                 sentry_sdk.capture_exception(e)
 
+            finally:
+                self.upload_images_process.cancel()
+                self.upload_images_process.join()
+
     async def get_image_generation_task(
         self,
         timeout: int = 60,
@@ -356,7 +394,13 @@ class StableValidator:
         # NOTE: Will wait for around 60 seconds
         #       trying to get a task from the user
         # before going on and creating a synthetic task
-        task = await self.backend_client.poll_task(timeout=timeout)
+        try:
+            # task = await self.backend_client.poll_task(timeout=timeout)
+            task = None
+
+        # Allow validator to just skip this step if they like
+        except KeyboardInterrupt:
+            pass
 
         # No organic task found
         if task is None:
