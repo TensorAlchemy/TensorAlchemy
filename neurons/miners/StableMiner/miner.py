@@ -1,6 +1,10 @@
 import torch
 from typing import Dict, Any
+from enum import Enum
 from base import BaseMiner
+from pydantic import BaseModel
+
+
 from diffusers import (
     AutoPipelineForImage2Image,
     AutoPipelineForText2Image,
@@ -13,6 +17,16 @@ from utils import warm_up
 from utils.log import colored_log
 
 
+class TaskType(str, Enum):
+    TEXT_TO_IMAGE = "TEXT_TO_IMAGE"
+    IMAGE_TO_IMAGE = "IMAGE_TO_IMAGE"
+
+
+class ModelConfig(BaseModel):
+    args: Dict[str, Any]
+    model: AutoPipelineForText2Image
+
+
 class StableMiner(BaseMiner):
     def __init__(self) -> None:
         super().__init__()
@@ -23,7 +37,7 @@ class StableMiner(BaseMiner):
         self.i2i_model_alchemy: AutoPipelineForImage2Image
         self.safety_checker: StableDiffusionSafetyChecker
         self.processor: CLIPImageProcessor
-        self.mapping: Dict[str, Dict[str, Any]]
+        self.model_configs: Dict[str, Dict[str, Any]]
 
         # Load the models
         self.load_models()
@@ -55,7 +69,7 @@ class StableMiner(BaseMiner):
         ).to(self.config.miner.device)
         self.processor = CLIPImageProcessor()
 
-        self.setup_mapping()
+        self.setup_model_configs()
 
     def load_t2i_model(self, model_name: str) -> AutoPipelineForText2Image:
         model = AutoPipelineForText2Image.from_pretrained(
@@ -86,25 +100,45 @@ class StableMiner(BaseMiner):
 
         return model
 
-    def setup_mapping(self) -> None:
-        self.mapping = {
-            # Text-to-image
-            f"text_to_image_{ModelType.ALCHEMY}": {
-                "args": self.t2i_args,
-                "model": self.t2i_model_alchemy,
+    def get_model_config(
+        self,
+        model_type: ModelType,
+        task_type: TaskType,
+    ) -> ModelConfig:
+        if model_type not in self.model_configs:
+            raise ValueError(f"{model_type} was not found in model_configs!")
+
+        if task_type not in self.model_configs[model_type]:
+            raise ValueError(
+                #
+                task_type
+                + f"was not found in model_configs {model_type}!"
+            )
+
+        return self.model_configs[model_type][task_type]
+
+    def setup_model_configs(self) -> None:
+        self.model_configs = {
+            ModelType.ALCHEMY: {
+                # Text-to-image
+                TaskType.TEXT_TO_IMAGE: ModelConfig(
+                    args=self.t2i_args,
+                    model=self.t2i_model_alchemy,
+                ),
+                TaskType.IMAGE_TO_IMAGE: ModelConfig(
+                    args=self.i2i_args,
+                    model=self.i2i_model_alchemy,
+                ),
             },
-            f"text_to_image_{ModelType.CUSTOM}": {
-                "args": self.t2i_args,
-                "model": self.t2i_model_custom,
-            },
-            # Image-to-image
-            f"image_to_image_{ModelType.ALCHEMY}": {
-                "args": self.i2i_args,
-                "model": self.i2i_model_alchemy,
-            },
-            f"image_to_image_{ModelType.CUSTOM}": {
-                "args": self.i2i_args,
-                "model": self.i2i_model_custom,
+            ModelType.CUSTOM: {
+                TaskType.TEXT_TO_IMAGE: ModelConfig(
+                    args=self.t2i_args,
+                    model=self.t2i_model_custom,
+                ),
+                TaskType.IMAGE_TO_IMAGE: ModelConfig(
+                    args=self.i2i_args,
+                    model=self.i2i_model_custom,
+                ),
             },
         }
 

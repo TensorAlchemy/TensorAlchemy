@@ -10,6 +10,9 @@ import typing
 from abc import ABC
 from typing import Any, Dict
 
+from wandb_utils import WandbUtils
+
+import bittensor as bt
 import torch
 import torchvision.transforms as transforms
 import torchvision.transforms as T
@@ -20,6 +23,7 @@ from neurons.utils import (
     background_loop,
     get_defaults,
 )
+from neurons.constants import VPERMIT_TAO
 from neurons.utils.nsfw import clean_nsfw_from_prompt
 from utils import (
     colored_log,
@@ -29,9 +33,8 @@ from utils import (
     nsfw_image_filter,
     sh,
 )
-from wandb_utils import WandbUtils
 
-import bittensor as bt
+from neurons.miners.StableMiner.base import ModelConfig, TaskType
 
 
 class BaseMiner(ABC):
@@ -50,7 +53,8 @@ class BaseMiner(ABC):
         colored_log(f"{self.config}", color="green")
 
         # Build args
-        self.t2i_args, self.i2i_args = self.get_args()
+        self.t2i_args = self.get_t2i_args()
+        self.i2i_args = self.get_i2i_args()
 
         # Init blacklists and whitelists
         self.hotkey_blacklist = set()
@@ -147,11 +151,17 @@ class BaseMiner(ABC):
 
         self.subtensor.serve_axon(axon=self.axon, netuid=self.config.netuid)
 
-    def get_args(self) -> Dict:
+    def get_t2i_args(self) -> Dict:
         return {
             "guidance_scale": 7.5,
             "num_inference_steps": 50,
-        }, {"guidance_scale": 5, "strength": 0.6}
+        }
+
+    def get_i2i_args(self) -> Dict:
+        return {
+            "guidance_scale": 5,
+            "strength": 0.6,
+        }
 
     def get_config(self) -> bt.config:
         argp = argparse.ArgumentParser(description="Miner Configs")
@@ -286,14 +296,18 @@ class BaseMiner(ABC):
         start_time = time.perf_counter()
 
         # Set up args
+        model_type: str = ModelType.CUSTOM
         if synapse.model_type is not None:
-            local_args = copy.deepcopy(
-                self.mapping[f"{synapse.generation_type}{synapse.model_type}"]["args"]
-            )
-        else:
-            local_args = copy.deepcopy(
-                self.mapping[f"{synapse.generation_type}{ModelType.ALCHEMY}"]["args"]
-            )
+            model_type = synapse.model_type
+
+        model_config: ModelConfig = self.get_model_config(
+            model_type,
+            # TODO: Remove to_upper
+            synapse.generation_type.to_upper(),
+        )
+
+        local_args = copy.deepcopy(model_config.args)
+
         local_args["prompt"] = [clean_nsfw_from_prompt(synapse.prompt)]
         local_args["width"] = synapse.width
         local_args["height"] = synapse.height
@@ -312,16 +326,13 @@ class BaseMiner(ABC):
             local_args["num_inference_steps"] = synapse.steps
         except AttributeError:
             logger.info("Values for steps were not provided.")
-        # local_args["num_inference_steps"] = 10
-        # Get the model
-        if synapse.model_type is not None:
-            model_name: str = f"{synapse.generation_type}_{synapse.model_type}"
-            model = self.mapping[model_name]["model"]
-        else:
-            model_name: str = f"{synapse.generation_type}_{ModelType.ALCHEMY}"
-            model = self.mapping[model_name]["model"]
+            # local_args["num_inference_steps"] = 10
 
-        if synapse.generation_type == "image_to_image":
+        # Get the model
+        model = model_config.model
+
+        # TODO: Remove upper
+        if synapse.generation_type.upper() == TaskType.IMAGE_TO_IMAGE:
             local_args["image"] = T.transforms.ToPILImage()(
                 bt.Tensor.deserialize(synapse.prompt_image)
             )
@@ -339,7 +350,9 @@ class BaseMiner(ABC):
                 images = model(**local_args).images
 
                 synapse.images = [
-                    bt.Tensor.serialize(self.transform(image)) for image in images
+                    #
+                    bt.Tensor.serialize(self.transform(image))
+                    for image in images
                 ]
                 colored_log(
                     f"{sh('Generating')} -> Succesful image generation after"
@@ -413,7 +426,7 @@ class BaseMiner(ABC):
         ):
             priority = 25000
             logger.info(
-                f"Setting the priority of whitelisted key"
+                "Setting the priority of whitelisted key"
                 + f" {synapse.axon.hotkey} to {priority}"
             )
 
@@ -421,7 +434,9 @@ class BaseMiner(ABC):
             caller_uid = self.metagraph.hotkeys.index(synapse.axon.hotkey)
             priority = max(priority, float(self.metagraph.S[caller_uid]))
             logger.info(
-                f"Prioritizing key {synapse.axon.hotkey}" + f" with value: {priority}."
+                #
+                f"Prioritizing key {synapse.axon.hotkey}"
+                + f" with value: {priority}."
             )
         except Exception:
             pass
