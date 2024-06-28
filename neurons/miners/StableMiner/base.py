@@ -15,10 +15,10 @@ import torchvision.transforms as transforms
 import torchvision.transforms as T
 from loguru import logger
 from neurons.protocol import ImageGeneration, IsAlive, ModelType
+from neurons.utils.defaults import get_defaults, Stats
 from neurons.utils import (
     BackgroundTimer,
     background_loop,
-    get_defaults,
 )
 from neurons.constants import VPERMIT_TAO
 from neurons.utils.nsfw import clean_nsfw_from_prompt
@@ -87,7 +87,7 @@ class BaseMiner(ABC):
         self.loop_until_registered()
 
         # Defaults
-        self.stats: Dict[str, Any] = get_defaults(self)
+        self.stats: Stats = get_defaults(self)
 
         # Set up transform function
         self.transform: transforms.Compose = transforms.Compose(
@@ -291,7 +291,7 @@ class BaseMiner(ABC):
 
         # Misc
         timeout: float = synapse.timeout
-        self.stats["total_requests"] += 1
+        self.stats.total_requests += 1
         start_time: float = time.perf_counter()
 
         # Set up args
@@ -374,13 +374,13 @@ class BaseMiner(ABC):
 
         # Count timeouts
         if time.perf_counter() - start_time > timeout:
-            self.stats["timeouts"] += 1
+            self.stats.timeouts += 1
 
         # Log NSFW images
         try:
             if any(nsfw_image_filter(self, images)):
                 logger.info(f"An image was flagged as NSFW: discarding image.")
-                self.stats["nsfw_count"] += 1
+                self.stats.nsfw_count += 1
                 synapse.images = []
         except Exception as e:
             logger.error(f"Error in NSFW filtering: {e}")
@@ -399,11 +399,9 @@ class BaseMiner(ABC):
 
         # Log time to generate image
         generation_time: float = time.perf_counter() - start_time
-        self.stats["generation_time"] += generation_time
+        self.stats.generation_time += generation_time
 
-        average_time: float = (
-            self.stats["generation_time"] / self.stats["total_requests"]
-        )
+        average_time: float = self.stats.generation_time / self.stats.total_requests
         colored_log(
             f"{sh('Time')} -> {generation_time:.2f}s "
             f"| Average: {average_time:.2f}s",
