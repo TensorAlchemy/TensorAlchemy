@@ -1,7 +1,6 @@
 import pathlib
 import sys
 import warnings
-from typing import List
 
 # Suppress the eth_utils network warnings
 # "does not have a valid ChainId."

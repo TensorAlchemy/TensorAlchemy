@@ -6,7 +6,6 @@ import copy
 import random
 import time
 import traceback
-import typing
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -648,6 +647,6 @@ class BaseMiner(ABC):
 
             # In case of unforeseen errors,
             # the miner will log the error and continue operations.
-            except Exception as e:
+            except Exception:
                 logger.error(f"Unexpected error: {traceback.format_exc()}")
                 continue

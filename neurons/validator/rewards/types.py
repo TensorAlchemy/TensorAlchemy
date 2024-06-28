@@ -1,5 +1,4 @@
 from enum import Enum
-from typing import Tuple
 
 import torch
 from pydantic import BaseModel

@@ -1,5 +1,4 @@
 import bittensor as bt
-from typing import Dict, List
 
 import torch
 from loguru import logger

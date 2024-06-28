@@ -1,4 +1,3 @@
-from typing import Dict, List
 import bittensor as bt
 from neurons.validator.rewards.models.base import BaseRewardModel
 from neurons.validator.rewards.types import RewardModelType

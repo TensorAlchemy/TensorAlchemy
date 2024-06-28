@@ -3,7 +3,6 @@ import bittensor as bt
 import torch
 import torchvision.transforms as transforms
 from loguru import logger
-from typing import List, Dict
 
 from neurons.validator.config import get_device
 from neurons.validator.rewards.models.base import BaseRewardModel
