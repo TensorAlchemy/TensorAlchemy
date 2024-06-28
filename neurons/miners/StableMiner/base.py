@@ -1,27 +1,27 @@
-import os
-import sys
 import argparse
 import asyncio
 import copy
+import os
 import random
+import sys
 import time
 import traceback
 from abc import ABC, abstractmethod
+from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import bittensor as bt
 import torch
 import torchvision.transforms as transforms
 import torchvision.transforms as T
+from diffusers import AutoPipelineForText2Image
+from diffusers.callbacks import SDXLCFGCutoffCallback
 from loguru import logger
-from neurons.protocol import ImageGeneration, IsAlive, ModelType
-from neurons.utils.defaults import get_defaults, Stats
-from neurons.utils import (
-    BackgroundTimer,
-    background_loop,
-)
 from neurons.constants import VPERMIT_TAO
+from neurons.protocol import ImageGeneration, IsAlive, ModelType
+from neurons.utils import BackgroundTimer, background_loop
+from neurons.utils.defaults import Stats, get_defaults
 from neurons.utils.nsfw import clean_nsfw_from_prompt
+from pydantic import BaseModel
 from utils import (
     colored_log,
     do_logs,
@@ -34,6 +34,18 @@ from utils import (
 from neurons.miners.StableMiner.schema import ModelConfig, TaskType
 
 from wandb_utils import WandbUtils
+
+import bittensor as bt
+
+
+class TaskType(str, Enum):
+    TEXT_TO_IMAGE = "TEXT_TO_IMAGE"
+    IMAGE_TO_IMAGE = "IMAGE_TO_IMAGE"
+
+
+class ModelConfig(BaseModel):
+    args: Dict[str, Any]
+    model: AutoPipelineForText2Image
 
 
 class BaseMiner(ABC):
@@ -52,8 +64,7 @@ class BaseMiner(ABC):
         colored_log(f"{self.config}", color="green")
 
         # Build args
-        self.t2i_args: Dict[str, Any] = self.get_t2i_args()
-        self.i2i_args: Dict[str, Any] = self.get_i2i_args()
+        self.t2i_args, self.i2i_args = self.get_args()
 
         # Init blacklists and whitelists
         self.hotkey_blacklist: set = set()
@@ -173,6 +184,14 @@ class BaseMiner(ABC):
             "strength": 0.6,
         }
 
+    def get_args(self) -> Dict:
+        return {
+            "guidance_scale": 7.5,
+            "num_inference_steps": 20,
+            "denoising_end": 0.8,
+            "output_type": "latent",
+        }, {"guidance_scale": 5, "strength": 0.6}
+
     def get_config(self) -> bt.config:
         argp = argparse.ArgumentParser(description="Miner Configs")
 
@@ -196,9 +215,21 @@ class BaseMiner(ABC):
         )
 
         argp.add_argument(
+            "--miner.custom_refiner",
+            type=str,
+            default="stabilityai/stable-diffusion-xl-refiner-1.0",
+        )
+
+        argp.add_argument(
             "--miner.alchemy_model",
             type=str,
             default="stabilityai/stable-diffusion-xl-base-1.0",
+        )
+
+        argp.add_argument(
+            "--miner.alchemy_refiner",
+            type=str,
+            default="stabilityai/stable-diffusion-xl-refiner-1.0",
         )
 
         bt.subtensor.add_args(argp)
@@ -311,20 +342,20 @@ class BaseMiner(ABC):
             logger.error(f"Error getting model config: {e}")
             return synapse
 
-        local_args: Dict[str, Any] = copy.deepcopy(model_config.args)
+        model_args: Dict[str, Any] = copy.deepcopy(model_config.args)
 
         try:
-            local_args["prompt"] = [clean_nsfw_from_prompt(synapse.prompt)]
-            local_args["width"] = synapse.width
-            local_args["height"] = synapse.height
-            local_args["num_images_per_prompt"] = synapse.num_images_per_prompt
-            local_args["guidance_scale"] = synapse.guidance_scale
+            model_args["prompt"] = [clean_nsfw_from_prompt(synapse.prompt)]
+            model_args["width"] = synapse.width
+            model_args["height"] = synapse.height
+            model_args["num_images_per_prompt"] = synapse.num_images_per_prompt
+            model_args["guidance_scale"] = synapse.guidance_scale
 
             if synapse.negative_prompt:
-                local_args["negative_prompt"] = [synapse.negative_prompt]
+                model_args["negative_prompt"] = [synapse.negative_prompt]
 
-            local_args["num_inference_steps"] = getattr(
-                synapse, "steps", local_args.get("num_inference_steps", 50)
+            model_args["num_inference_steps"] = getattr(
+                synapse, "steps", model_args.get("num_inference_steps", 50)
             )
         except AttributeError as e:
             logger.error(f"Error setting up local args: {e}")
@@ -334,39 +365,56 @@ class BaseMiner(ABC):
 
         if synapse.generation_type.upper() == TaskType.IMAGE_TO_IMAGE:
             try:
-                local_args["image"] = T.transforms.ToPILImage()(
+                model_args["image"] = T.transforms.ToPILImage()(
                     bt.Tensor.deserialize(synapse.prompt_image)
                 )
             except Exception as e:
                 logger.error(f"Error processing image for image-to-image: {e}")
                 return synapse
 
+        # Init refiner args
+        refiner_args = {}
+        refiner_args["denoising_start"] = model_args["denoising_end"]
+        refiner_args["prompt"] = model_args["prompt"]
+
+        try:
+            model_args["num_inference_steps"] = int(synapse.steps * 0.8)
+            refiner_args["num_inference_steps"] = int(synapse.steps * 0.2)
+        except AttributeError:
+            logger.info("Values for steps were not provided.")
+        # Get the model
+        if synapse.model_type is not None:
+            model_name: str = f"{synapse.generation_type}_{synapse.model_type.lower()}"
+            model = self.mapping[model_name]["model"]
+            refiner = self.mapping[model_name]["refiner"]
+        else:
+            model_name: str = f"{synapse.generation_type}_{ModelType.ALCHEMY.lower()}"
+            model = self.mapping[model_name]["model"]
+            refiner = self.mapping[model_name]["refiner"]
+
+        if synapse.generation_type == "image_to_image":
+            model_args["image"] = T.transforms.ToPILImage()(
+                bt.Tensor.deserialize(synapse.prompt_image)
+            )
+
         # Output logs
-        do_logs(self, synapse, local_args)
+        do_logs(self, synapse, model_args)
 
         # Generate images & serialize
         for attempt in range(3):
             try:
                 seed: int = synapse.seed
-                local_args["generator"] = [
+                model_args["generator"] = [
                     torch.Generator(device=self.config.miner.device).manual_seed(seed)
                 ]
 
-                def callback_dynamic_cfg(pipe, step_index, timestep, callback_kwargs):
-                    # adjust the batch_size of prompt_embeds according to guidance_scale
-                    if step_index == int(model.num_timesteps * 0.4):
-                        prompt_embeds = callback_kwargs["prompt_embeds"]
-                        prompt_embeds = prompt_embeds.chunk(2)[-1]
+                model_args["callback_on_step_end"] = SDXLCFGCutoffCallback(
+                    cutoff_step_ratio=0.4
+                )
+                images = model(**model_args).images
 
-                        # update guidance_scale and prompt_embeds
-                        model._guidance_scale = 0.0
-                        callback_kwargs["prompt_embeds"] = prompt_embeds
-                    return callback_kwargs
-
-                local_args["callback_on_step_end"] = callback_dynamic_cfg
-                local_args["callback_on_step_end_tensor_inputs"] = ["prompt_embeds"]
-                images = model(**local_args).images
-
+                refiner_args["image"] = images
+                images = refiner(**refiner_args).images
                 synapse.images = [
                     bt.Tensor.serialize(self.transform(image)) for image in images
                 ]
