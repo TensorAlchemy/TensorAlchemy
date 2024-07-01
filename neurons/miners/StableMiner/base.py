@@ -46,6 +46,8 @@ class TaskType(str, Enum):
 class ModelConfig(BaseModel):
     args: Dict[str, Any]
     model: AutoPipelineForText2Image
+    class Config:
+        arbitrary_types_allowed = True
 
 
 class BaseMiner(ABC):
