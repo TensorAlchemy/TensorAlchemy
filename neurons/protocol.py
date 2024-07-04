@@ -19,7 +19,7 @@
 
 import typing
 from enum import Enum
-from typing import Optional
+from typing import Optional, Union
 
 import pydantic
 from pydantic import BaseModel, Field
@@ -83,7 +83,7 @@ class ImageGeneration(bt.Synapse):
     prompt: str = pydantic.Field("Bird in the sky", allow_mutation=False)
     negative_prompt: str = pydantic.Field(None, allow_mutation=False)
     prompt_image: Optional[bt.Tensor]
-    images: typing.List[bt.Tensor] = []
+    images: typing.List[Union[str, bt.Tensor]] = []
     num_images_per_prompt: int = pydantic.Field(1, allow_mutation=False)
     height: int = pydantic.Field(1024, allow_mutation=False)
     width: int = pydantic.Field(1024, allow_mutation=False)
