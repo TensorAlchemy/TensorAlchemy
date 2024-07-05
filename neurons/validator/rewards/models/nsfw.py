@@ -2,7 +2,7 @@ import bittensor as bt
 from loguru import logger
 from transformers import CLIPImageProcessor
 
-from neurons.utils.image import bt_tensor_to_torch
+from neurons.utils.image import synapse_to_tensors
 from neurons.safety import StableDiffusionSafetyChecker
 
 from neurons.validator.config import get_device
@@ -31,11 +31,7 @@ class NSFWRewardModel(BaseRewardModel):
 
         try:
             clip_input = self.processor(
-                [
-                    #
-                    bt_tensor_to_torch(image)
-                    for image in response.images
-                ],
+                synapse_to_tensors(response),
                 return_tensors="pt",
             ).to(get_device())
 
