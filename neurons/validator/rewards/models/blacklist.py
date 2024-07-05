@@ -3,7 +3,7 @@ import bittensor as bt
 from loguru import logger
 from PIL.Image import Image as ImageType
 
-from neurons.utils.image import tensor_to_image
+from neurons.utils.image import synapse_to_images
 
 from neurons.validator.rewards.models.base import BaseRewardModel
 from neurons.validator.rewards.types import RewardModelType
@@ -24,23 +24,11 @@ class BlacklistFilter(BaseRewardModel):
         if len(response.images) != response.num_images_per_prompt:
             return 1.0
 
-        # If any images in the response fail the reward for that response is
-        # 0.0
-        for img_tensor in response.images:
-            # Check if the image can be serialized
-            try:
-                image: ImageType = tensor_to_image(img_tensor)
-
-                # Check if the image is black image
-                if np.array(image).sum() < 1:
-                    return 1.0
-
-            except Exception:
-                logger.warning("Could not deserialise image")
-                return 1.0
-
-            # Check if the image has the type bt.tensor
-            if not isinstance(img_tensor, bt.Tensor):
+        # If any images in the response fail
+        # the reward for that response is 0.0
+        for image in synapse_to_images(response):
+            # Check if the image is black image
+            if np.array(image).sum() < 1:
                 return 1.0
 
             if image.width != response.width:
