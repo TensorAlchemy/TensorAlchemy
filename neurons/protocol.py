@@ -66,37 +66,50 @@ class ImageGeneration(bt.Synapse):
 
     computed_body_hash: str = Field("")
 
-    prompt_image: Optional[bt.Tensor]
     images: List[Union[str, bt.Tensor]] = []
 
+    prompt_image: Optional[bt.Tensor] = Field(
+        None,
+        allow_mutation=False,
+    )
     # Required request input, filled by sending dendrite caller.
     prompt: str = Field(
         "Bird in the sky",
+        allow_mutation=False,
     )
     negative_prompt: Optional[str] = Field(
         None,
+        allow_mutation=False,
     )
     num_images_per_prompt: int = Field(
         1,
+        allow_mutation=False,
     )
     height: int = Field(
         1024,
+        allow_mutation=False,
     )
     width: int = Field(
         1024,
+        allow_mutation=False,
     )
     generation_type: str = Field(
         "TEXT_TO_IMAGE",
+        allow_mutation=False,
     )
     guidance_scale: float = Field(
         7.5,
+        allow_mutation=False,
     )
     seed: int = Field(
         -1,
+        allow_mutation=False,
     )
     steps: int = Field(
         50,
+        allow_mutation=False,
     )
     model_type: str = Field(
         ModelType.CUSTOM,
+        allow_mutation=False,
     )
