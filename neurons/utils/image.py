@@ -37,6 +37,43 @@ def synapse_to_bytesio(synapse: bt.Synapse, img_index: int = 0) -> BytesIO:
     return buffer
 
 
+def multi_to_tensor(inbound: str | np.ndarray | bt.Tensor) -> torch.Tensor:
+    """
+    Convert a Synapse image to PyTorch Tensor.
+
+    Args:
+        synapse (bt.Synapse): The Synapse response containing images.
+        img_index (int): Index of the image to convert.
+
+    Returns:
+        torch.Tensor: The converted PyTorch Tensor.
+    """
+    if isinstance(inbound, np.ndarray):
+        return torch.from_numpy(inbound)
+
+    if isinstance(inbound, str):
+        return image_to_tensor(base64_to_image(inbound))
+
+    return tensor_to_torch(inbound)
+
+
+def synapse_to_tensor(synapse: bt.Synapse, img_index: int = 0) -> torch.Tensor:
+    """
+    Convert a Synapse image to PyTorch Tensor.
+
+    Args:
+        synapse (bt.Synapse): The Synapse response containing images.
+        img_index (int): Index of the image to convert.
+
+    Returns:
+        torch.Tensor: The converted PyTorch Tensor.
+    """
+    if not synapse.images:
+        return torch.zeros((1, 1, 3), dtype=torch.uint8)
+
+    return multi_to_tensor(synapse.images[img_index])
+
+
 def synapse_to_image(synapse: bt.Synapse, img_index: int = 0) -> ImageType:
     """
     Convert a Synapse image to PIL Image.
@@ -51,15 +88,16 @@ def synapse_to_image(synapse: bt.Synapse, img_index: int = 0) -> ImageType:
     if not synapse.images:
         return Image.new("RGB", (1, 1))
 
-    inbound: str | bt.Tensor = synapse.images[img_index]
+    # First, get the tensor using the existing function
+    tensor = synapse_to_tensor(synapse, img_index)
 
-    if isinstance(inbound, np.ndarray):
-        return numpy_to_image(inbound)
+    # Convert the tensor to PIL Image
+    if tensor.ndim == 2:
+        # If it's a 2D tensor (grayscale image)
+        return T.ToPILImage()(tensor.unsqueeze(0))
 
-    if isinstance(inbound, str):
-        return base64_to_image(inbound)
-
-    return tensor_to_image(inbound)
+    # If it's a 3D tensor (RGB or RGBA image)
+    return T.ToPILImage()(tensor)
 
 
 def synapse_to_images(synapse: bt.Synapse) -> List[ImageType]:
@@ -77,31 +115,6 @@ def synapse_to_images(synapse: bt.Synapse) -> List[ImageType]:
         synapse_to_image(synapse, idx)
         for idx in range(len(synapse.images))
     ]
-
-
-def synapse_to_tensor(synapse: bt.Synapse, img_index: int = 0) -> torch.Tensor:
-    """
-    Convert a Synapse image to PyTorch Tensor.
-
-    Args:
-        synapse (bt.Synapse): The Synapse response containing images.
-        img_index (int): Index of the image to convert.
-
-    Returns:
-        torch.Tensor: The converted PyTorch Tensor.
-    """
-    if not synapse.images:
-        return torch.zeros((1, 1, 3), dtype=torch.uint8)
-
-    inbound: Any = synapse.images[img_index]
-
-    if isinstance(inbound, np.ndarray):
-        return torch.from_numpy(inbound)
-
-    if isinstance(inbound, str):
-        return image_to_tensor(base64_to_image(inbound))
-
-    return tensor_to_torch(inbound)
 
 
 def synapse_to_tensors(synapse: bt.Synapse) -> List[torch.Tensor]:

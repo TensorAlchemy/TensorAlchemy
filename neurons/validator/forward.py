@@ -20,7 +20,7 @@ from neurons.constants import MOVING_AVERAGE_ALPHA
 from neurons.protocol import ImageGeneration, ImageGenerationTaskModel
 
 from neurons.utils.defaults import Stats
-from neurons.utils.image import synapse_to_bytesio
+from neurons.utils.image import synapse_to_bytesio, multi_to_tensor
 
 from neurons.validator.backend.exceptions import PostMovingAveragesError
 from neurons.validator.event import EventSchema, convert_enum_keys_to_strings
@@ -278,7 +278,7 @@ def log_event_to_wandb(wandb, event: dict, prompt: str):
         wandb_img = (
             torch.full([3, 1024, 1024], 255, dtype=torch.float)
             if image == []
-            else bt.Tensor.deserialize(image)
+            else multi_to_tensor(image)
         )
 
         wandb_event["images"][e] = wandb_lib.Image(
