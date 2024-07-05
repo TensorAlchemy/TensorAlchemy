@@ -1,7 +1,7 @@
 import torch
 
 from enum import Enum
-from typing import Optional, List
+from typing import Optional, List, Union
 
 import numpy as np
 import bittensor as bt
@@ -50,7 +50,7 @@ class IsAlive(bt.Synapse):
     )
 
 
-SupportedImage = str | np.ndarray | torch.tensor | bt.Tensor
+SupportedImageTypes = Union[str, np.ndarray, torch.tensor, bt.Tensor]
 
 
 class ImageGeneration(bt.Synapse):
@@ -75,7 +75,7 @@ class ImageGeneration(bt.Synapse):
 
     computed_body_hash: str = Field("")
 
-    images: List[SupportedImage] = []
+    images: List[SupportedImageTypes] = []
 
     prompt_image: Optional[bt.Tensor] = Field(
         None,

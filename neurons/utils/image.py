@@ -14,6 +14,8 @@ from PIL.Image import Image as ImageType
 
 import torchvision.transforms as T
 
+from neurons.protocol import SupportedImageTypes
+
 
 def synapse_to_bytesio(synapse: bt.Synapse, img_index: int = 0) -> BytesIO:
     """
@@ -37,7 +39,7 @@ def synapse_to_bytesio(synapse: bt.Synapse, img_index: int = 0) -> BytesIO:
     return buffer
 
 
-def multi_to_tensor(inbound: str | np.ndarray | bt.Tensor) -> torch.Tensor:
+def multi_to_tensor(inbound: SupportedImageTypes) -> torch.Tensor:
     """
     Convert a Synapse image to PyTorch Tensor.
 
@@ -48,11 +50,11 @@ def multi_to_tensor(inbound: str | np.ndarray | bt.Tensor) -> torch.Tensor:
     Returns:
         torch.Tensor: The converted PyTorch Tensor.
     """
+    if isinstance(inbound, torch.tensor):
+        return inbound
+
     if isinstance(inbound, np.ndarray):
         return torch.from_numpy(inbound)
-
-    if isinstance(inbound, torch.tensor):
-        return tensor_to_image(inbound)
 
     if isinstance(inbound, str):
         return image_to_tensor(base64_to_image(inbound))
