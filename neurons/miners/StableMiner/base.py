@@ -15,7 +15,7 @@ from neurons.miners.StableMiner.schema import ModelConfig, TaskType
 from neurons.protocol import ImageGeneration, IsAlive, ModelType
 from neurons.utils import BackgroundTimer, background_loop
 from neurons.utils.defaults import Stats, get_defaults
-from neurons.utils.image import image_to_base64
+from neurons.utils.image import image_to_tensor
 from neurons.utils.log import colored_log
 from neurons.utils.nsfw import clean_nsfw_from_prompt
 from utils import get_caller_stake, get_coldkey_for_hotkey
@@ -314,9 +314,9 @@ class BaseMiner(ABC):
                 #       Yet when you send base64 string
                 #       it's automatically converted to np.ndarray 🤦
                 #
-                #       We will try to continue forward with base64
-                #       as it's a sane choice
-                synapse.images = [image_to_base64(image) for image in images]
+                #       I would like to continue forward with base64
+                #       as it's a sane choice, but we'll stick with tensor for now
+                synapse.images = [image_to_tensor(image) for image in images]
 
                 colored_log(
                     f"{sh('Generating')} -> Successful image generation after"

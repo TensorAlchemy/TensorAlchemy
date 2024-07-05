@@ -51,6 +51,9 @@ def multi_to_tensor(inbound: str | np.ndarray | bt.Tensor) -> torch.Tensor:
     if isinstance(inbound, np.ndarray):
         return torch.from_numpy(inbound)
 
+    if isinstance(inbound, torch.tensor):
+        return tensor_to_image(inbound)
+
     if isinstance(inbound, str):
         return image_to_tensor(base64_to_image(inbound))
 
@@ -134,23 +137,6 @@ def synapse_to_tensors(synapse: bt.Synapse) -> List[torch.Tensor]:
         synapse_to_tensor(synapse, idx)
         for idx in range(len(synapse.images))
     ]
-
-
-def tensor_to_image(tensor: bt.Tensor) -> ImageType:
-    """
-    Convert a bittensor Tensor to PIL Image.
-
-    Args:
-        tensor (bt.Tensor): The bittensor Tensor to convert.
-
-    Returns:
-        ImageType: The converted PIL Image.
-    """
-    try:
-        return T.ToPILImage()(tensor_to_torch(tensor))
-    except Exception:
-        logger.error(f"Error converting tensor to image: {traceback.format_exc()}")
-        return Image.new("RGB", (1, 1))
 
 
 def tensor_to_torch(tensor: bt.Tensor) -> torch.Tensor:
@@ -238,6 +224,7 @@ def image_to_base64(image: ImageType) -> str:
     """
     buffer = BytesIO()
     image.save(buffer, format="PNG")
+    buffer.seek(0)
     return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
 
@@ -271,3 +258,20 @@ def image_to_tensor(image: ImageType) -> torch.Tensor:
         torch.Tensor: The converted PyTorch Tensor.
     """
     return T.ToTensor()(image)
+
+
+def tensor_to_image(tensor: bt.Tensor) -> ImageType:
+    """
+    Convert a bittensor Tensor to PIL Image.
+
+    Args:
+        tensor (bt.Tensor): The bittensor Tensor to convert.
+
+    Returns:
+        ImageType: The converted PIL Image.
+    """
+    try:
+        return T.ToPILImage()(tensor_to_torch(tensor))
+    except Exception:
+        logger.error(f"Error converting tensor to image: {traceback.format_exc()}")
+        return Image.new("RGB", (1, 1))
