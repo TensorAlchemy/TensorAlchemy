@@ -67,7 +67,7 @@ def multi_to_tensor(inbound: SupportedImageTypes) -> torch.Tensor:
     Returns:
         torch.Tensor: The converted PyTorch Tensor.
     """
-    if isinstance(inbound, torch.tensor):
+    if isinstance(inbound, torch.Tensor):
         return inbound
 
     if isinstance(inbound, np.ndarray):

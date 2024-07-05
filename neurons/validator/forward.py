@@ -263,8 +263,6 @@ def log_responses(responses: List[ImageGeneration], prompt: str):
 def log_event_to_wandb(wandb, event: dict, prompt: str):
     event = convert_enum_keys_to_strings(event)
 
-    logger.info(f"Events: {str(event)}")
-
     # Log the event to wandb.
     wandb_event = copy.deepcopy(event)
     file_type = "png"
