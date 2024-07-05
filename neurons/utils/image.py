@@ -74,14 +74,12 @@ def synapse_to_tensor(synapse: bt.Synapse, img_index: int = 0) -> torch.Tensor:
     return multi_to_tensor(synapse.images[img_index])
 
 
-def synapse_to_image(synapse: bt.Synapse, img_index: int = 0) -> ImageType:
+def synapse_to_image(synapse: bt.Synapse, img_index: int = 0) -> Image.Image:
     """
     Convert a Synapse image to PIL Image.
-
     Args:
         synapse (bt.Synapse): The Synapse response containing images.
         img_index (int): Index of the image to convert.
-
     Returns:
         ImageType: The converted PIL Image.
     """
@@ -97,6 +95,10 @@ def synapse_to_image(synapse: bt.Synapse, img_index: int = 0) -> ImageType:
         return T.ToPILImage()(tensor.unsqueeze(0))
 
     # If it's a 3D tensor (RGB or RGBA image)
+    if tensor.shape[-1] in [1, 3, 4]:
+        # Channels are in the last dimension, move them to the first
+        tensor = tensor.permute(2, 0, 1)
+
     return T.ToPILImage()(tensor)
 
 
