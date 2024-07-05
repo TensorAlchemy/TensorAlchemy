@@ -39,6 +39,23 @@ def synapse_to_bytesio(synapse: bt.Synapse, img_index: int = 0) -> BytesIO:
     return buffer
 
 
+def synapse_to_base64(synapse: bt.Synapse, img_index: int = 0) -> str:
+    """
+    Convert a Synapse image to base64 string.
+
+    Args:
+        synapse (bt.Synapse): The Synapse response containing images.
+        img_index (int): Index of the image to convert.
+
+    Returns:
+        str: The image as a base64 encoded string.
+    """
+    if not synapse.images:
+        return ""
+
+    return bytesio_to_base64(synapse_to_bytesio(synapse, img_index))
+
+
 def multi_to_tensor(inbound: SupportedImageTypes) -> torch.Tensor:
     """
     Convert a Synapse image to PyTorch Tensor.
@@ -224,10 +241,24 @@ def image_to_base64(image: ImageType) -> str:
     Returns:
         str: The base64 encoded string of the image.
     """
-    buffer = BytesIO()
-    image.save(buffer, format="PNG")
-    buffer.seek(0)
-    return base64.b64encode(buffer.getvalue()).decode("utf-8")
+    im_buffer = BytesIO()
+    image.save(im_buffer, format="PNG")
+    im_buffer.seek(0)
+
+    return base64.b64encode(im_buffer.getvalue()).decode("utf-8")
+
+
+def bytesio_to_base64(image: BytesIO) -> str:
+    """
+    Convert a BytesIO object to base64 string.
+
+    Args:
+        bytesio (BytesIO): The BytesIO data to convert.
+
+    Returns:
+        str: The base64 encoded string of the data.
+    """
+    return base64.b64encode(image.getvalue())
 
 
 def base64_to_image(b64_image: str) -> ImageType:

@@ -1,9 +1,7 @@
 import json
 import asyncio
-import base64
 import copy
 import time
-from io import BytesIO
 from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
 
 from dataclasses import asdict
@@ -20,7 +18,7 @@ from neurons.constants import MOVING_AVERAGE_ALPHA
 from neurons.protocol import ImageGeneration, ImageGenerationTaskModel
 
 from neurons.utils.defaults import Stats
-from neurons.utils.image import synapse_to_bytesio, multi_to_tensor
+from neurons.utils.image import synapse_to_base64, multi_to_tensor
 
 from neurons.validator.backend.exceptions import PostMovingAveragesError
 from neurons.validator.event import EventSchema, convert_enum_keys_to_strings
@@ -311,11 +309,7 @@ async def create_batch_for_upload(
 
     for response, reward in zip(responses, rewards_for_uids):
         if response.images:
-            im_file: BytesIO = synapse_to_bytesio(response)
-
-            # im_bytes: image in binary format.
-            im_b64 = base64.b64encode(im_file.getvalue())
-            images.append(im_b64.decode())
+            images.append(synapse_to_base64(response))
 
             if response.is_success and reward.item() == 0:
                 should_drop_entries.append(0)
