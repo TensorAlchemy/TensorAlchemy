@@ -2,7 +2,7 @@ import base64
 import binascii
 import traceback
 from io import BytesIO
-from typing import Any, List, Union
+from typing import Any, List
 
 import torch
 import numpy as np
@@ -51,7 +51,7 @@ def synapse_to_image(synapse: bt.Synapse, img_index: int = 0) -> ImageType:
     if not synapse.images:
         return Image.new("RGB", (1, 1))
 
-    inbound: Union[str, bt.Tensor] = synapse.images[img_index]
+    inbound: str | bt.Tensor = synapse.images[img_index]
 
     if isinstance(inbound, np.ndarray):
         logger.error("Miner sent us a numpy array")

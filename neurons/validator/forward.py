@@ -218,10 +218,16 @@ def log_query_to_history(validator: "StableValidator", uids: torch.Tensor):
 
 
 def image_to_log(image: Any) -> str:
-    if hasattr(image, "shape"):
-        return image.shape
+    if isinstance(image, str):
+        return "base64(**IMAGEDATA**)"
 
-    return "**base64**"
+    if isinstance(image, bt.Tensor):
+        return f"bt.Tensor({image.shape})"
+
+    if hasattr(image, "shape"):
+        return f"shaped({image.shape})"
+
+    return "UNKNOWN IMAGE TYPE"
 
 
 def log_responses(responses: List[ImageGeneration], prompt: str):
@@ -428,7 +434,6 @@ async def run_step(
 
     uids = get_uids(responses)
 
-    logger.info("Info -> {synapse_info}")
     logger.info(
         f"UIDs -> {' | '.join([str(uid.item()) for uid in uids])}",
     )

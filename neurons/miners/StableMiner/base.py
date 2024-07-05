@@ -25,6 +25,11 @@ from wandb_utils import WandbUtils
 import bittensor as bt
 
 
+class ImageGenerationNew(ImageGeneration):
+    # NOTE: Needs to
+    images: List[str] = []
+
+
 class BaseMiner(ABC):
     def __init__(self) -> None:
         self.config = get_config()
@@ -241,7 +246,7 @@ class BaseMiner(ABC):
     ) -> ModelConfig:
         raise NotImplementedError("Please extend self.get_model_config")
 
-    async def generate_image(self, synapse: ImageGeneration) -> ImageGeneration:
+    async def generate_image(self, synapse: ImageGenerationNew) -> ImageGenerationNew:
         """
         Image generation logic shared between both text-to-image and image-to-image
         """
@@ -309,6 +314,8 @@ class BaseMiner(ABC):
                 ]
                 images = model(**local_args).images
                 synapse.images = [image_to_base64(image) for image in images]
+                for image in synapse.images:
+                    print(type(image))
                 colored_log(
                     f"{sh('Generating')} -> Successful image generation after"
                     f" {attempt+1} attempt(s).",
@@ -365,7 +372,7 @@ class BaseMiner(ABC):
         )
         return synapse
 
-    def _base_priority(self, synapse: Union[IsAlive, ImageGeneration]) -> float:
+    def _base_priority(self, synapse: Union[IsAlive, ImageGenerationNew]) -> float:
         # If hotkey or coldkey is whitelisted
         # and not found on the metagraph, give a priority of 5,000
         # Caller hotkey
@@ -410,7 +417,7 @@ class BaseMiner(ABC):
 
     def _base_blacklist(
         self,
-        synapse: Union[IsAlive, ImageGeneration],
+        synapse: Union[IsAlive, ImageGenerationNew],
         vpermit_tao_limit: float = VPERMIT_TAO,
         rate_limit: float = 1.0,
     ) -> Tuple[bool, str]:
@@ -429,7 +436,7 @@ class BaseMiner(ABC):
 
             # Count the request frequencies
             exceeded_rate_limit: bool = False
-            if synapse_type == "ImageGeneration":
+            if synapse_type == "ImageGenerationNew":
                 # Apply a rate limit from the same caller
                 if caller_hotkey in self.request_dict:
                     now: float = time.perf_counter()
@@ -523,13 +530,15 @@ class BaseMiner(ABC):
     def blacklist_is_alive(self, synapse: IsAlive) -> Tuple[bool, str]:
         return self._base_blacklist(synapse)
 
-    def blacklist_image_generation(self, synapse: ImageGeneration) -> Tuple[bool, str]:
+    def blacklist_image_generation(
+        self, synapse: ImageGenerationNew
+    ) -> Tuple[bool, str]:
         return self._base_blacklist(synapse)
 
     def priority_is_alive(self, synapse: IsAlive) -> float:
         return self._base_priority(synapse)
 
-    def priority_image_generation(self, synapse: ImageGeneration) -> float:
+    def priority_image_generation(self, synapse: ImageGenerationNew) -> float:
         return self._base_priority(synapse)
 
     def loop(self) -> None:
