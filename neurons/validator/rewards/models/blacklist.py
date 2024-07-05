@@ -1,6 +1,7 @@
 import numpy as np
 import bittensor as bt
 from loguru import logger
+from PIL.Image import Image as ImageType
 
 from neurons.utils.image import tensor_to_image
 
@@ -28,7 +29,7 @@ class BlacklistFilter(BaseRewardModel):
         for img_tensor in response.images:
             # Check if the image can be serialized
             try:
-                image = tensor_to_image(img_tensor)
+                image: ImageType = tensor_to_image(img_tensor)
 
                 # Check if the image is black image
                 if np.array(image).sum() < 1:
@@ -42,11 +43,11 @@ class BlacklistFilter(BaseRewardModel):
             if not isinstance(img_tensor, bt.Tensor):
                 return 1.0
 
-            if image.shape[1] != response.width:
+            if image.width != response.width:
                 return 1.0
 
             # check image size
-            if image.shape[2] != response.height:
+            if image.height != response.height:
                 return 1.0
 
         return 0.0
