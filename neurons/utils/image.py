@@ -2,7 +2,7 @@ import base64
 import binascii
 import traceback
 from io import BytesIO
-from typing import Any, List
+from typing import List
 
 import torch
 import numpy as np
@@ -28,6 +28,7 @@ def synapse_to_bytesio(synapse: bt.Synapse, img_index: int = 0) -> BytesIO:
     Returns:
         BytesIO: The image as a BytesIO object.
     """
+    print("synapse_to_bytesio")
     if not synapse.images:
         return BytesIO()
 
@@ -50,33 +51,11 @@ def synapse_to_base64(synapse: bt.Synapse, img_index: int = 0) -> str:
     Returns:
         str: The image as a base64 encoded string.
     """
+    print("synapse_to_base64")
     if not synapse.images:
         return ""
 
     return bytesio_to_base64(synapse_to_bytesio(synapse, img_index))
-
-
-def multi_to_tensor(inbound: SupportedImageTypes) -> torch.Tensor:
-    """
-    Convert a Synapse image to PyTorch Tensor.
-
-    Args:
-        synapse (bt.Synapse): The Synapse response containing images.
-        img_index (int): Index of the image to convert.
-
-    Returns:
-        torch.Tensor: The converted PyTorch Tensor.
-    """
-    if isinstance(inbound, str):
-        return image_to_tensor(base64_to_image(inbound))
-
-    if isinstance(inbound, torch.Tensor):
-        return inbound
-
-    if isinstance(inbound, np.ndarray):
-        return torch.from_numpy(inbound)
-
-    return tensor_to_torch(inbound)
 
 
 def synapse_to_tensor(synapse: bt.Synapse, img_index: int = 0) -> torch.Tensor:
@@ -145,17 +124,62 @@ def synapse_to_tensors(synapse: bt.Synapse) -> List[torch.Tensor]:
     ]
 
 
-def tensor_to_torch(tensor: bt.Tensor) -> torch.Tensor:
+def multi_to_tensor(inbound: SupportedImageTypes) -> torch.Tensor:
     """
-    Convert a bittensor Tensor to PyTorch Tensor.
+    Convert a Synapse image to PyTorch Tensor.
 
     Args:
-        tensor (bt.Tensor): The bittensor Tensor to convert.
+        synapse (bt.Synapse): The Synapse response containing images.
+        img_index (int): Index of the image to convert.
 
     Returns:
         torch.Tensor: The converted PyTorch Tensor.
     """
-    return bt.Tensor.deserialize(tensor)
+    print(type(inbound))
+    if isinstance(inbound, dict):
+        print(inbound.keys())
+
+    if isinstance(inbound, str):
+        return image_to_tensor(base64_to_image(inbound))
+
+    if isinstance(inbound, dict) and "buffer" in inbound:
+        return image_to_tensor(base64_to_image(inbound["buffer"]))
+
+    if isinstance(inbound, torch.Tensor):
+        return inbound
+
+    if isinstance(inbound, np.ndarray):
+        return torch.from_numpy(inbound)
+
+    if isinstance(inbound, bt.Tensor):
+        return tensor_to_torch(inbound)
+
+    logger.error("Could not transform inbound type")
+    return torch.zeros((1, 1, 3), dtype=torch.uint8)
+
+
+def tensor_to_torch(tensor: bt.Tensor) -> torch.Tensor:
+    """
+    Convert a bittensor Tensor to PyTorch Tensor.
+    """
+    try:
+        if isinstance(tensor, bt.Tensor):
+            return bt.Tensor.deserialize(tensor)
+
+        if isinstance(tensor, (torch.Tensor, np.ndarray)):
+            return torch.as_tensor(tensor)
+
+        if isinstance(tensor, dict) and all(
+            key in tensor for key in ["data", "dtype", "shape"]
+        ):
+            return torch.tensor(
+                tensor["data"], dtype=getattr(torch, tensor["dtype"])
+            ).reshape(tensor["shape"])
+
+        raise ValueError(f"Unsupported tensor type: {type(tensor)}")
+    except Exception:
+        logger.error(f"Error tensor to torch: {traceback.format_exc()}")
+        return torch.zeros((1, 1, 3), dtype=torch.uint8)
 
 
 def numpy_to_image(numpy_image: np.ndarray) -> ImageType:
@@ -259,10 +283,9 @@ def base64_to_image(b64_image: str) -> ImageType:
         ImageType: PIL Image object.
     """
     try:
-        image_data = base64.b64decode(b64_image)
-        return Image.open(BytesIO(image_data))
+        return Image.open(BytesIO(base64.b64decode(b64_image)))
 
-    except (binascii.Error, IOError):
+    except Exception:
         logger.error(f"Error converting base64 to image: {traceback.format_exc()}")
         return Image.new("RGB", (1, 1))
 
