@@ -1,4 +1,4 @@
-import base64
+import torch
 
 from enum import Enum
 from typing import Optional, List
@@ -50,6 +50,9 @@ class IsAlive(bt.Synapse):
     )
 
 
+SupportedImage = str | np.ndarray | torch.tensor | bt.Tensor
+
+
 class ImageGeneration(bt.Synapse):
     """
     A simple dummy protocol representation which uses bt.Synapse
@@ -72,7 +75,7 @@ class ImageGeneration(bt.Synapse):
 
     computed_body_hash: str = Field("")
 
-    images: List[str | np.ndarray | bt.Tensor] = []
+    images: List[SupportedImage] = []
 
     prompt_image: Optional[bt.Tensor] = Field(
         None,
