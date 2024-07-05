@@ -44,5 +44,4 @@ class NSFWRewardModel(BaseRewardModel):
 
         except Exception as e:
             logger.error(f"Error in NSFW detection: {e}")
-            logger.error(f"images={response.images}")
             return 0.0

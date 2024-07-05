@@ -67,14 +67,14 @@ def multi_to_tensor(inbound: SupportedImageTypes) -> torch.Tensor:
     Returns:
         torch.Tensor: The converted PyTorch Tensor.
     """
+    if isinstance(inbound, str):
+        return image_to_tensor(base64_to_image(inbound))
+
     if isinstance(inbound, torch.Tensor):
         return inbound
 
     if isinstance(inbound, np.ndarray):
         return torch.from_numpy(inbound)
-
-    if isinstance(inbound, str):
-        return image_to_tensor(base64_to_image(inbound))
 
     return tensor_to_torch(inbound)
 
@@ -108,20 +108,7 @@ def synapse_to_image(synapse: bt.Synapse, img_index: int = 0) -> Image.Image:
     if not synapse.images:
         return Image.new("RGB", (1, 1))
 
-    # First, get the tensor using the existing function
-    tensor = synapse_to_tensor(synapse, img_index)
-
-    # Convert the tensor to PIL Image
-    if tensor.ndim == 2:
-        # If it's a 2D tensor (grayscale image)
-        return T.ToPILImage()(tensor.unsqueeze(0))
-
-    # If it's a 3D tensor (RGB or RGBA image)
-    if tensor.shape[-1] in [1, 3, 4]:
-        # Channels are in the last dimension, move them to the first
-        tensor = tensor.permute(2, 0, 1)
-
-    return T.ToPILImage()(tensor)
+    return tensor_to_image(synapse_to_tensor(synapse, img_index))
 
 
 def synapse_to_images(synapse: bt.Synapse) -> List[ImageType]:
@@ -275,8 +262,8 @@ def base64_to_image(b64_image: str) -> ImageType:
         image_data = base64.b64decode(b64_image)
         return Image.open(BytesIO(image_data))
 
-    except (binascii.Error, IOError) as e:
-        logger.error(f"Error processing base64 image: {str(e)}")
+    except (binascii.Error, IOError):
+        logger.error(f"Error converting base64 to image: {traceback.format_exc()}")
         return Image.new("RGB", (1, 1))
 
 
