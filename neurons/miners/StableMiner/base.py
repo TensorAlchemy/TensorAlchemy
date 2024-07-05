@@ -15,7 +15,7 @@ from neurons.miners.StableMiner.schema import ModelConfig, TaskType
 from neurons.protocol import ImageGeneration, IsAlive, ModelType
 from neurons.utils import BackgroundTimer, background_loop
 from neurons.utils.defaults import Stats, get_defaults
-from neurons.utils.image import image_to_base64
+from neurons.utils.image import image_to_numpy
 from neurons.utils.log import colored_log
 from neurons.utils.nsfw import clean_nsfw_from_prompt
 from utils import get_caller_stake, get_coldkey_for_hotkey
@@ -23,11 +23,6 @@ from utils.log import do_logs, sh
 from wandb_utils import WandbUtils
 
 import bittensor as bt
-
-
-class ImageGenerationNew(ImageGeneration):
-    # NOTE: Needs to
-    images: List[str] = []
 
 
 class BaseMiner(ABC):
@@ -246,7 +241,7 @@ class BaseMiner(ABC):
     ) -> ModelConfig:
         raise NotImplementedError("Please extend self.get_model_config")
 
-    async def generate_image(self, synapse: ImageGenerationNew) -> ImageGenerationNew:
+    async def generate_image(self, synapse: ImageGeneration) -> ImageGeneration:
         """
         Image generation logic shared between both text-to-image and image-to-image
         """
@@ -313,9 +308,7 @@ class BaseMiner(ABC):
                     ).manual_seed(seed)
                 ]
                 images = model(**local_args).images
-                synapse.images = [image_to_base64(image) for image in images]
-                for image in synapse.images:
-                    print(type(image))
+                synapse.images = [image_to_numpy(image) for image in images]
                 colored_log(
                     f"{sh('Generating')} -> Successful image generation after"
                     f" {attempt+1} attempt(s).",
@@ -372,7 +365,7 @@ class BaseMiner(ABC):
         )
         return synapse
 
-    def _base_priority(self, synapse: Union[IsAlive, ImageGenerationNew]) -> float:
+    def _base_priority(self, synapse: Union[IsAlive, ImageGeneration]) -> float:
         # If hotkey or coldkey is whitelisted
         # and not found on the metagraph, give a priority of 5,000
         # Caller hotkey
@@ -417,7 +410,7 @@ class BaseMiner(ABC):
 
     def _base_blacklist(
         self,
-        synapse: Union[IsAlive, ImageGenerationNew],
+        synapse: Union[IsAlive, ImageGeneration],
         vpermit_tao_limit: float = VPERMIT_TAO,
         rate_limit: float = 1.0,
     ) -> Tuple[bool, str]:
@@ -436,7 +429,7 @@ class BaseMiner(ABC):
 
             # Count the request frequencies
             exceeded_rate_limit: bool = False
-            if synapse_type == "ImageGenerationNew":
+            if synapse_type == "ImageGeneration":
                 # Apply a rate limit from the same caller
                 if caller_hotkey in self.request_dict:
                     now: float = time.perf_counter()
@@ -530,15 +523,13 @@ class BaseMiner(ABC):
     def blacklist_is_alive(self, synapse: IsAlive) -> Tuple[bool, str]:
         return self._base_blacklist(synapse)
 
-    def blacklist_image_generation(
-        self, synapse: ImageGenerationNew
-    ) -> Tuple[bool, str]:
+    def blacklist_image_generation(self, synapse: ImageGeneration) -> Tuple[bool, str]:
         return self._base_blacklist(synapse)
 
     def priority_is_alive(self, synapse: IsAlive) -> float:
         return self._base_priority(synapse)
 
-    def priority_image_generation(self, synapse: ImageGenerationNew) -> float:
+    def priority_image_generation(self, synapse: ImageGeneration) -> float:
         return self._base_priority(synapse)
 
     def loop(self) -> None:

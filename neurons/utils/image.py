@@ -54,8 +54,7 @@ def synapse_to_image(synapse: bt.Synapse, img_index: int = 0) -> ImageType:
     inbound: str | bt.Tensor = synapse.images[img_index]
 
     if isinstance(inbound, np.ndarray):
-        logger.error("Miner sent us a numpy array")
-        return Image.new("RGB", (1, 1))
+        return numpy_to_image(inbound)
 
     if isinstance(inbound, str):
         return base64_to_image(inbound)
@@ -150,6 +149,66 @@ def tensor_to_torch(tensor: bt.Tensor) -> torch.Tensor:
         torch.Tensor: The converted PyTorch Tensor.
     """
     return bt.Tensor.deserialize(tensor)
+
+
+def numpy_to_image(numpy_image: np.ndarray) -> ImageType:
+    """
+    Convert a numpy array to a PIL Image.
+
+    Args:
+    numpy_image (numpy.ndarray): The input numpy array.
+
+    Returns:
+    PIL.Image.Image: The numpy array as a PIL Image.
+    """
+    # Check the number of dimensions
+    if numpy_image.ndim == 2:
+        # It's a grayscale image
+        mode = "L"
+    elif numpy_image.ndim == 3:
+        if numpy_image.shape[2] == 3:
+            # It's an RGB image
+            mode = "RGB"
+        elif numpy_image.shape[2] == 4:
+            # It's an RGBA image
+            mode = "RGBA"
+        else:
+            raise ValueError(
+                #
+                "Unsupported number of channels: "
+                + numpy_image.shape[2]
+            )
+    else:
+        raise ValueError(
+            #
+            "Unsupported number of dimensions: "
+            + numpy_image.ndim
+        )
+
+    # Ensure the data type is uint8
+    if numpy_image.dtype != np.uint8:
+        numpy_image = (numpy_image * 255).astype(np.uint8)
+
+    # Create PIL image
+    return Image.fromarray(numpy_image, mode=mode)
+
+
+def image_to_numpy(pil_image: ImageType) -> np.ndarray:
+    """
+    Convert a PIL Image to a numpy array.
+
+    Args:
+    pil_image (PIL.Image.Image): The input PIL image.
+
+    Returns:
+    numpy.ndarray: The image as a numpy array.
+    """
+    # Convert the image to RGB mode if it's not already
+    if pil_image.mode != "RGB":
+        pil_image = pil_image.convert("RGB")
+
+    # Convert PIL image to numpy array
+    return np.array(pil_image)
 
 
 def image_to_base64(image: ImageType) -> str:

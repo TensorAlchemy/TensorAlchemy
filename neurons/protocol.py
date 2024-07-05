@@ -1,9 +1,11 @@
+import base64
+
 from enum import Enum
 from typing import Optional, List
 
-from pydantic import BaseModel, Field
-
+import numpy as np
 import bittensor as bt
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class ModelType(str, Enum):
@@ -64,9 +66,13 @@ class ImageGeneration(bt.Synapse):
                     represents the response from the miner.
     """
 
+    # Needed because bittensor does not support np.ndarray
+    # as part of their synapse, but they forcefully send it anyway 🤦
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     computed_body_hash: str = Field("")
 
-    images: List[str | bt.Tensor] = []
+    images: List[np.ndarray | bt.Tensor] = []
 
     prompt_image: Optional[bt.Tensor] = Field(
         None,

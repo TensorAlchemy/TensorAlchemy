@@ -1,7 +1,8 @@
 import os
-import pathlib
 import sys
+import pathlib
 import warnings
+import traceback
 
 from loguru import logger
 
@@ -27,10 +28,10 @@ if __name__ == "__main__":
 
         # Start the miner
         StableMiner()
-    except ImportError as e:
-        logger.error(f"Error importing StableMiner: {e}")
+    except ImportError:
+        logger.error(f"Error: {traceback.format_exc()}")
         logger.error("Please ensure all required packages are installed.")
         sys.exit(1)
-    except Exception as e:
-        logger.error(f"An unexpected error occurred: {e}")
+    except Exception:
+        logger.error(f"Error: {traceback.format_exc()}")
         sys.exit(1)
