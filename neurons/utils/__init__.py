@@ -1,7 +1,5 @@
 import os
 import sys
-import json
-import time
 import shutil
 import traceback
 import subprocess
@@ -18,13 +16,10 @@ from loguru import logger
 from google.cloud import storage
 
 from neurons.constants import (
-    IA_BUCKET_NAME,
     IA_MINER_BLACKLIST,
     IA_MINER_WARNINGLIST,
     IA_MINER_WHITELIST,
-    IA_TEST_BUCKET_NAME,
     IA_VALIDATOR_BLACKLIST,
-    IA_VALIDATOR_SETTINGS_FILE,
     IA_VALIDATOR_WEIGHT_FILES,
     IA_VALIDATOR_WHITELIST,
     N_NEURONS,
@@ -32,6 +27,7 @@ from neurons.constants import (
     WANDB_VALIDATOR_PATH,
 )
 from neurons.utils.log import colored_log
+from neurons.utils.gcloud import retrieve_public_file
 
 from neurons.validator.utils.wandb import init_wandb
 from neurons.validator.rewards.types import (
@@ -94,10 +90,6 @@ def background_loop(self, is_validator):
     blacklist_type = IA_VALIDATOR_BLACKLIST if is_validator else IA_MINER_BLACKLIST
     warninglist_type = IA_MINER_WARNINGLIST
 
-    bucket_name = (
-        IA_TEST_BUCKET_NAME if self.subtensor.network == "test" else IA_BUCKET_NAME
-    )
-
     # Terminate the miner / validator after deregistration
     if self.background_steps % 5 == 0 and self.background_steps > 1:
         try:
@@ -113,10 +105,10 @@ def background_loop(self, is_validator):
                 try:
                     os.exit(0)
                 except Exception as e:
-                    logger.info(f"An error occurred trying to use os._exit(): {e}.")
+                    logger.error(f"An error occurred trying to use os._exit(): {e}.")
                 sys.exit(0)
         except Exception as e:
-            logger.info(f">>> An unexpected error occurred syncing the metagraph: {e}")
+            logger.error(f">>> An unexpected error occurred syncing the metagraph: {e}")
 
     # Update the whitelists and blacklists
     if self.background_steps % 5 == 0:
@@ -128,7 +120,7 @@ def background_loop(self, is_validator):
 
             # Update the blacklists
             blacklist_for_neuron = retrieve_public_file(
-                self.storage_client, bucket_name, blacklist_type
+                self.storage_client, blacklist_type
             )
             if blacklist_for_neuron:
                 self.hotkey_blacklist = set(
@@ -149,7 +141,7 @@ def background_loop(self, is_validator):
 
             # Update the whitelists
             whitelist_for_neuron = retrieve_public_file(
-                self.storage_client, bucket_name, whitelist_type
+                self.storage_client, whitelist_type
             )
             if whitelist_for_neuron:
                 self.hotkey_whitelist = set(
@@ -170,7 +162,7 @@ def background_loop(self, is_validator):
 
             # Update the warning list
             warninglist_for_neuron = retrieve_public_file(
-                self.storage_client, bucket_name, warninglist_type
+                self.storage_client, warninglist_type
             )
             if warninglist_for_neuron:
                 self.hotkey_warninglist = {
@@ -212,7 +204,7 @@ def background_loop(self, is_validator):
             if is_validator:
                 # Update weights
                 validator_weights = retrieve_public_file(
-                    self.storage_client, bucket_name, IA_VALIDATOR_WEIGHT_FILES
+                    self.storage_client, IA_VALIDATOR_WEIGHT_FILES
                 )
 
                 if "human_reward_model" in validator_weights:
@@ -275,34 +267,6 @@ def background_loop(self, is_validator):
                     # [v for k, v in validator_weights.items() if "manual" not in k],
                     # dtype=torch.float32,
                     # ).to(self.device)
-
-                # Update settings
-                validator_settings: dict = retrieve_public_file(
-                    self.storage_client,
-                    bucket_name,
-                    IA_VALIDATOR_SETTINGS_FILE,
-                )
-
-                if validator_settings:
-                    self.request_frequency = validator_settings.get(
-                        "request_frequency", self.request_frequency
-                    )
-
-                    self.query_timeout = validator_settings.get(
-                        "query_timeout", self.query_timeout
-                    )
-
-                    self.async_timeout = validator_settings.get(
-                        "async_timeout", self.async_timeout
-                    )
-
-                    self.epoch_length = validator_settings.get(
-                        "epoch_length", self.epoch_length
-                    )
-
-                    logger.info(
-                        f"Retrieved the latest validator settings: {validator_settings}"
-                    )
 
         except Exception as e:
             logger.error(
@@ -388,25 +352,3 @@ def normalize_weights(weights):
         weights[0] += diff
 
     return weights
-
-
-def retrieve_public_file(client, bucket_name, source_name):
-    file = None
-    try:
-        bucket = client.bucket(bucket_name)
-        blob = bucket.blob(source_name)
-        try:
-            file = blob.download_as_text()
-            file = json.loads(file)
-            logger.info(
-                f"Successfully downloaded {source_name} " + f"from {bucket_name}"
-            )
-        except Exception as e:
-            logger.info(
-                f"Failed to download {source_name} from " + f"{bucket_name}: {e}"
-            )
-
-    except Exception as e:
-        logger.info(f"An error occurred downloading from Google Cloud: {e}")
-
-    return file

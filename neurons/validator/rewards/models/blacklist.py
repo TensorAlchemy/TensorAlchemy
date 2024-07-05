@@ -1,9 +1,9 @@
+import numpy as np
 import bittensor as bt
-
-import torch
 from loguru import logger
 
-from neurons.validator.config import get_device
+from neurons.utils.image import tensor_to_image
+
 from neurons.validator.rewards.models.base import BaseRewardModel
 from neurons.validator.rewards.types import RewardModelType
 
@@ -25,20 +25,21 @@ class BlacklistFilter(BaseRewardModel):
 
         # If any images in the response fail the reward for that response is
         # 0.0
-        for image in response.images:
+        for img_tensor in response.images:
             # Check if the image can be serialized
             try:
-                img = bt.Tensor.deserialize(image)
+                image = tensor_to_image(img_tensor)
+
+                # Check if the image is black image
+                if np.array(image).sum() < 1:
+                    return 1.0
+
             except Exception:
                 logger.warning("Could not deserialise image")
                 return 1.0
 
-            # Check if the image is black image
-            if img.sum() == 0:
-                return 1.0
-
             # Check if the image has the type bt.tensor
-            if not isinstance(image, bt.Tensor):
+            if not isinstance(img_tensor, bt.Tensor):
                 return 1.0
 
             if image.shape[1] != response.width:

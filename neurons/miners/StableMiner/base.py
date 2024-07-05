@@ -383,17 +383,25 @@ class BaseMiner(ABC):
             ):
                 priority = 25000.0
                 logger.info(
-                    f"Setting the priority of whitelisted key {caller_hotkey} to {priority}"
+                    "Setting the priority of whitelisted key"
+                    + f" {caller_hotkey} to {priority}"
                 )
 
             try:
-                caller_uid: int = self.metagraph.hotkeys.index(synapse.axon.hotkey)
+                caller_uid: int = self.metagraph.hotkeys.index(
+                    synapse.axon.hotkey,
+                )
                 priority = max(priority, float(self.metagraph.S[caller_uid]))
                 logger.info(
-                    f"Prioritizing key {synapse.axon.hotkey} with value: {priority}."
+                    f"Prioritizing key {synapse.axon.hotkey}"
+                    + f" with value: {priority}."
                 )
             except ValueError:
-                logger.warning(f"Hotkey {synapse.axon.hotkey} not found in metagraph")
+                logger.warning(
+                    #
+                    f"Hotkey {synapse.axon.hotkey}"
+                    + f" not found in metagraph"
+                )
 
             return priority
         except Exception as e:
@@ -456,14 +464,16 @@ class BaseMiner(ABC):
             # will result in a ban from the network
             if caller_coldkey in self.coldkey_whitelist:
                 colored_log(
-                    f"Whitelisting coldkey's {synapse_type} request from {caller_hotkey}.",
+                    f"Whitelisting coldkey's {synapse_type}"
+                    + f" request from {caller_hotkey}.",
                     color="green",
                 )
                 return False, "Whitelisted coldkey recognized."
 
             if caller_hotkey in self.hotkey_whitelist:
                 colored_log(
-                    f"Whitelisting hotkey's {synapse_type} request from {caller_hotkey}.",
+                    f"Whitelisting hotkey's {synapse_type}"
+                    + f" request from {caller_hotkey}.",
                     color="green",
                 )
                 return False, "Whitelisted hotkey recognized."

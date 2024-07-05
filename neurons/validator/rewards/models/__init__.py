@@ -1,7 +1,7 @@
 from typing import Dict, List, Tuple
 
 import torch
-from pydantic import BaseModel
+from pydantic import ConfigDict, BaseModel
 
 from neurons.protocol import ModelType
 
@@ -19,9 +19,7 @@ from neurons.validator.rewards.types import RewardModelType
 class PackedRewardModel(BaseModel):
     weight: float
     model: BaseRewardModel
-
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @property
     def name(self) -> RewardModelType:
