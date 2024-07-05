@@ -21,14 +21,17 @@ from neurons.constants import (
     N_NEURONS,
     PROD_URL,
     VALIDATOR_SENTRY_DSN,
+    IA_VALIDATOR_SETTINGS_FILE,
 )
 
 from neurons.protocol import (
+    IsAlive,
+    ModelType,
     denormalize_image_model,
     ImageGenerationTaskModel,
-    ModelType,
 )
 from neurons.utils.log import colored_log
+from neurons.utils.gcloud import retrieve_public_file
 from neurons.utils.defaults import get_defaults
 from neurons.utils import (
     BackgroundTimer,
@@ -41,6 +44,7 @@ from neurons.validator.config import (
     get_config,
     get_metagraph,
     get_backend_client,
+    update_validator_settings,
 )
 from neurons.validator.backend.client import TensorAlchemyBackendClient
 from neurons.validator.backend.models import TaskState
@@ -211,9 +215,14 @@ class StableValidator:
         self.uid = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
         logger.info("Loaded metagraph")
 
-        # Convert metagraph.stake to a PyTorch tensor if it's a NumPy array
-        if isinstance(self.metagraph.stake, np.ndarray):
-            self.metagraph.stake = torch.from_numpy(self.metagraph.stake).float()
+        # Convert metagraph[x] to a PyTorch tensor if it's a NumPy array
+        for key in ["stake", "uids"]:
+            if isinstance(getattr(self.metagraph, key), np.ndarray):
+                setattr(
+                    self.metagraph,
+                    key,
+                    torch.from_numpy(getattr(self.metagraph, key)).float(),
+                )
 
         self.scores = torch.zeros_like(
             self.metagraph.stake,
@@ -244,12 +253,6 @@ class StableValidator:
         # Init prev_block and step
         self.prev_block = ttl_get_block(self)
         self.step = 0
-
-        # Set validator variables
-        self.request_frequency = 35
-        self.query_timeout = 20
-        self.async_timeout = 1.2
-        self.epoch_length = 100
 
         # Init sync with the network. Updates the metagraph.
         asyncio.run(self.sync())
@@ -333,6 +336,49 @@ class StableValidator:
 
         self.model_type = ModelType.CUSTOM
 
+    async def check_uid(self, uid, response_times):
+        try:
+            t1 = time.perf_counter()
+            metagraph: bt.metagraph = get_metagraph()
+            response = await self.dendrite.forward(
+                synapse=IsAlive(),
+                axons=metagraph.axons[uid],
+                timeout=get_config().alchemy.async_timeout,
+            )
+            if response.is_success:
+                response_times.append(time.perf_counter() - t1)
+                self.isalive_dict[uid] = 0
+                return True
+            else:
+                try:
+                    self.isalive_dict[uid] += 1
+                    key = self.metagraph.axons[uid].hotkey
+                    self.miner_query_history_fail_count[key] += 1
+                    # If miner doesn't respond for 3 iterations rest it's count to
+                    # the average to avoid spamming
+                    if self.miner_query_history_fail_count[key] >= 3:
+                        self.miner_query_history_duration[key] = time.perf_counter()
+                        self.miner_query_history_count[key] = int(
+                            np.array(
+                                list(self.miner_query_history_count.values())
+                            ).mean()
+                        )
+                except Exception:
+                    pass
+                return False
+        except Exception as e:
+            logger.error(f"Error checking UID {uid}: {e}\n{traceback.format_exc()}")
+            return False
+
+    async def reload_settings(self) -> None:
+        # Update settings from google cloud
+        update_validator_settings(
+            await retrieve_public_file(
+                self.storage_client,
+                IA_VALIDATOR_SETTINGS_FILE,
+            )
+        )
+
     async def run(self):
         # Main Validation Loop
         logger.info("Starting validator loop.")
@@ -345,12 +391,19 @@ class StableValidator:
 
                 # Get a random number of uids
                 try:
-                    uids = await get_random_uids(self, self.dendrite, k=N_NEURONS)
+                    uids = await get_random_uids(
+                        self,
+                        k=N_NEURONS,
+                    )
                     uids = uids.to(self.device)
                     axons = [self.metagraph.axons[uid] for uid in uids]
 
                 except Exception as e:
-                    logger.error("Failed to get random uids from metagraph")
+                    logger.error(
+                        #
+                        "Failed to get random uids from metagraph: "
+                        + str(e)
+                    )
                     continue
 
                 task: Optional[
@@ -387,6 +440,9 @@ class StableValidator:
 
                 # Save Previous Sates
                 self.save_state()
+
+                # Load any new settings from gcloud
+                self.reload_settings()
 
                 # End the current step and prepare for the next iteration.
                 self.step += 1
@@ -432,7 +488,8 @@ class StableValidator:
         # before going on and creating a synthetic task
         task: Optional[ImageGenerationTaskModel] = None
         try:
-            task = await self.backend_client.poll_task(timeout=timeout)
+            # task = await self.backend_client.poll_task(timeout=timeout)
+            task = None
         # Allow validator to just skip this step if they like
         except KeyboardInterrupt:
             pass
@@ -578,7 +635,7 @@ class StableValidator:
         """
         return (
             ttl_get_block(self) - self.metagraph.last_update[self.uid]
-        ) > self.epoch_length
+        ) > self.config.alchemy.epoch_length
 
     def should_set_weights(self) -> bool:
         # Check if all moving_averages_socres are the 0s or 1s
@@ -588,7 +645,9 @@ class StableValidator:
             return False
 
         # Check if enough epoch blocks have elapsed since the last epoch.
-        return (ttl_get_block(self) % self.prev_block) >= self.epoch_length
+        return (
+            ttl_get_block(self) % self.prev_block
+        ) >= self.config.alchemy.epoch_length
 
     def save_state(self):
         """Save hotkeys, neuron model and moving average scores to filesystem."""

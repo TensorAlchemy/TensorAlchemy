@@ -19,7 +19,10 @@ from neurons.constants import (
     N_NEURONS_TO_QUERY,
     VPERMIT_TAO,
 )
-from neurons.protocol import IsAlive
+from neurons.validator.config import (
+    get_config,
+    get_metagraph,
+)
 from neurons.validator.services.openai.service import (
     get_openai_service,
     OpenAIRequestFailed,
@@ -58,42 +61,7 @@ def ttl_get_block(self) -> int:
     return self.subtensor.get_current_block()
 
 
-async def check_uid(dendrite, self, uid, response_times):
-    try:
-        t1 = time.perf_counter()
-        response = await dendrite(
-            self.metagraph.axons[uid],
-            IsAlive(),
-            deserialize=False,
-            timeout=self.async_timeout,
-        )
-        if response.is_success:
-            response_times.append(time.perf_counter() - t1)
-            self.isalive_dict[uid] = 0
-            return True
-        else:
-            try:
-                self.isalive_dict[uid] += 1
-                key = self.metagraph.axons[uid].hotkey
-                self.miner_query_history_fail_count[key] += 1
-                # If miner doesn't respond for 3 iterations rest it's count to
-                # the average to avoid spamming
-                if self.miner_query_history_fail_count[key] >= 3:
-                    self.miner_query_history_duration[key] = time.perf_counter()
-                    self.miner_query_history_count[key] = int(
-                        np.array(list(self.miner_query_history_count.values())).mean()
-                    )
-            except Exception:
-                pass
-            return False
-    except Exception as e:
-        logger.error(f"Error checking UID {uid}: {e}\n{traceback.format_exc()}")
-        return False
-
-
 def check_uid_availability(
-    dendrite,
-    metagraph: "bt.metagraph.Metagraph",
     uid: int,
     vpermit_tao_limit: int,
 ) -> bool:
@@ -105,23 +73,23 @@ def check_uid_availability(
     Returns:
         bool: True if uid is available, False otherwise
     """
+    metagraph: bt.metagraph = get_metagraph()
+
     # Filter non serving axons.
     if not metagraph.axons[uid].is_serving:
         return False
+
     # Filter validator permit > 1024 stake.
     if metagraph.validator_permit[uid]:
         if metagraph.S[uid] > vpermit_tao_limit:
             return False
-    # # Filter for miners that are processing other responses
-    # if not await check_uid(dendrite, metagraph.axons[uid], uid):
-    # return False
-    # # Available otherwise.
+
+    # Available otherwise.
     return True
 
 
 async def get_random_uids(
     self,
-    dendrite,
     k: int,
     exclude: List[int] = None,
 ) -> torch.LongTensor:
@@ -139,9 +107,7 @@ async def get_random_uids(
 
     # Filter for only serving miners
     for uid in range(self.metagraph.n.item()):
-        uid_is_available = check_uid_availability(
-            dendrite, self.metagraph, uid, VPERMIT_TAO
-        )
+        uid_is_available = check_uid_availability(uid, VPERMIT_TAO)
         uid_is_not_excluded = exclude is None or uid not in exclude
         if (
             uid_is_available
@@ -152,8 +118,8 @@ async def get_random_uids(
             if uid_is_not_excluded:
                 candidate_uids.append(uid)
 
-    # # Sort candidate UIDs by their count history
-    # # This prioritises miners that have been queried less than average
+    # Sort candidate UIDs by their count history
+    # This prioritises miners that have been queried less than average
     # candidate_uids = [i for i,_ in sorted(zip(candidate_uids, [self.miner_query_history_count[self.metagraph.axons[uid].hotkey] for uid in candidate_uids]))]
 
     # Random sort candidate_uids
@@ -176,7 +142,7 @@ async def get_random_uids(
         times_list = []
 
         for u in candidate_uids[uid : uid + N_NEURONS_TO_QUERY]:
-            tasks.append(check_uid(dendrite, self, u, times_list))
+            tasks.append(self.check_uid(u, times_list))
 
         responses = await asyncio.gather(*tasks)
         attempt_counter += 1
@@ -633,9 +599,12 @@ async def generate_random_prompt_gpt(
     if not response:
         openai_service = get_openai_service()
         try:
-            response = await openai_service.create_completion_request(model, prompt)
+            response = await openai_service.create_completion_request(
+                model,
+                prompt,
+            )
         except OpenAIRequestFailed as e:
-            logger.info(f"error during creation of completion prompt: {e}")
+            logger.error(f"error during creation of completion prompt: {e}")
 
     # Remove any double quotes from the output
     if response:

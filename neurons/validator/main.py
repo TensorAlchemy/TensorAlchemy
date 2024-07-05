@@ -1,3 +1,4 @@
+import os
 import asyncio
 import pathlib
 import sys
@@ -10,6 +11,9 @@ from loguru import logger
 # NOTE: It's not our bug, it's upstream
 # TODO: Remove after updating bittensor
 warnings.simplefilter("ignore")
+
+# Use the older torch style for now
+os.environ["USE_TORCH"] = "1"
 
 REPO_URL = "TensorAlchemy/TensorAlchemy"
 

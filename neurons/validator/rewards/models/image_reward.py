@@ -1,8 +1,12 @@
+from typing import List
+
+from PIL.Image import Image as ImageType
 import ImageReward as RM
 import bittensor as bt
 import torch
-import torchvision.transforms as transforms
 from loguru import logger
+
+from neurons.utils.image import synapse_to_images
 
 from neurons.validator.config import get_device
 from neurons.validator.rewards.models.base import BaseRewardModel
@@ -21,10 +25,7 @@ class ImageRewardModel(BaseRewardModel):
     def get_reward(self, response: bt.Synapse) -> float:
         with torch.no_grad():
             try:
-                images = [
-                    transforms.ToPILImage()(bt.Tensor.deserialize(image))
-                    for image in response.images
-                ]
+                images: List[ImageType] = synapse_to_images(response)
 
                 if not images:
                     raise ValueError("No images")

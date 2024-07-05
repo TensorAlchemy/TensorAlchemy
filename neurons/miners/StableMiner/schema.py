@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Any, Dict
 
-from pydantic import BaseModel
+from pydantic import ConfigDict, BaseModel
 
 from diffusers import DiffusionPipeline
 
@@ -14,6 +14,4 @@ class TaskType(str, Enum):
 class ModelConfig(BaseModel):
     args: Dict[str, Any]
     model: DiffusionPipeline
-
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)

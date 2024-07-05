@@ -2,17 +2,11 @@ import asyncio
 import base64
 import copy
 import time
-from typing import (
-    AsyncIterator,
-    Dict,
-    List,
-    Optional,
-    Tuple,
-)
+from io import BytesIO
+from typing import AsyncIterator, Dict, List, Optional, Tuple
 
 from dataclasses import asdict
 from datetime import datetime
-from io import BytesIO
 
 import bittensor as bt
 import torch
@@ -20,13 +14,12 @@ import torchvision.transforms as T
 import wandb as wandb_lib
 from bittensor import AxonInfo
 from loguru import logger
-from pydantic import BaseModel
 
 from neurons.constants import MOVING_AVERAGE_ALPHA
 from neurons.protocol import ImageGeneration, ImageGenerationTaskModel
 
 from neurons.utils.defaults import Stats
-from neurons.utils.log import colored_log, sh
+from neurons.utils.image import synapse_to_bytesio
 
 from neurons.validator.backend.exceptions import PostMovingAveragesError
 from neurons.validator.event import EventSchema, convert_enum_keys_to_strings
@@ -34,6 +27,7 @@ from neurons.validator.schemas import Batch
 from neurons.validator.utils import ttl_get_block
 from neurons.validator.rewards.types import RewardModelType
 from neurons.validator.config import (
+    get_config,
     get_device,
     get_metagraph,
     get_backend_client,
@@ -119,25 +113,10 @@ async def update_moving_averages(
     return moving_average_scores
 
 
-class ImageGenerationResponse(BaseModel):
-    axon: AxonInfo
-    synapse: ImageGeneration
-    time: float
-    uid: Optional[int] = None
-
-    def has_images(self) -> bool:
-        return len(self.images) > 0
-
-    @property
-    def images(self):
-        return self.synapse.images
-
-
 async def query_axons_async(
     dendrite: bt.dendrite,
     axons: List[bt.AxonInfo],
     synapse: bt.Synapse,
-    query_timeout: int,
 ) -> AsyncIterator[Tuple[int, bt.Synapse]]:
     """
     Asynchronously queries a list of axons and yields the responses.
@@ -145,7 +124,6 @@ async def query_axons_async(
         dendrite (bt.dendrite): The dendrite instance to use for querying.
         axons (List[AxonInfo]): The list of axons to query.
         synapse (bt.Synapse): The synapse object to use for the query.
-        query_timeout (int): The timeout duration for the query.
     Yields:
         Tuple[int, bt.Synapse]: The UID of the axon and the filled Synapse object.
     """
@@ -160,7 +138,7 @@ async def query_axons_async(
         #       Please use `forward` for now
         to_return: List[bt.Synapse] = await dendrite.forward(
             synapse=synapse,
-            timeout=query_timeout,
+            timeout=get_config().alchemy.query_timeout,
             axons=[inbound_axon],
         )
 
@@ -180,7 +158,6 @@ async def query_axons_and_process_responses(
     task: ImageGenerationTaskModel,
     axons: List[AxonInfo],
     synapse: bt.Synapse,
-    query_timeout: int,
 ) -> List[bt.Synapse]:
     """Request image generation from axons"""
     responses = []
@@ -188,7 +165,6 @@ async def query_axons_and_process_responses(
         validator.dendrite,
         axons,
         synapse,
-        query_timeout,
     ):
         masked_rewards: ScoringResults = await apply_masking_functions(
             validator.model_type,
@@ -233,34 +209,36 @@ def log_query_to_history(validator: "StableValidator", uids: torch.Tensor):
             f"Failed to log miner counts and histories due to the following error: {e}"
         )
 
-    colored_log(
-        f"{sh('Miner Counts')} -> Max: {max(validator.miner_query_history_count.values()):.2f} "
-        f"| Min: {min(validator.miner_query_history_count.values()):.2f} "
-        f"| Mean: {sum(validator.miner_query_history_count.values()) / len(validator.miner_query_history_count.values()):.2f}",
-        color="yellow",
+    logger.info(
+        f"Miner Counts -> Max: {max(validator.miner_query_history_count.values()):.2f} "
+        + f"| Min: {min(validator.miner_query_history_count.values()):.2f} "
+        + f"| Mean: {sum(validator.miner_query_history_count.values()) / len(validator.miner_query_history_count.values()):.2f}",
     )
 
 
 def log_responses(responses: List[ImageGeneration], prompt: str):
     try:
-        formatted_responses = [
-            {
-                "negative_prompt": response.negative_prompt,
-                "prompt_image": response.prompt_image,
-                "num_images_per_prompt": response.num_images_per_prompt,
-                "height": response.height,
-                "width": response.width,
-                "seed": response.seed,
-                "steps": response.steps,
-                "guidance_scale": response.guidance_scale,
-                "generation_type": response.generation_type,
-                "images": [image.shape for image in response.images],
-            }
-            for response in responses
-        ]
         logger.info(
-            f"Received {len(responses)} response(s) for the prompt '{prompt}': {formatted_responses}"
+            #
+            f"Received {len(responses)} response(s) for the prompt "
+            + prompt
         )
+
+        for response in responses:
+            logger.info(
+                {
+                    "negative_prompt": response.negative_prompt,
+                    "prompt_image": response.prompt_image,
+                    "num_images_per_prompt": response.num_images_per_prompt,
+                    "height": response.height,
+                    "width": response.width,
+                    "seed": response.seed,
+                    "steps": response.steps,
+                    "guidance_scale": response.guidance_scale,
+                    "generation_type": response.generation_type,
+                    "images": [image.shape for image in response.images],
+                }
+            )
     except Exception as e:
         logger.error(f"Failed to log formatted responses: {e}")
 
@@ -303,7 +281,7 @@ async def create_batch_for_upload(
     metagraph: "bt.metagraph.Metagraph",
     batch_id: str,
     prompt: str,
-    responses: List[ImageGenerationResponse],
+    responses: List[bt.Synapse],
     masked_rewards: ScoringResults,
 ) -> Optional[Batch]:
     should_drop_entries = []
@@ -313,15 +291,11 @@ async def create_batch_for_upload(
     rewards_for_uids = masked_rewards.combined_scores[uids]
 
     for response, reward in zip(responses, rewards_for_uids):
-        im_file = BytesIO()
         if response.images:
-            T.transforms.ToPILImage()(
-                bt.Tensor.deserialize(response.images[0]),
-            ).save(im_file, format="PNG")
+            im_file: BytesIO = synapse_to_bytesio(response)
 
             # im_bytes: image in binary format.
-            im_bytes = im_file.getvalue()
-            im_b64 = base64.b64encode(im_bytes)
+            im_b64 = base64.b64encode(im_file.getvalue())
             images.append(im_b64.decode())
 
             if response.is_success and reward.item() == 0:
@@ -333,6 +307,9 @@ async def create_batch_for_upload(
         else:
             images.append("NO_IMAGE")
             should_drop_entries.append(1)
+
+            # TODO: Should we just drop it?
+            return None
 
     nsfw_scores: Optional[ScoringResult] = masked_rewards.get_score(
         RewardModelType.NSFW,
@@ -366,22 +343,20 @@ async def create_batch_for_upload(
 def display_run_info(stats: Stats, task_type: str, prompt: str):
     time_elapsed = datetime.now() - stats.start_time
 
-    colored_log(
-        sh("Info")
+    logger.info(
+        "Info"
         + f"-> Date {datetime.strftime(stats.start_time, '%Y/%m/%d %H:%M')}"
         + f" | Elapsed {time_elapsed}"
         + f" | RPM {stats.total_requests / (time_elapsed.total_seconds() / 60):.2f}",
-        color="green",
     )
-    colored_log(
-        f"{sh('Request')} -> Type: {task_type}"
+    logger.info(
+        "Request"
+        + f" -> Type: {task_type}"
         + f" | Total requests sent {stats.total_requests:,}"
         + f" | Timeouts {stats.timeouts:,}",
-        color="cyan",
     )
-    colored_log(
-        f"{sh('Prompt')} -> {prompt}",
-        color="yellow",
+    logger.info(
+        f"Prompt -> {prompt}",
     )
 
 
@@ -440,28 +415,25 @@ async def run_step(
         task,
         axons,
         synapse,
-        validator.query_timeout,
     )
 
     log_query_to_history(validator, uids)
 
     uids = get_uids(responses)
 
-    colored_log(f"{sh('Info')} -> {synapse_info}", color="magenta")
-    colored_log(
-        f"{sh('UIDs')} -> {' | '.join([str(uid) for uid in uids])}",
-        color="yellow",
+    logger.info("Info -> {synapse_info}")
+    logger.info(
+        f"UIDs -> {' | '.join([str(uid.item()) for uid in uids])}",
     )
 
     validator_info = validator.get_validator_info()
-    colored_log(
-        f"{sh('Stats')} -> Block: {validator_info['block']} "
+    logger.info(
+        f"Stats -> Block: {validator_info['block']} "
         f"| Stake: {validator_info['stake']:.4f} "
         f"| Rank: {validator_info['rank']:.4f} "
         f"| VTrust: {validator_info['vtrust']:.4f} "
         f"| Dividends: {validator_info['dividends']:.4f} "
         f"| Emissions: {validator_info['emissions']:.4f}",
-        color="cyan",
     )
 
     stats.total_requests += 1

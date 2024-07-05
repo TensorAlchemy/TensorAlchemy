@@ -1,4 +1,5 @@
-bittensor==6.12.1
+msgpack==1.0.8
+bittensor==7.2.0
 torch==2.3.0
 torchvision==0.18.0
 diffusers==0.27.2

@@ -1,5 +1,8 @@
 import os
 
+IS_TEST: bool = False
+
+
 IA_BUCKET_NAME = "image-alchemy"
 IA_TEST_BUCKET_NAME = "image-alchemy-test"
 IA_MINER_BLACKLIST = "blacklist_for_miners.json"

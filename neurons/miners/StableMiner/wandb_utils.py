@@ -4,11 +4,11 @@ from threading import Timer
 
 import torch
 from loguru import logger
+
 from neurons.constants import WANDB_MINER_PATH
-from neurons.utils.image import image_b64_to_pil
+from neurons.utils.image import synapse_to_image
 from neurons.utils.log import colored_log
 
-import bittensor as bt
 import wandb
 
 
@@ -89,7 +89,7 @@ class WandbUtils:
             {
                 "images": [
                     wandb.Image(
-                        image_b64_to_pil(image),
+                        synapse_to_image(image),
                         caption=synapse.prompt,
                         file_type=file_type,
                     )

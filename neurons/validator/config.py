@@ -1,14 +1,15 @@
 import os
 import argparse
-from typing import Optional
+from typing import Dict, Optional
 
 import torch
 import bittensor as bt
 from loguru import logger
 
-from neurons.constants import EVENTS_RETENTION_SIZE
-
-IS_TEST: bool = False
+from neurons.constants import (
+    IS_TEST,
+    EVENTS_RETENTION_SIZE,
+)
 
 
 def get_default_device() -> torch.device:
@@ -77,8 +78,8 @@ def add_args(parser):
     parser.add_argument(
         "--alchemy.device",
         type=str,
-        help="Device to run the validator on.",
         default=get_default_device(),
+        help="Device to run the validator on.",
     )
     parser.add_argument(
         "--alchemy.force_prod",
@@ -92,11 +93,77 @@ def add_args(parser):
         default=None,
     )
 
+    # Add arguments for validator settings (downloaded)
+    parser.add_argument(
+        "--alchemy.request_frequency",
+        type=int,
+        default=35,
+        help="Request frequency for the validator",
+    )
+    parser.add_argument(
+        "--alchemy.query_timeout",
+        type=float,
+        default=20,
+        help="Query timeout for the validator",
+    )
+    parser.add_argument(
+        "--alchemy.async_timeout",
+        type=float,
+        default=1.2,
+        help="Async timeout for the validator",
+    )
+    parser.add_argument(
+        "--alchemy.epoch_length",
+        type=int,
+        default=100,
+        help="Epoch length for the validator",
+    )
+
 
 config: bt.config = None
 device: torch.device = None
 metagraph: bt.metagraph = None
 backend_client: "TensorAlchemyBackendClient" = None
+
+
+def update_validator_settings(validator_settings: Dict) -> bt.config:
+    global config
+
+    if not validator_settings:
+        logger.error("Failed to update validator settings")
+        return config
+
+    config.alchemy.request_frequency = int(
+        validator_settings.get(
+            "request_frequency",
+            config.request_frequency,
+        )
+    )
+    config.alchemy.query_timeout = float(
+        validator_settings.get(
+            "query_timeout",
+            config.query_timeout,
+        )
+    )
+    config.alchemy.async_timeout = int(
+        validator_settings.get(
+            "async_timeout",
+            config.async_timeout,
+        )
+    )
+    config.alchemy.epoch_length = int(
+        validator_settings.get(
+            "epoch_length",
+            config.epoch_length,
+        )
+    )
+    logger.info(
+        #
+        "Retrieved the latest validator settings: "
+        + validator_settings,
+    )
+
+    return config
 
 
 def get_config():
