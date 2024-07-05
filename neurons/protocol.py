@@ -72,7 +72,7 @@ class ImageGeneration(bt.Synapse):
 
     computed_body_hash: str = Field("")
 
-    images: List[np.ndarray | bt.Tensor] = []
+    images: List[str | np.ndarray | bt.Tensor] = []
 
     prompt_image: Optional[bt.Tensor] = Field(
         None,
