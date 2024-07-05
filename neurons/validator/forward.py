@@ -1,9 +1,10 @@
+import json
 import asyncio
 import base64
 import copy
 import time
 from io import BytesIO
-from typing import AsyncIterator, Dict, List, Optional, Tuple
+from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
 
 from dataclasses import asdict
 from datetime import datetime
@@ -216,6 +217,13 @@ def log_query_to_history(validator: "StableValidator", uids: torch.Tensor):
     )
 
 
+def image_to_log(image: Any) -> str:
+    if hasattr(image, "shape"):
+        return image.shape
+
+    return "**base64**"
+
+
 def log_responses(responses: List[ImageGeneration], prompt: str):
     try:
         logger.info(
@@ -226,18 +234,23 @@ def log_responses(responses: List[ImageGeneration], prompt: str):
 
         for response in responses:
             logger.info(
-                {
-                    "negative_prompt": response.negative_prompt,
-                    "prompt_image": response.prompt_image,
-                    "num_images_per_prompt": response.num_images_per_prompt,
-                    "height": response.height,
-                    "width": response.width,
-                    "seed": response.seed,
-                    "steps": response.steps,
-                    "guidance_scale": response.guidance_scale,
-                    "generation_type": response.generation_type,
-                    "images": [image.shape for image in response.images],
-                }
+                json.dumps(
+                    {
+                        "axon_ip": response.axon.ip,
+                        "axon_hotkey": response.axon.hotkey,
+                        "negative_prompt": response.negative_prompt,
+                        "prompt_image": response.prompt_image,
+                        "num_images_per_prompt": response.num_images_per_prompt,
+                        "height": response.height,
+                        "width": response.width,
+                        "seed": response.seed,
+                        "steps": response.steps,
+                        "guidance_scale": response.guidance_scale,
+                        "generation_type": response.generation_type,
+                        "images": [image_to_log(image) for image in response.images],
+                    },
+                    indent=2,
+                )
             )
     except Exception as e:
         logger.error(f"Failed to log formatted responses: {e}")
@@ -404,12 +417,6 @@ async def run_step(
         model_type=model_type,
     )
 
-    synapse_info = (
-        f"Timeout: {synapse.timeout:.2f} "
-        f"| Height: {synapse.height} "
-        f"| Width: {synapse.width}"
-    )
-
     responses = await query_axons_and_process_responses(
         validator,
         task,
@@ -485,7 +492,7 @@ async def run_step(
                 "hotkeys": [response.axon.hotkey for response in responses],
                 "images": [
                     (
-                        response.images[0]
+                        image_to_log(response.images[0])
                         if (response.images != []) and (reward != 0)
                         else []
                     )

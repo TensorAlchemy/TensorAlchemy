@@ -2,9 +2,10 @@ import base64
 import binascii
 import traceback
 from io import BytesIO
-from typing import List, Union
+from typing import Any, List, Union
 
 import torch
+import numpy as np
 import bittensor as bt
 from loguru import logger
 
@@ -50,12 +51,16 @@ def synapse_to_image(synapse: bt.Synapse, img_index: int = 0) -> ImageType:
     if not synapse.images:
         return Image.new("RGB", (1, 1))
 
-    image: Union[str, bt.Tensor] = synapse.images[img_index]
+    inbound: Union[str, bt.Tensor] = synapse.images[img_index]
 
-    if isinstance(image, str):
-        return base64_to_image(image)
+    if isinstance(inbound, np.ndarray):
+        logger.error("Miner sent us a numpy array")
+        return Image.new("RGB", (1, 1))
 
-    return tensor_to_image(image)
+    if isinstance(inbound, str):
+        return base64_to_image(inbound)
+
+    return tensor_to_image(inbound)
 
 
 def synapse_to_images(synapse: bt.Synapse) -> List[ImageType]:
@@ -89,12 +94,15 @@ def synapse_to_tensor(synapse: bt.Synapse, img_index: int = 0) -> torch.Tensor:
     if not synapse.images:
         return torch.zeros((1, 1, 3), dtype=torch.uint8)
 
-    image = synapse.images[img_index]
+    inbound: Any = synapse.images[img_index]
 
-    if isinstance(image, str):
-        return image_to_tensor(base64_to_image(image))
+    if isinstance(inbound, np.ndarray):
+        return torch.from_numpy(inbound)
 
-    return tensor_to_torch(image)
+    if isinstance(inbound, str):
+        return image_to_tensor(base64_to_image(inbound))
+
+    return tensor_to_torch(inbound)
 
 
 def synapse_to_tensors(synapse: bt.Synapse) -> List[torch.Tensor]:

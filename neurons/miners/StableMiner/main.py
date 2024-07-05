@@ -1,3 +1,4 @@
+import os
 import pathlib
 import sys
 import warnings
@@ -9,6 +10,9 @@ from loguru import logger
 # NOTE: It's not our bug, it's upstream
 # TODO: Remove after updating bittensor
 warnings.simplefilter("ignore")
+
+# Use the older torch style for now
+os.environ["USE_TORCH"] = "1"
 
 if __name__ == "__main__":
     try:
