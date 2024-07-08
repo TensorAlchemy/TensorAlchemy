@@ -15,7 +15,12 @@ from neurons.miners.StableMiner.schema import ModelConfig, TaskType
 from neurons.protocol import ImageGeneration, IsAlive, ModelType
 from neurons.utils import BackgroundTimer, background_loop
 from neurons.utils.defaults import Stats, get_defaults
-from neurons.utils.image import image_to_base64
+from neurons.utils.image import (
+    image_to_base64,
+    empty_image,
+    image_to_tensor,
+    empty_image_tensor,
+)
 from neurons.utils.log import colored_log
 from neurons.utils.nsfw import clean_nsfw_from_prompt
 from utils import get_caller_stake, get_coldkey_for_hotkey
@@ -178,7 +183,7 @@ class BaseMiner(ABC):
                 logger.error(f"Error in loop_until_registered: {e}")
                 time.sleep(120)
 
-    def nsfw_image_filter(self, images: List[bt.Tensor]) -> bool:
+    def nsfw_image_filter(self, images: List[bt.Tensor]) -> List[bool]:
         clip_input = self.processor(
             [self.transform(image) for image in images],
             return_tensors="pt",
@@ -298,7 +303,9 @@ class BaseMiner(ABC):
         # Output logs
         do_logs(self, synapse, local_args)
 
-        # Generate images & serialize
+        images = []
+
+        # Generate images
         for attempt in range(3):
             try:
                 seed: int = synapse.seed
@@ -308,15 +315,6 @@ class BaseMiner(ABC):
                     ).manual_seed(seed)
                 ]
                 images = model(**local_args).images
-
-                # NOTE: lol this is stupid
-                #       you can't send `np.ndarray`
-                #       Yet when you send base64 string
-                #       it's automatically converted to np.ndarray 🤦
-                #
-                #       I would like to continue forward with base64
-                #       as it's a sane choice,
-                synapse.images = [image_to_base64(image) for image in images]
 
                 colored_log(
                     f"{sh('Generating')} -> Successful image generation after"
@@ -330,12 +328,11 @@ class BaseMiner(ABC):
                     f" {e}... sleeping for 5 seconds..."
                 )
                 await asyncio.sleep(5)
-                if attempt == 2:
-                    images = []
-                    synapse.images = []
-                    logger.info(
-                        f"Failed to generate any images after" f" {attempt+1} attempts."
-                    )
+
+        if len(images) == 0:
+            logger.info(
+                f"Failed to generate any images after" f" {attempt+1} attempts."
+            )
 
         # Count timeouts
         if time.perf_counter() - start_time > timeout:
@@ -346,7 +343,7 @@ class BaseMiner(ABC):
             if any(self.nsfw_image_filter(images)):
                 logger.info("An image was flagged as NSFW: discarding image.")
                 self.stats.nsfw_count += 1
-                synapse.images = []
+                images = [empty_image_tensor()]
         except Exception as e:
             logger.error(f"Error in NSFW filtering: {e}")
 
@@ -354,10 +351,10 @@ class BaseMiner(ABC):
         try:
             if self.wandb:
                 # Store the images and prompts for uploading to wandb
-                self.wandb._add_images(synapse)
+                self.wandb.add_images(images, synapse.prompt)
 
                 # Log to Wandb
-                self.wandb._log()
+                self.wandb.log()
 
         except Exception as e:
             logger.error(f"Error trying to log events to wandb: {e}")
@@ -372,6 +369,10 @@ class BaseMiner(ABC):
             f"| Average: {average_time:.2f}s",
             color="yellow",
         )
+
+        # Save images as base64 before sending through synapse
+        synapse.images = [image_to_base64(image) for image in images]
+
         return synapse
 
     def _base_priority(self, synapse: Union[IsAlive, ImageGeneration]) -> float:
