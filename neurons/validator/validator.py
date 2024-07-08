@@ -252,7 +252,7 @@ class StableValidator:
         self.epoch_length = 100
 
         # Init sync with the network. Updates the metagraph.
-        self.sync()
+        asyncio.run(self.sync())
 
         # Serve axon to enable external connections.
         self.serve_axon()
