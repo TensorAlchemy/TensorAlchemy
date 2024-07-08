@@ -251,7 +251,7 @@ def log_responses(responses: List[ImageGeneration], prompt: str):
                         "steps": response.steps,
                         "guidance_scale": response.guidance_scale,
                         "generation_type": response.generation_type,
-                        "images": [image_to_log(image) for image in response.images],
+                        "images": response.images,
                     },
                     indent=2,
                 )
