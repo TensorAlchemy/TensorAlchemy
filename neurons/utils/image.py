@@ -70,7 +70,7 @@ def synapse_to_tensor(synapse: bt.Synapse, img_index: int = 0) -> torch.Tensor:
         torch.Tensor: The converted PyTorch Tensor.
     """
     if not synapse.images:
-        return torch.zeros((1, 1, 3), dtype=torch.uint8)
+        return empty_image_tensor()
 
     return multi_to_tensor(synapse.images[img_index])
 
@@ -85,7 +85,7 @@ def synapse_to_image(synapse: bt.Synapse, img_index: int = 0) -> Image.Image:
         ImageType: The converted PIL Image.
     """
     if not synapse.images:
-        return Image.new("RGB", (1, 1))
+        return empty_image()
 
     return tensor_to_image(synapse_to_tensor(synapse, img_index))
 
@@ -155,7 +155,7 @@ def multi_to_tensor(inbound: SupportedImageTypes) -> torch.Tensor:
         return tensor_to_torch(inbound)
 
     logger.error("Could not transform inbound type")
-    return torch.zeros((1, 1, 3), dtype=torch.uint8)
+    return empty_image_tensor()
 
 
 def tensor_to_torch(tensor: bt.Tensor) -> torch.Tensor:
@@ -179,7 +179,7 @@ def tensor_to_torch(tensor: bt.Tensor) -> torch.Tensor:
         raise ValueError(f"Unsupported tensor type: {type(tensor)}")
     except Exception:
         logger.error(f"Error tensor to torch: {traceback.format_exc()}")
-        return torch.zeros((1, 1, 3), dtype=torch.uint8)
+        return empty_image_tensor()
 
 
 def numpy_to_image(numpy_image: np.ndarray) -> ImageType:
@@ -287,7 +287,7 @@ def base64_to_image(b64_image: str) -> ImageType:
 
     except Exception:
         logger.error(f"Error converting base64 to image: {traceback.format_exc()}")
-        return Image.new("RGB", (1, 1))
+        return empty_image()
 
 
 def image_to_tensor(image: ImageType) -> torch.Tensor:
@@ -317,4 +317,14 @@ def tensor_to_image(tensor: bt.Tensor) -> ImageType:
         return T.ToPILImage()(tensor_to_torch(tensor))
     except Exception:
         logger.error(f"Error converting tensor to image: {traceback.format_exc()}")
-        return Image.new("RGB", (1, 1))
+        return empty_image()
+
+
+def empty_image() -> ImageType:
+    """Creates empty image of size (1, 1)"""
+    return Image.new("RGB", (1, 1))
+
+
+def empty_image_tensor() -> torch.Tensor:
+    """Creates tensor representation of empty image with size (1, 1)"""
+    return torch.zeros((1, 1, 3), dtype=torch.uint8)
