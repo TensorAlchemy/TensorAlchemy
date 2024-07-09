@@ -8,25 +8,25 @@ from diffusers import (
     DPMSolverMultistepScheduler,
 )
 from loguru import logger
-from neurons.miners.StableMiner.schema import ModelConfig, TaskType
+from neurons.miners.StableMiner.schema import ModelConfig, TaskType, TaskConfig
 from neurons.protocol import ModelType
 from neurons.safety import StableDiffusionSafetyChecker
 from transformers import CLIPImageProcessor
 from utils import warm_up
 
 TASK_CONFIG = {
-    TaskType.TEXT_TO_IMAGE: {
-        "pipeline": AutoPipelineForText2Image,
-        "torch_dtype": torch.float16,
-        "use_safetensors": True,
-        "variant": "fp16",
-    },
-    TaskType.IMAGE_TO_IMAGE: {
-        "pipeline": AutoPipelineForImage2Image,
-        "torch_dtype": torch.float16,
-        "use_safetensors": True,
-        "variant": "fp16",
-    },
+    TaskType.TEXT_TO_IMAGE: TaskConfig(
+        pipeline=AutoPipelineForText2Image,
+        torch_dtype=torch.float16,
+        use_safetensors=True,
+        variant="fp16",
+    ),
+    TaskType.IMAGE_TO_IMAGE: TaskConfig(
+        pipeline=AutoPipelineForImage2Image,
+        torch_dtype=torch.float16,
+        use_safetensors=True,
+        variant="fp16",
+    ),
 }
 
 
