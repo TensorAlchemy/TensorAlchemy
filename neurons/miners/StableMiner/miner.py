@@ -14,9 +14,19 @@ from neurons.safety import StableDiffusionSafetyChecker
 from transformers import CLIPImageProcessor
 from utils import warm_up
 
-TASK_PIPELINES = {
-    TaskType.TEXT_TO_IMAGE: AutoPipelineForText2Image,
-    TaskType.IMAGE_TO_IMAGE: AutoPipelineForImage2Image,
+TASK_CONFIG = {
+    TaskType.TEXT_TO_IMAGE: {
+        "pipeline": AutoPipelineForText2Image,
+        "torch_dtype": torch.float16,
+        "use_safetensors": True,
+        "variant": "fp16",
+    },
+    TaskType.IMAGE_TO_IMAGE: {
+        "pipeline": AutoPipelineForImage2Image,
+        "torch_dtype": torch.float16,
+        "use_safetensors": True,
+        "variant": "fp16",
+    },
 }
 
 
@@ -73,11 +83,13 @@ class StableMiner(BaseMiner):
 
     def load_model(self, model_name: str, task_type: TaskType) -> torch.nn.Module:
         try:
-            model = TASK_PIPELINES.get(task_type).from_pretrained(
+            config = TASK_CONFIG[task_type]
+            pipeline_class = config["pipeline"]
+            model = pipeline_class.from_pretrained(
                 model_name,
-                torch_dtype=torch.float16,
-                use_safetensors=True,
-                variant="fp16",
+                torch_dtype=config["torch_dtype"],
+                use_safetensors=config["use_safetensors"],
+                variant=config["variant"],
             )
 
             model.to(self.config.miner.device)
@@ -88,7 +100,7 @@ class StableMiner(BaseMiner):
 
             return model
         except Exception as e:
-            logger.error(f"Error loading {TaskType.value} model: {e}")
+            logger.error(f"Error loading {task_type.value} model: {e}")
             raise
 
     def setup_model_configs(self) -> None:
