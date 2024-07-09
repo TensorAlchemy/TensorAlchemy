@@ -23,3 +23,6 @@ class TaskConfig(BaseModel):
     torch_dtype: torch.dtype
     use_safetensors: bool
     variant: str
+
+    class Config:
+        arbitrary_types_allowed = True
