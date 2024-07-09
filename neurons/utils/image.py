@@ -28,7 +28,6 @@ def synapse_to_bytesio(synapse: bt.Synapse, img_index: int = 0) -> BytesIO:
     Returns:
         BytesIO: The image as a BytesIO object.
     """
-    print("synapse_to_bytesio")
     if not synapse.images:
         return BytesIO()
 
@@ -51,7 +50,6 @@ def synapse_to_base64(synapse: bt.Synapse, img_index: int = 0) -> str:
     Returns:
         str: The image as a base64 encoded string.
     """
-    print("synapse_to_base64")
     if not synapse.images:
         return ""
 
@@ -135,15 +133,11 @@ def multi_to_tensor(inbound: SupportedImageTypes) -> torch.Tensor:
     Returns:
         torch.Tensor: The converted PyTorch Tensor.
     """
-    print(type(inbound))
     if isinstance(inbound, dict):
         print(inbound.keys())
 
     if isinstance(inbound, str):
         return image_to_tensor(base64_to_image(inbound))
-
-    if isinstance(inbound, dict) and "buffer" in inbound:
-        return image_to_tensor(base64_to_image(inbound["buffer"]))
 
     if isinstance(inbound, torch.Tensor):
         return inbound

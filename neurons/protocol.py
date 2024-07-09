@@ -1,11 +1,10 @@
-import torch
-
 from enum import Enum
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Any
 
-import numpy as np
 import bittensor as bt
-from pydantic import BaseModel, Field, ConfigDict
+import numpy as np
+import torch
+from pydantic import BaseModel, Field, ConfigDict, Base64Str, field_validator
 
 
 class ModelType(str, Enum):
@@ -37,6 +36,23 @@ def denormalize_image_model(
         num_images_per_prompt=image_count,
         **kwargs,
     )
+
+
+def deserialize_incoming_image(inbound_image: Any):
+    """Inbound image type is different across different miner versions."""
+    from neurons.utils.image import tensor_to_image, image_to_base64
+
+    if isinstance(inbound_image, str):
+        # Newest miners already send image as base64 string
+        return inbound_image
+
+    if isinstance(inbound_image, dict) and "buffer" in inbound_image:
+        # Older miners serializing image as bt.Tensor which is sent as dict
+        # { "buffer": "...", "dtype": "torch.uint8", "shape": [3, 1, 1] }
+        inbound = bt.Tensor(**inbound_image).deserialize()
+        return image_to_base64(tensor_to_image(tensor=inbound))
+
+    return inbound_image
 
 
 class IsAlive(bt.Synapse):
@@ -75,7 +91,8 @@ class ImageGeneration(bt.Synapse):
 
     computed_body_hash: str = Field("")
 
-    images: List[SupportedImageTypes] = []
+    # Each image is base64 encoded image data
+    images: List[str] = []
 
     prompt_image: Optional[bt.Tensor] = Field(
         None,
@@ -111,3 +128,7 @@ class ImageGeneration(bt.Synapse):
     model_type: str = Field(
         ModelType.CUSTOM,
     )
+
+    @field_validator("images", mode="before")
+    def images_value(cls, inbound_images_list: List[Any]) -> List[Base64Str]:
+        return [deserialize_incoming_image(image) for image in inbound_images_list]
