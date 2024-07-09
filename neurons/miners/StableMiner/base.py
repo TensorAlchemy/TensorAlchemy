@@ -343,7 +343,7 @@ class BaseMiner(ABC):
             if any(self.nsfw_image_filter(images)):
                 logger.info("An image was flagged as NSFW: discarding image.")
                 self.stats.nsfw_count += 1
-                images = [empty_image_tensor()]
+                images = [empty_image_tensor() for _ in images]
         except Exception as e:
             logger.error(f"Error in NSFW filtering: {e}")
 
