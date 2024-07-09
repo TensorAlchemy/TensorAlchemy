@@ -1,12 +1,14 @@
 import copy
 import os
 from threading import Timer
+from typing import List
 
 import torch
 from loguru import logger
 
 from neurons.constants import WANDB_MINER_PATH
-from neurons.utils.image import synapse_to_image
+from neurons.protocol import SupportedImageTypes
+from neurons.utils.image import synapse_to_image, multi_to_tensor
 from neurons.utils.log import colored_log
 
 import wandb
@@ -82,24 +84,22 @@ class WandbUtils:
         )
         colored_log(f"Started new run: {self.wandb.name}", "c")
 
-    def _add_images(self, synapse, file_type="jpg"):
-        # Store the images and prompts for uploading to wandb
-
+    def add_images(
+        self, images: List[SupportedImageTypes], prompt: str, file_type="jpg"
+    ):
+        """Store the images and prompts for uploading to wandb"""
+        logger.info("add_images")
         self.event.update(
             {
                 "images": [
-                    wandb.Image(
-                        synapse_to_image(image),
-                        caption=synapse.prompt,
-                        file_type=file_type,
+                    (
+                        wandb.Image(
+                            multi_to_tensor(image),
+                            caption=prompt,
+                            file_type=file_type,
+                        )
                     )
-                    if image != []
-                    else wandb.Image(
-                        torch.full([3, 1024, 1024], 255, dtype=torch.float),
-                        caption=synapse.prompt,
-                        file_type=file_type,
-                    )
-                    for image in synapse.images
+                    for image in images
                 ],
             }
         )
@@ -107,7 +107,7 @@ class WandbUtils:
     def _stop_run(self):
         self.wandb.finish()
 
-    def _log(self):
+    def log(self):
         # Log incentive, trust, emissions, total requests, timeouts
         self.event.update(self.miner.get_miner_info())
         self.event.update(

@@ -18,7 +18,12 @@ from neurons.constants import MOVING_AVERAGE_ALPHA
 from neurons.protocol import ImageGeneration, ImageGenerationTaskModel
 
 from neurons.utils.defaults import Stats
-from neurons.utils.image import synapse_to_base64, multi_to_tensor
+from neurons.utils.image import (
+    synapse_to_base64,
+    multi_to_tensor,
+    empty_image,
+    empty_image_tensor,
+)
 
 from neurons.validator.backend.exceptions import PostMovingAveragesError
 from neurons.validator.event import EventSchema, convert_enum_keys_to_strings
@@ -256,6 +261,7 @@ def log_responses(responses: List[ImageGeneration], prompt: str):
                     indent=2,
                 )
             )
+
     except Exception as e:
         logger.error(f"Failed to log formatted responses: {e}")
 
@@ -271,14 +277,8 @@ def log_event_to_wandb(wandb, event: dict, prompt: str):
         return f"{prompt}\n({event['uids'][i]} | {event['hotkeys'][i]})"
 
     for e, image in enumerate(wandb_event["images"]):
-        wandb_img = (
-            torch.full([3, 1024, 1024], 255, dtype=torch.float)
-            if image == []
-            else multi_to_tensor(image)
-        )
-
         wandb_event["images"][e] = wandb_lib.Image(
-            wandb_img,
+            multi_to_tensor(image),
             caption=gen_caption(prompt, e),
             file_type=file_type,
         )
@@ -489,9 +489,9 @@ async def run_step(
                 "hotkeys": [response.axon.hotkey for response in responses],
                 "images": [
                     (
-                        image_to_log(response.images[0])
+                        response.images[0]
                         if (response.images != []) and (reward != 0)
-                        else []
+                        else empty_image_tensor()
                     )
                     for response, reward in zip(responses, rewards_list)
                 ],
