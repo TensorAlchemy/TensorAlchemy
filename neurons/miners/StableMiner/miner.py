@@ -39,6 +39,8 @@ class StableMiner(BaseMiner):
         super().__init__()
 
         try:
+            logger.info("Initializing StableMiner...")
+
             # Load the models
             self.load_models()
 
@@ -56,11 +58,15 @@ class StableMiner(BaseMiner):
 
     def load_models(self) -> None:
         try:
+            logger.info("Loading safety checker...")
             self.safety_checker = StableDiffusionSafetyChecker.from_pretrained(
                 "CompVis/stable-diffusion-safety-checker"
             ).to(self.config.miner.device)
+
+            logger.info("Loading image processor...")
             self.processor = CLIPImageProcessor()
 
+            logger.info("Setting up model configurations...")
             self.setup_model_configs()
         except Exception as e:
             logger.error(f"Error loading models: {e}")
@@ -71,18 +77,23 @@ class StableMiner(BaseMiner):
         model_type: ModelType,
         task_type: TaskType,
     ) -> ModelConfig:
-        if model_type not in self.model_configs:
-            raise ValueError(f"{model_type} was not found in model_configs!")
+        try:
+            if model_type not in self.model_configs:
+                raise ValueError(f"{model_type} was not found in model_configs!")
 
-        if task_type not in self.model_configs[model_type]:
-            raise ValueError(
-                f"{task_type} was not found in model_configs {model_type}!"
-            )
+            if task_type not in self.model_configs[model_type]:
+                raise ValueError(
+                    f"{task_type} was not found in model_configs {model_type}!"
+                )
 
-        return self.model_configs[model_type][task_type]
+            return self.model_configs[model_type][task_type]
+        except ValueError as e:
+            logger.error(e)
+            raise
 
     def load_model(self, model_name: str, task_type: TaskType) -> torch.nn.Module:
         try:
+            logger.info(f"Loading model {model_name} for task {task_type}...")
             config = TASK_CONFIG[task_type]
             pipeline_class = config["pipeline"]
             model = pipeline_class.from_pretrained(
@@ -98,12 +109,14 @@ class StableMiner(BaseMiner):
                 model.scheduler.config
             )
 
+            logger.info(f"Model {model_name} loaded successfully.")
             return model
         except Exception as e:
             logger.error(f"Error loading {task_type.value} model: {e}")
             raise
 
     def setup_model_configs(self) -> None:
+        logger.info("Setting up model configurations...")
         self.model_configs = {
             ModelType.CUSTOM: {
                 TaskType.TEXT_TO_IMAGE: ModelConfig(
@@ -128,9 +141,10 @@ class StableMiner(BaseMiner):
             #     ),
             # },
         }
+        logger.info("Model configurations set up successfully.")
 
     def optimize_models(self) -> None:
-        return
+        logger.info("Optimizing models...")
         # TODO: the code before was only doing this for alchemy and was deactivated
         # decide if we want to run this all or only for alchemy; for now leaving as deactive
         if self.config.miner.optimize:
@@ -151,6 +165,9 @@ class StableMiner(BaseMiner):
                                 color="yellow",
                             )
                             warm_up(config.model, config.args)
+                logger.info("Models optimized successfully.")
             except Exception as e:
                 logger.error(f"Error optimizing models: {e}")
                 raise
+        else:
+            logger.info("Model optimization is disabled.")
