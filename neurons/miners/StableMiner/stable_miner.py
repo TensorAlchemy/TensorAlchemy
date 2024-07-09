@@ -1,32 +1,36 @@
 from typing import Dict, Optional, List
 import torch
-from neurons.miners.StableMiner.base import BaseMiner
+from base import BaseMiner
 from loguru import logger
 
 from neurons.miners.StableMiner.model_loader import ModelLoader
 from neurons.miners.StableMiner.schema import ModelConfig, TaskType, TaskConfig
 from neurons.protocol import ModelType
-from neurons.miners.StableMiner.utils import warm_up
+from utils import warm_up
 
 
 class StableMiner(BaseMiner):
     def __init__(self, task_configs: List[TaskConfig]) -> None:
         self.task_configs = {config.task_type: config for config in task_configs}
         self.model_configs: Dict[ModelType, Dict[TaskType, ModelConfig]] = {}
-        self.safety_checker: Optional[torch.nn.Module] = None
-        self.processor: Optional[torch.nn.Module] = None
+        self.safety_checker: Optional[torch.nn.Module] = None  # Initialize as None
+        self.processor: Optional[torch.nn.Module] = None  # Initialize as None
 
         super().__init__()
 
         try:
             logger.info("Initializing StableMiner...")
 
+            # Load the models
             self.load_models()
 
+            # Optimize models
             self.optimize_models()
 
+            # Serve the axon
             self.start_axon()
 
+            # Start the miner loop
             self.loop()
         except Exception as e:
             logger.error(f"Error in StableMiner initialization: {e}")
@@ -37,10 +41,12 @@ class StableMiner(BaseMiner):
             for task_type, config in self.task_configs.items():
                 logger.info(f"Loading models for task: {task_type}...")
 
-                if config.safety_checker:
+                if config.safety_checker and config.safety_checker_model_name:
                     self.safety_checker = ModelLoader(
                         self.config.miner
-                    ).load_safety_checker(config.safety_checker)
+                    ).load_safety_checker(
+                        config.safety_checker, config.safety_checker_model_name
+                    )
                     logger.info(f"Safety checker loaded for task: {task_type}")
 
                 if config.processor:

@@ -26,6 +26,7 @@ class TaskConfig(BaseModel):
     variant: str
     scheduler: Optional[Type] = None
     safety_checker: Optional[Type] = None
+    safety_checker_model_name: Optional[str] = None
     processor: Optional[Type] = None
 
     class Config:

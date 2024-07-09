@@ -3,12 +3,11 @@ import os
 from threading import Timer
 from typing import List
 
-import torch
 from loguru import logger
 
 from neurons.constants import WANDB_MINER_PATH
 from neurons.protocol import SupportedImageTypes
-from neurons.utils.image import synapse_to_image, multi_to_tensor
+from neurons.utils.image import multi_to_tensor
 from neurons.utils.log import colored_log
 
 import wandb

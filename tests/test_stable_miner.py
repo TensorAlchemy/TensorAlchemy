@@ -7,9 +7,9 @@ from diffusers import (
 )
 import torch
 
-from neurons.miners.StableMiner.miner import StableMiner
 from neurons.miners.StableMiner.model_loader import ModelLoader
 from neurons.miners.StableMiner.schema import TaskType, TaskConfig
+from neurons.miners.StableMiner.stable_miner import StableMiner
 from neurons.safety import StableDiffusionSafetyChecker
 from transformers import CLIPImageProcessor
 

@@ -17,8 +17,6 @@ from neurons.utils import BackgroundTimer, background_loop
 from neurons.utils.defaults import Stats, get_defaults
 from neurons.utils.image import (
     image_to_base64,
-    empty_image,
-    image_to_tensor,
     empty_image_tensor,
 )
 from neurons.utils.log import colored_log

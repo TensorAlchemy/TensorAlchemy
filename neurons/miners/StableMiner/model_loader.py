@@ -1,7 +1,4 @@
-from typing import Optional
-
 import torch
-from torch import Type
 
 from neurons.miners.StableMiner.schema import TaskConfig
 
@@ -28,12 +25,12 @@ class ModelLoader:
         return model
 
     def load_safety_checker(
-        self, safety_checker_class: Type
+        self, safety_checker_class: Type, model_name: str
     ) -> Optional[torch.nn.Module]:
-        if safety_checker_class:
-            safety_checker = safety_checker_class.from_pretrained(
-                "CompVis/stable-diffusion-safety-checker"
-            ).to(self.config.device)
+        if safety_checker_class and model_name:
+            safety_checker = safety_checker_class.from_pretrained(model_name).to(
+                self.config.device
+            )
             return safety_checker
         return None
 
