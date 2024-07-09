@@ -95,12 +95,12 @@ class StableMiner(BaseMiner):
         try:
             logger.info(f"Loading model {model_name} for task {task_type}...")
             config = TASK_CONFIG[task_type]
-            pipeline_class = config["pipeline"]
+            pipeline_class = config.pipeline
             model = pipeline_class.from_pretrained(
                 model_name,
-                torch_dtype=config["torch_dtype"],
-                use_safetensors=config["use_safetensors"],
-                variant=config["variant"],
+                torch_dtype=config.torch_dtype,
+                use_safetensors=config.use_safetensors,
+                variant=config.variant,
             )
 
             model.to(self.config.miner.device)
