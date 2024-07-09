@@ -4,7 +4,15 @@ import pathlib
 import warnings
 import traceback
 
+import torch
+from diffusers import (
+    AutoPipelineForText2Image,
+    AutoPipelineForImage2Image,
+    DPMSolverMultistepScheduler,
+)
 from loguru import logger
+
+from neurons.miners.StableMiner.schema import TaskType, TaskConfig
 
 # Suppress the eth_utils network warnings
 # "does not have a valid ChainId."
@@ -26,8 +34,26 @@ if __name__ == "__main__":
         # Import StableMiner after fixing path
         from miner import StableMiner
 
+        task_configs = [
+            TaskConfig(
+                task_type=TaskType.TEXT_TO_IMAGE,
+                pipeline=AutoPipelineForText2Image,
+                torch_dtype=torch.float16,
+                use_safetensors=True,
+                variant="fp16",
+                scheduler=DPMSolverMultistepScheduler,
+            ),
+            TaskConfig(
+                task_type=TaskType.IMAGE_TO_IMAGE,
+                pipeline=AutoPipelineForImage2Image,
+                torch_dtype=torch.float16,
+                use_safetensors=True,
+                variant="fp16",
+                scheduler=DPMSolverMultistepScheduler,
+            ),
+        ]
         # Start the miner
-        StableMiner()
+        StableMiner(task_configs)
     except ImportError:
         logger.error(f"Error: {traceback.format_exc()}")
         logger.error("Please ensure all required packages are installed.")

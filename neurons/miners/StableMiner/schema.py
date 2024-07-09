@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Dict, Type
+from typing import Any, Dict, Type, Optional
 
 from pydantic import ConfigDict, BaseModel
 
@@ -19,10 +19,14 @@ class ModelConfig(BaseModel):
 
 
 class TaskConfig(BaseModel):
+    task_type: TaskType
     pipeline: Type
     torch_dtype: torch.dtype
     use_safetensors: bool
     variant: str
+    scheduler: Optional[Type] = None
+    safety_checker: Optional[Type] = None
+    processor: Optional[Type] = None
 
     class Config:
         arbitrary_types_allowed = True
