@@ -4,7 +4,7 @@ from typing import Optional, List, Union, Any
 import bittensor as bt
 import numpy as np
 import torch
-from pydantic import BaseModel, Field, ConfigDict, Base64Str, field_validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 
 class ModelType(str, Enum):
@@ -130,5 +130,5 @@ class ImageGeneration(bt.Synapse):
     )
 
     @field_validator("images", mode="before")
-    def images_value(cls, inbound_images_list: List[Any]) -> List[Base64Str]:
+    def images_value(cls, inbound_images_list: List[Any]) -> List[str]:
         return [deserialize_incoming_image(image) for image in inbound_images_list]
