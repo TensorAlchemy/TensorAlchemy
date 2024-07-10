@@ -2,6 +2,8 @@ import json
 import logging
 import os
 import argparse
+import uuid
+from contextvars import ContextVar
 from typing import Dict, Optional
 
 import torch
@@ -40,11 +42,23 @@ def configure_loki_logger():
             except Exception:
                 msg = record.getMessage()
 
-            # full_msg = record.msg
+            try:
+                netuid = get_config().netuid
+            except:
+                netuid = ""
+
+            try:
+                hotkey = bt.wallet(config=get_config()).hotkey.ss58_address
+            except Exception:
+                hotkey = ""
+
             log_record = {
-                "level": record.levelname,
+                "level": record.levelname.lower(),
+                "run_id": validator_run_id.get(),
+                "netuid": netuid,
+                "hotkey": hotkey,
                 "message": msg,
-                "module": record.module,
+                "filename": record.filename,
                 "lineno": record.lineno,
                 "time": self.formatTime(record, self.datefmt),
                 "version": get_validator_version(),
@@ -59,7 +73,7 @@ def configure_loki_logger():
         version="1",
     )
 
-    # Set the custom formatter to the handler
+    # Send logs to loki as JSON
     loki_handler.setFormatter(JSONFormatter())
 
     logger.add(loki_handler)
@@ -170,6 +184,9 @@ config: bt.config = None
 device: torch.device = None
 metagraph: bt.metagraph = None
 backend_client: "TensorAlchemyBackendClient" = None
+validator_run_id: ContextVar[str] = ContextVar(
+    "validator_run_id", default=uuid.uuid4().hex[:8]
+)
 
 
 def update_validator_settings(validator_settings: Dict) -> bt.config:
