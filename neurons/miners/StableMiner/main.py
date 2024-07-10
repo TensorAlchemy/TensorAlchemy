@@ -1,4 +1,5 @@
 import os
+import pathlib
 import sys
 import warnings
 import traceback
@@ -27,6 +28,10 @@ os.environ["USE_TORCH"] = "1"
 
 if __name__ == "__main__":
     try:
+        # Add the base repository to the path so the miner can access it
+        file_path: str = str(
+            pathlib.Path(__file__).parent.parent.parent.parent.resolve(),
+        )
         task_configs = [
             TaskConfig(
                 task_type=TaskType.TEXT_TO_IMAGE,
