@@ -1,3 +1,5 @@
+from typing import Type, Optional
+
 import torch
 
 from neurons.miners.StableMiner.schema import TaskConfig
