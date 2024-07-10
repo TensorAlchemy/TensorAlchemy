@@ -1,3 +1,5 @@
+import json
+import logging
 import os
 import argparse
 from typing import Dict, Optional
@@ -5,6 +7,7 @@ from typing import Dict, Optional
 import torch
 import bittensor as bt
 from loguru import logger
+import logging_loki
 
 from neurons.constants import (
     IS_TEST,
@@ -18,6 +21,48 @@ def get_default_device() -> torch.device:
         return torch.device("cpu:0")
 
     return torch.device("cuda:0")
+
+
+def configure_loki_logger():
+    """Configure sending logs to loki server"""
+
+    class JSONFormatter(logging.Formatter):
+        def format(self, record):
+            from neurons.validator.utils.version import (
+                get_validator_version,
+                get_validator_spec_version,
+            )
+
+            try:
+                # Extract real message noisy msg line emitted by bittensor
+                # might exist better solution here
+                msg = "".join(record.getMessage().split(" - ")[1:])
+            except Exception:
+                msg = record.getMessage()
+
+            # full_msg = record.msg
+            log_record = {
+                "level": record.levelname,
+                "message": msg,
+                "module": record.module,
+                "lineno": record.lineno,
+                "time": self.formatTime(record, self.datefmt),
+                "version": get_validator_version(),
+                "spec_version": get_validator_spec_version(),
+            }
+            return json.dumps(log_record)
+
+    loki_handler = logging_loki.LokiHandler(
+        url="https://loki.tensoralchemy.ai/loki/api/v1/push",
+        tags={"application": "tensoralchemy-validator"},
+        auth=("tensoralchemy-loki", "tPaaDGH0lG"),
+        version="1",
+    )
+
+    # Set the custom formatter to the handler
+    loki_handler.setFormatter(JSONFormatter())
+
+    logger.add(loki_handler)
 
 
 def check_config(to_check: bt.config):
@@ -57,6 +102,7 @@ def check_config(to_check: bt.config):
         level="EVENTS",
         format="{time:YYYY-MM-DD at HH:mm:ss} | {level} | {message}",
     )
+    configure_loki_logger()
 
 
 def add_args(parser):

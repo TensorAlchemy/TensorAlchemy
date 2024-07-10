@@ -20,3 +20,4 @@ loguru==0.7.2
 sentry-sdk==2.2.0
 substrate-interface==1.7.5
 tenacity==8.3.0
+python-logging-loki==0.3.1
