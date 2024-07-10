@@ -13,10 +13,6 @@ from diffusers import (
 from loguru import logger
 from transformers import CLIPImageProcessor
 
-from neurons.miners.StableMiner.schema import TaskType, TaskConfig
-from neurons.miners.StableMiner.stable_miner import StableMiner
-from neurons.safety import StableDiffusionSafetyChecker
-
 # Suppress the eth_utils network warnings
 # "does not have a valid ChainId."
 # NOTE: It's not our bug, it's upstream
@@ -32,6 +28,12 @@ if __name__ == "__main__":
         file_path: str = str(
             pathlib.Path(__file__).parent.parent.parent.parent.resolve(),
         )
+        if file_path not in sys.path:
+            sys.path.append(file_path)
+        from neurons.miners.StableMiner.schema import TaskType, TaskConfig
+        from neurons.miners.StableMiner.stable_miner import StableMiner
+        from neurons.safety import StableDiffusionSafetyChecker
+
         task_configs = [
             TaskConfig(
                 task_type=TaskType.TEXT_TO_IMAGE,
