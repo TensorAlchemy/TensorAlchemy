@@ -45,6 +45,7 @@ from neurons.validator.config import (
     get_metagraph,
     get_backend_client,
     update_validator_settings,
+    validator_run_id,
 )
 from neurons.validator.backend.client import TensorAlchemyBackendClient
 from neurons.validator.backend.models import TaskState
@@ -387,7 +388,7 @@ class StableValidator:
         self.step = 0
         while True:
             try:
-                logger.info("Started new validator run.")
+                logger.info(f"Started new validator run ({validator_run_id.get()}).")
 
                 # Get a random number of uids
                 try:
