@@ -1,40 +1,20 @@
-from typing import Dict, Optional
-
+from typing import Dict, Optional, List
 import torch
 from base import BaseMiner
-from diffusers import (
-    AutoPipelineForImage2Image,
-    AutoPipelineForText2Image,
-    DPMSolverMultistepScheduler,
-)
 from loguru import logger
+
+from neurons.miners.StableMiner.model_loader import ModelLoader
 from neurons.miners.StableMiner.schema import ModelConfig, TaskType, TaskConfig
 from neurons.protocol import ModelType
-from neurons.safety import StableDiffusionSafetyChecker
-from transformers import CLIPImageProcessor
 from utils import warm_up
-
-TASK_CONFIG = {
-    TaskType.TEXT_TO_IMAGE: TaskConfig(
-        pipeline=AutoPipelineForText2Image,
-        torch_dtype=torch.float16,
-        use_safetensors=True,
-        variant="fp16",
-    ),
-    TaskType.IMAGE_TO_IMAGE: TaskConfig(
-        pipeline=AutoPipelineForImage2Image,
-        torch_dtype=torch.float16,
-        use_safetensors=True,
-        variant="fp16",
-    ),
-}
 
 
 class StableMiner(BaseMiner):
-    def __init__(self) -> None:
+    def __init__(self, task_configs: List[TaskConfig]) -> None:
+        self.task_configs = {config.task_type: config for config in task_configs}
         self.model_configs: Dict[ModelType, Dict[TaskType, ModelConfig]] = {}
-        self.safety_checker: Optional[StableDiffusionSafetyChecker] = None
-        self.processor: Optional[CLIPImageProcessor] = None
+        self.safety_checker: Optional[torch.nn.Module] = None  # Initialize as None
+        self.processor: Optional[torch.nn.Module] = None  # Initialize as None
 
         super().__init__()
 
@@ -44,7 +24,7 @@ class StableMiner(BaseMiner):
             # Load the models
             self.load_models()
 
-            # Optimize model
+            # Optimize models
             self.optimize_models()
 
             # Serve the axon
@@ -58,16 +38,26 @@ class StableMiner(BaseMiner):
 
     def load_models(self) -> None:
         try:
-            logger.info("Loading safety checker...")
-            self.safety_checker = StableDiffusionSafetyChecker.from_pretrained(
-                "CompVis/stable-diffusion-safety-checker"
-            ).to(self.config.miner.device)
+            for task_type, config in self.task_configs.items():
+                logger.info(f"Loading models for task: {task_type}...")
 
-            logger.info("Loading image processor...")
-            self.processor = CLIPImageProcessor()
+                if config.safety_checker and config.safety_checker_model_name:
+                    self.safety_checker = ModelLoader(
+                        self.config.miner
+                    ).load_safety_checker(
+                        config.safety_checker, config.safety_checker_model_name
+                    )
+                    logger.info(f"Safety checker loaded for task: {task_type}")
 
-            logger.info("Setting up model configurations...")
-            self.setup_model_configs()
+                if config.processor:
+                    self.processor = ModelLoader(self.config.miner).load_processor(
+                        config.processor
+                    )
+                    logger.info(f"Processor loaded for task: {task_type}")
+
+                logger.info(f"Setting up model configurations for task: {task_type}...")
+                self.setup_model_configs()
+
         except Exception as e:
             logger.error(f"Error loading models: {e}")
             raise
@@ -94,20 +84,9 @@ class StableMiner(BaseMiner):
     def load_model(self, model_name: str, task_type: TaskType) -> torch.nn.Module:
         try:
             logger.info(f"Loading model {model_name} for task {task_type}...")
-            config = TASK_CONFIG[task_type]
-            pipeline_class = config.pipeline
-            model = pipeline_class.from_pretrained(
-                model_name,
-                torch_dtype=config.torch_dtype,
-                use_safetensors=config.use_safetensors,
-                variant=config.variant,
-            )
-
-            model.to(self.config.miner.device)
-            model.set_progress_bar_config(disable=True)
-            model.scheduler = DPMSolverMultistepScheduler.from_config(
-                model.scheduler.config
-            )
+            config = self.task_configs[task_type]
+            model_loader = ModelLoader(self.config.miner)
+            model = model_loader.load(model_name, config)
 
             logger.info(f"Model {model_name} loaded successfully.")
             return model
@@ -145,8 +124,6 @@ class StableMiner(BaseMiner):
 
     def optimize_models(self) -> None:
         logger.info("Optimizing models...")
-        # TODO: the code before was only doing this for alchemy and was deactivated
-        # decide if we want to run this all or only for alchemy; for now leaving as deactive
         if self.config.miner.optimize:
             try:
                 for model_type, tasks in self.model_configs.items():

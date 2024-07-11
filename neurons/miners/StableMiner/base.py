@@ -17,15 +17,13 @@ from neurons.utils import BackgroundTimer, background_loop
 from neurons.utils.defaults import Stats, get_defaults
 from neurons.utils.image import (
     image_to_base64,
-    empty_image,
-    image_to_tensor,
     empty_image_tensor,
 )
 from neurons.utils.log import colored_log
 from neurons.utils.nsfw import clean_nsfw_from_prompt
-from utils import get_caller_stake, get_coldkey_for_hotkey
-from utils.log import do_logs, sh
-from wandb_utils import WandbUtils
+from neurons.miners.StableMiner.utils import get_caller_stake, get_coldkey_for_hotkey
+from neurons.miners.StableMiner.utils.log import do_logs, sh
+from neurons.miners.StableMiner.wandb_utils import WandbUtils
 
 import bittensor as bt
 

@@ -1,10 +1,17 @@
 import os
-import sys
 import pathlib
+import sys
 import warnings
 import traceback
 
+import torch
+from diffusers import (
+    AutoPipelineForText2Image,
+    AutoPipelineForImage2Image,
+    DPMSolverMultistepScheduler,
+)
 from loguru import logger
+from transformers import CLIPImageProcessor
 
 # Suppress the eth_utils network warnings
 # "does not have a valid ChainId."
@@ -23,11 +30,36 @@ if __name__ == "__main__":
         )
         if file_path not in sys.path:
             sys.path.append(file_path)
-        # Import StableMiner after fixing path
-        from miner import StableMiner
+        from neurons.miners.StableMiner.schema import TaskType, TaskConfig
+        from neurons.miners.StableMiner.stable_miner import StableMiner
+        from neurons.safety import StableDiffusionSafetyChecker
 
+        task_configs = [
+            TaskConfig(
+                task_type=TaskType.TEXT_TO_IMAGE,
+                pipeline=AutoPipelineForText2Image,
+                torch_dtype=torch.float16,
+                use_safetensors=True,
+                variant="fp16",
+                scheduler=DPMSolverMultistepScheduler,
+                safety_checker=StableDiffusionSafetyChecker,
+                safety_checker_model_name="CompVis/stable-diffusion-safety-checker",
+                processor=CLIPImageProcessor,
+            ),
+            TaskConfig(
+                task_type=TaskType.IMAGE_TO_IMAGE,
+                pipeline=AutoPipelineForImage2Image,
+                torch_dtype=torch.float16,
+                use_safetensors=True,
+                variant="fp16",
+                scheduler=DPMSolverMultistepScheduler,
+                safety_checker=StableDiffusionSafetyChecker,
+                safety_checker_model_name="CompVis/stable-diffusion-safety-checker",
+                processor=CLIPImageProcessor,
+            ),
+        ]
         # Start the miner
-        StableMiner()
+        StableMiner(task_configs)
     except ImportError:
         logger.error(f"Error: {traceback.format_exc()}")
         logger.error("Please ensure all required packages are installed.")
