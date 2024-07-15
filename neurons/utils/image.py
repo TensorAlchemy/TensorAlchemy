@@ -253,6 +253,19 @@ def image_to_base64(image: ImageType) -> str:
     return base64.b64encode(im_buffer.getvalue()).decode("utf-8")
 
 
+def image_tensor_to_base64(tensor: torch.Tensor) -> str:
+    """
+    Convert a Tensor containing image to base64 string.
+
+    Args:
+        tensor: The Tensor to convert.
+
+    Returns:
+        str: The base64 encoded string of the image.
+    """
+    return image_to_base64(tensor_to_image(tensor))
+
+
 def bytesio_to_base64(image: BytesIO) -> str:
     """
     Convert a BytesIO object to base64 string.

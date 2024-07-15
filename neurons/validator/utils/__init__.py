@@ -3,7 +3,7 @@ import asyncio
 import random
 import time
 import traceback
-from functools import lru_cache, update_wrapper
+from functools import lru_cache, update_wrapper, wraps
 from math import floor
 from typing import Any, Callable, List, Optional
 
