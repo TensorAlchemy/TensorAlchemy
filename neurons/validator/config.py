@@ -72,14 +72,22 @@ def configure_loki_logger():
                 netuid = ""
 
             try:
+                subnet = {25: "testnet", 26: "finney"}[netuid]
+            except:
+                subnet = ""
+
+            try:
                 hotkey = bt.wallet(config=get_config()).hotkey.ss58_address
             except Exception:
                 hotkey = ""
 
             log_record = {
                 "level": record.levelname.lower(),
+                "module": record.module,
+                "func_name": record.funcName,
                 "run_id": validator_run_id.get(),
                 "netuid": netuid,
+                "subnet": subnet,
                 "hotkey": hotkey,
                 "message": msg,
                 "filename": record.filename,
