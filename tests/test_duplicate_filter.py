@@ -9,7 +9,6 @@ from neurons.validator.scoring.models.masks.duplicate import DuplicateFilter
 from neurons.validator.config import get_metagraph
 
 
-# Mock the get_metagraph function
 @pytest.fixture
 def mock_metagraph():
     metagraph = MagicMock()
@@ -54,9 +53,9 @@ async def test_no_duplicates(duplicate_filter, mock_metagraph):
         synapse1 = create_synapse(images1)
         synapse2 = create_synapse(images2)
 
-        rewards = await duplicate_filter.get_rewards(None, [synapse1, synapse2])
+        mask = await duplicate_filter.get_rewards(None, [synapse1, synapse2])
 
-        assert torch.allclose(rewards, torch.tensor([1.0, 1.0, 0.0, 0.0, 0.0]))
+        assert torch.allclose(mask, torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0]))
 
 
 @pytest.mark.asyncio
@@ -84,11 +83,11 @@ async def test_with_duplicates(duplicate_filter, mock_metagraph):
         synapse2 = create_synapse(images2)
         synapse3 = create_synapse(images3)
 
-        rewards = await duplicate_filter.get_rewards(
+        mask = await duplicate_filter.get_rewards(
             None, [synapse1, synapse2, synapse3]
         )
 
-        assert torch.allclose(rewards, torch.tensor([0.0, 0.0, 1.0, 0.0, 0.0]))
+        assert torch.allclose(mask, torch.tensor([1.0, 1.0, 0.0, 0.0, 0.0]))
 
 
 @pytest.mark.asyncio
@@ -119,10 +118,10 @@ async def test_slight_modification(duplicate_filter, mock_metagraph):
         synapse1 = create_synapse(images1)
         synapse2 = create_synapse(images2)
 
-        rewards = await duplicate_filter.get_rewards(None, [synapse1, synapse2])
+        mask = await duplicate_filter.get_rewards(None, [synapse1, synapse2])
 
         assert torch.allclose(
-            rewards, torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0])
+            mask, torch.tensor([1.0, 1.0, 0.0, 0.0, 0.0])
         )  # Both should be considered duplicates
 
 
@@ -132,9 +131,9 @@ async def test_empty_responses(duplicate_filter, mock_metagraph):
         "neurons.validator.scoring.models.masks.duplicate.get_metagraph",
         return_value=mock_metagraph,
     ):
-        rewards = await duplicate_filter.get_rewards(None, [])
+        mask = await duplicate_filter.get_rewards(None, [])
 
-        assert torch.allclose(rewards, torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0]))
+        assert torch.allclose(mask, torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0]))
 
 
 @pytest.mark.asyncio
@@ -146,9 +145,9 @@ async def test_invalid_responses(duplicate_filter, mock_metagraph):
         synapse1 = create_synapse([])
         synapse2 = create_synapse([None])
 
-        rewards = await duplicate_filter.get_rewards(None, [synapse1, synapse2])
+        mask = await duplicate_filter.get_rewards(None, [synapse1, synapse2])
 
-        assert torch.allclose(rewards, torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0]))
+        assert torch.allclose(mask, torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0]))
 
 
 @pytest.mark.asyncio
@@ -172,8 +171,8 @@ async def test_mixed_valid_invalid_responses(duplicate_filter, mock_metagraph):
         synapse2 = create_synapse([])
         synapse3 = create_synapse(images2)
 
-        rewards = await duplicate_filter.get_rewards(
+        mask = await duplicate_filter.get_rewards(
             None, [synapse1, synapse2, synapse3]
         )
 
-        assert torch.allclose(rewards, torch.tensor([1.0, 1.0, 0.0, 0.0, 0.0]))
+        assert torch.allclose(mask, torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0]))
