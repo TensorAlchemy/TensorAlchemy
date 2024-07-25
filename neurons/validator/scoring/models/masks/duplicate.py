@@ -18,10 +18,10 @@ class DuplicateFilter(BaseRewardModel):
     def name(self) -> RewardModelType:
         return RewardModelType.DUPLICATE
 
-    def __init__(self, hash_size: int = 8, threshold: int = 5):
+    def __init__(self, hash_size: int = 8, threshold_ratio: float = 0.25):
         super().__init__()
         self.hash_size = hash_size
-        self.threshold = threshold
+        self.threshold_ratio = threshold_ratio
 
     def compute_phash(self, image: torch.Tensor) -> imagehash.ImageHash:
         # Convert torch tensor to PIL Image
@@ -30,9 +30,15 @@ class DuplicateFilter(BaseRewardModel):
         )
         return imagehash.phash(img, hash_size=self.hash_size)
 
+    def are_images_similar(
+        self, hash1: imagehash.ImageHash, hash2: imagehash.ImageHash
+    ) -> bool:
+        max_diff = self.hash_size * self.hash_size * self.threshold_ratio
+        return hash1 - hash2 <= max_diff
+
     async def get_rewards(
         self,
-        synapse: bt.Synapse,
+        _synapse: bt.Synapse,
         responses: List[bt.Synapse],
     ) -> torch.Tensor:
         logger.info(f"Checking {len(responses)} images for duplicates...")
@@ -67,7 +73,7 @@ class DuplicateFilter(BaseRewardModel):
                 if len(all_hashes[i]) != len(all_hashes[j]):
                     continue
                 if all(
-                    hash1 - hash2 <= self.threshold
+                    self.are_images_similar(hash1, hash2)
                     for hash1, hash2 in zip(all_hashes[i], all_hashes[j])
                 ):
                     duplicate_mask[i] = True
@@ -76,13 +82,8 @@ class DuplicateFilter(BaseRewardModel):
 
         for idx, is_duplicate in enumerate(duplicate_mask):
             if is_duplicate:
-                continue
-
-            hotkey = valid_responses[idx].axon.hotkey
-            try:
-                metagraph_idx = metagraph.hotkeys.index(hotkey)
-                mask[metagraph_idx] = 1.0
-            except ValueError:
-                logger.error(f"Hotkey {hotkey} not found in metagraph")
+                mask[
+                    metagraph.hotkeys.index(valid_responses[idx].axon.hotkey)
+                ] = 1.0
 
         return mask
