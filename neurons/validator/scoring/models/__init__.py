@@ -55,7 +55,7 @@ def more_than_one_response(
     _synapse: bt.Synapse,
     responses: List[bt.Synapse],
 ) -> bool:
-    return len(responses) > 0
+    return len(responses) > 1
 
 
 def get_masking_models() -> ModelStorage:

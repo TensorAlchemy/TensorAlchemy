@@ -5,7 +5,7 @@ from PIL import Image
 import numpy as np
 from unittest.mock import MagicMock, patch
 
-from neurons.validator.scoring.models.duplicate import DuplicateFilter
+from neurons.validator.scoring.models.masks.duplicate import DuplicateFilter
 from neurons.validator.config import get_metagraph
 
 
@@ -30,14 +30,14 @@ def create_image(color):
 def create_synapse(images):
     synapse = MagicMock(spec=bt.Synapse)
     synapse.images = images
-    synapse.axon.hotkey = f"hotkey{id(synapse)}"
+    synapse.axon = bt.TerminalInfo(hotkey=f"hotkey{id(synapse)}")
     return synapse
 
 
 @pytest.mark.asyncio
 async def test_no_duplicates(duplicate_filter, mock_metagraph):
     with patch(
-        "neurons.validator.scoring.models.duplicate.get_metagraph",
+        "neurons.validator.scoring.models.masks.duplicate.get_metagraph",
         return_value=mock_metagraph,
     ):
         images1 = [
@@ -62,7 +62,7 @@ async def test_no_duplicates(duplicate_filter, mock_metagraph):
 @pytest.mark.asyncio
 async def test_with_duplicates(duplicate_filter, mock_metagraph):
     with patch(
-        "neurons.validator.scoring.models.duplicate.get_metagraph",
+        "neurons.validator.scoring.models.masks.duplicate.get_metagraph",
         return_value=mock_metagraph,
     ):
         images1 = [
@@ -94,7 +94,7 @@ async def test_with_duplicates(duplicate_filter, mock_metagraph):
 @pytest.mark.asyncio
 async def test_slight_modification(duplicate_filter, mock_metagraph):
     with patch(
-        "neurons.validator.scoring.models.duplicate.get_metagraph",
+        "neurons.validator.scoring.models.masks.duplicate.get_metagraph",
         return_value=mock_metagraph,
     ):
         image1 = create_image("red")
@@ -129,7 +129,7 @@ async def test_slight_modification(duplicate_filter, mock_metagraph):
 @pytest.mark.asyncio
 async def test_empty_responses(duplicate_filter, mock_metagraph):
     with patch(
-        "neurons.validator.scoring.models.duplicate.get_metagraph",
+        "neurons.validator.scoring.models.masks.duplicate.get_metagraph",
         return_value=mock_metagraph,
     ):
         rewards = await duplicate_filter.get_rewards(None, [])
@@ -140,7 +140,7 @@ async def test_empty_responses(duplicate_filter, mock_metagraph):
 @pytest.mark.asyncio
 async def test_invalid_responses(duplicate_filter, mock_metagraph):
     with patch(
-        "neurons.validator.scoring.models.duplicate.get_metagraph",
+        "neurons.validator.scoring.models.masks.duplicate.get_metagraph",
         return_value=mock_metagraph,
     ):
         synapse1 = create_synapse([])
@@ -154,7 +154,7 @@ async def test_invalid_responses(duplicate_filter, mock_metagraph):
 @pytest.mark.asyncio
 async def test_mixed_valid_invalid_responses(duplicate_filter, mock_metagraph):
     with patch(
-        "neurons.validator.scoring.models.duplicate.get_metagraph",
+        "neurons.validator.scoring.models.masks.duplicate.get_metagraph",
         return_value=mock_metagraph,
     ):
         images1 = [
