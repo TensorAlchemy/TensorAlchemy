@@ -1,8 +1,9 @@
 from typing import List
-import random
 
 import torch
 import numpy as np
+import imagehash
+from PIL import Image
 import bittensor as bt
 from loguru import logger
 
@@ -17,28 +18,17 @@ class DuplicateFilter(BaseRewardModel):
     def name(self) -> RewardModelType:
         return RewardModelType.DUPLICATE
 
-    def __init__(self, pixel_check_percentage: float = 0.15):
+    def __init__(self, hash_size: int = 8, threshold: int = 5):
         super().__init__()
-        self.pixel_check_percentage = pixel_check_percentage
+        self.hash_size = hash_size
+        self.threshold = threshold
 
-    def extract_check_pixels(self, images: List[torch.Tensor]) -> np.ndarray:
-        all_check_pixels = []
-        for image in images:
-            height, width = image.shape[1:3]
-            num_pixels = int(height * width * self.pixel_check_percentage)
-
-            pixels_to_check = np.random.randint(
-                0, (height, width), size=(num_pixels, 2)
-            )
-
-            extracted = (
-                image[:, pixels_to_check[:, 0], pixels_to_check[:, 1]]
-                .cpu()
-                .numpy()
-            )
-            all_check_pixels.append(extracted.flatten())
-
-        return np.concatenate(all_check_pixels)
+    def compute_phash(self, image: torch.Tensor) -> imagehash.ImageHash:
+        # Convert torch tensor to PIL Image
+        img = Image.fromarray(
+            (image.permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8)
+        )
+        return imagehash.phash(img, hash_size=self.hash_size)
 
     async def get_rewards(
         self,
@@ -51,7 +41,7 @@ class DuplicateFilter(BaseRewardModel):
         mask = torch.zeros(metagraph.n).to(get_device())
 
         valid_responses = []
-        all_check_pixels = []
+        all_hashes = []
 
         for response in responses:
             if not response.images:
@@ -60,13 +50,12 @@ class DuplicateFilter(BaseRewardModel):
                 continue
 
             images = synapse_to_tensors(response)
-            all_check_pixels.append(self.extract_check_pixels(images))
+            response_hashes = [self.compute_phash(img) for img in images]
+            all_hashes.append(response_hashes)
             valid_responses.append(response)
 
         if not valid_responses:
             return mask
-
-        all_check_pixels = np.array(all_check_pixels)
 
         n = len(valid_responses)
         duplicate_mask = np.zeros(n, dtype=bool)
@@ -74,14 +63,16 @@ class DuplicateFilter(BaseRewardModel):
         for i in range(n):
             if duplicate_mask[i]:
                 continue
-            duplicates = np.all(
-                np.isclose(all_check_pixels, all_check_pixels[i], atol=1e-6),
-                axis=1,
-            )
-            duplicate_mask |= duplicates
-
-            # The image is not a duplicate of itself
-            duplicate_mask[i] = False
+            for j in range(i + 1, n):
+                if len(all_hashes[i]) != len(all_hashes[j]):
+                    continue
+                if all(
+                    hash1 - hash2 <= self.threshold
+                    for hash1, hash2 in zip(all_hashes[i], all_hashes[j])
+                ):
+                    duplicate_mask[i] = True
+                    duplicate_mask[j] = True
+                    break
 
         for idx, is_duplicate in enumerate(duplicate_mask):
             if is_duplicate:
