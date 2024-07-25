@@ -1,6 +1,7 @@
 from typing import List
 
 import bittensor as bt
+import torch
 from loguru import logger
 from transformers import CLIPProcessor, CLIPModel
 
@@ -18,9 +19,10 @@ class ClipRewardModel(BaseRewardModel):
 
     def __init__(self):
         super().__init__()
+        self.device = get_device()
         self.scoring_model = CLIPModel.from_pretrained(
             "openai/clip-vit-base-patch32"
-        )
+        ).to(self.device)
         self.processor = CLIPProcessor.from_pretrained(
             "openai/clip-vit-base-patch32"
         )
@@ -32,14 +34,12 @@ class ClipRewardModel(BaseRewardModel):
         if any(image is None for image in response.images):
             return 0.0
 
-        logger.info("Running clip scoring...")
+        logger.info("Running CLIP scoring...")
 
         try:
-            # Clip expects RGB int values in range (0, 255)
+            # Clip expects RGB values in range (0, 255)
             scaled_tensors = [
-                #
-                tensor * 255
-                for tensor in synapse_to_tensors(response)
+                tensor * 255 for tensor in synapse_to_tensors(response)
             ]
 
             # Ensure the prompt is a list of strings
@@ -50,13 +50,34 @@ class ClipRewardModel(BaseRewardModel):
                 images=scaled_tensors[0],
                 return_tensors="pt",
                 padding=True,
-            ).to(get_device())
+            )
 
-            outputs = self.scoring_model(**inputs)
+            # Move inputs to the same device as the model
+            inputs = {k: v.to(self.device) for k, v in inputs.items()}
+
+            with torch.no_grad():
+                # Ensure the model is on the correct device
+                self.scoring_model = self.scoring_model.to(self.device)
+                outputs = self.scoring_model(**inputs)
 
             # Get the similarity score
-            logits_per_image = outputs.logits_per_image
-            similarity_score = logits_per_image.softmax(dim=1)[0][0].item()
+            image_features = outputs.image_embeds.to(self.device)
+            text_features = outputs.text_embeds.to(self.device)
+
+            # Normalize features
+            image_features = image_features / image_features.norm(
+                dim=-1, keepdim=True
+            )
+            text_features = text_features / text_features.norm(
+                dim=-1, keepdim=True
+            )
+
+            # Compute similarity
+            similarity_score = (
+                (100.0 * image_features @ text_features.T).squeeze().item()
+            )
+
+            logger.info(f"CLIP similarity score: {similarity_score:.4f}")
 
             return similarity_score
 

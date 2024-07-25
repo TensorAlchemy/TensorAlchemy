@@ -452,6 +452,22 @@ async def run_step(
         synapse,
         responses,
     )
+    # Log CLIP and IMAGE rewards
+    clip_rewards = scoring_results.get_score(RewardModelType.CLIP)
+    image_rewards = scoring_results.get_score(RewardModelType.IMAGE)
+
+    if clip_rewards is not None and image_rewards is not None:
+        clip_scores = clip_rewards.normalized[uids]
+        image_scores = image_rewards.normalized[uids]
+
+        for uid, clip_score, image_score in zip(
+            uids, clip_scores, image_scores
+        ):
+            logger.info(
+                f"UID: {uid.item()} - CLIP score: {clip_score.item():.4f}, IMAGE score: {image_score.item():.4f}"
+            )
+    else:
+        logger.warning("CLIP or IMAGE rewards not found in scoring results")
 
     # TODO: Check and see if miners are getting dropped scores
     #       because the is-alive filter is too strict or broken
