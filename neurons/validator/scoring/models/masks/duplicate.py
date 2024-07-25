@@ -17,7 +17,7 @@ class DuplicateFilter(BaseRewardModel):
     def name(self) -> RewardModelType:
         return RewardModelType.DUPLICATE
 
-    def __init__(self, hash_size: int = 8, threshold_ratio: float = 0.2):
+    def __init__(self, hash_size: int = 8, threshold_ratio: float = 0.1):
         super().__init__()
         self.hash_size = hash_size
         self.threshold_ratio = threshold_ratio
@@ -73,6 +73,7 @@ class DuplicateFilter(BaseRewardModel):
                     self.are_images_similar(hash1, hash2)
                     for hash1, hash2 in zip(all_hashes[i], all_hashes[j])
                 )
+
                 if similar_images > 0:
                     duplicate_mask[i] = True
                     duplicate_mask[j] = True
