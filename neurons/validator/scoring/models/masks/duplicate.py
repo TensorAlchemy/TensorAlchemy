@@ -2,6 +2,7 @@ from typing import List
 import random
 
 import torch
+import numpy as np
 import bittensor as bt
 from loguru import logger
 
@@ -20,33 +21,24 @@ class DuplicateFilter(BaseRewardModel):
         super().__init__()
         self.pixel_check_percentage = pixel_check_percentage
 
-    def extract_check_pixels(
-        self, images: List[torch.Tensor]
-    ) -> List[torch.Tensor]:
-        check_pixels = []
+    def extract_check_pixels(self, images: List[torch.Tensor]) -> np.ndarray:
+        all_check_pixels = []
         for image in images:
             height, width = image.shape[1:3]
             num_pixels = int(height * width * self.pixel_check_percentage)
 
-            pixels_to_check = [
-                (random.randint(0, height - 1), random.randint(0, width - 1))
-                for _ in range(num_pixels)
-            ]
-
-            extracted = torch.stack(
-                [image[:, y, x] for y, x in pixels_to_check]
+            pixels_to_check = np.random.randint(
+                0, (height, width), size=(num_pixels, 2)
             )
-            check_pixels.append(extracted)
 
-        return check_pixels
+            extracted = (
+                image[:, pixels_to_check[:, 0], pixels_to_check[:, 1]]
+                .cpu()
+                .numpy()
+            )
+            all_check_pixels.append(extracted.flatten())
 
-    def is_duplicate(
-        self,
-        pixels1: torch.Tensor,
-        pixels2: torch.Tensor,
-        tolerance: float = 1e-6,
-    ) -> bool:
-        return torch.allclose(pixels1, pixels2, atol=tolerance)
+        return np.concatenate(all_check_pixels)
 
     async def get_rewards(
         self,
@@ -58,38 +50,43 @@ class DuplicateFilter(BaseRewardModel):
         metagraph = get_metagraph()
         mask = torch.zeros(metagraph.n).to(get_device())
 
-        # Extract check pixels for all images
-        all_check_pixels = []
         valid_responses = []
+        all_check_pixels = []
+
         for response in responses:
-            if not response.images or any(
-                image is None for image in response.images
-            ):
+            if not response.images:
                 continue
+            if any(image is None for image in response.images):
+                continue
+
             images = synapse_to_tensors(response)
             all_check_pixels.append(self.extract_check_pixels(images))
             valid_responses.append(response)
 
-        # Check for duplicates
-        non_duplicate_indices = set(range(len(valid_responses)))
-        for i in range(len(valid_responses)):
-            for j in range(i + 1, len(valid_responses)):
-                if len(all_check_pixels[i]) != len(all_check_pixels[j]):
-                    continue
+        if not valid_responses:
+            return mask
 
-                all_duplicates = all(
-                    self.is_duplicate(pixels1, pixels2)
-                    for pixels1, pixels2 in zip(
-                        all_check_pixels[i], all_check_pixels[j]
-                    )
-                )
+        all_check_pixels = np.array(all_check_pixels)
 
-                if all_duplicates:
-                    non_duplicate_indices.discard(i)
-                    non_duplicate_indices.discard(j)
+        n = len(valid_responses)
+        duplicate_mask = np.zeros(n, dtype=bool)
 
-        # Set mask to one for non-duplicates
-        for idx in non_duplicate_indices:
+        for i in range(n):
+            if duplicate_mask[i]:
+                continue
+            duplicates = np.all(
+                np.isclose(all_check_pixels, all_check_pixels[i], atol=1e-6),
+                axis=1,
+            )
+            duplicate_mask |= duplicates
+
+            # The image is not a duplicate of itself
+            duplicate_mask[i] = False
+
+        for idx, is_duplicate in enumerate(duplicate_mask):
+            if is_duplicate:
+                continue
+
             hotkey = valid_responses[idx].axon.hotkey
             try:
                 metagraph_idx = metagraph.hotkeys.index(hotkey)
