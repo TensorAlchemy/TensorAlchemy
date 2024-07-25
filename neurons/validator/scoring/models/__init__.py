@@ -72,7 +72,7 @@ def get_masking_models() -> ModelStorage:
             RewardModelType.DUPLICATE: PackedRewardModel(
                 weight=1.0,
                 model=DuplicateFilter(),
-                when=more_than_one_response,
+                should_apply=more_than_one_response,
             ),
         }
 
