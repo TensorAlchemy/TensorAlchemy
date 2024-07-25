@@ -413,6 +413,7 @@ async def run_step(
         model_type=model_type,
     )
 
+    # Query axons and process responses
     responses = await query_axons_and_process_responses(
         validator,
         task,
@@ -420,6 +421,28 @@ async def run_step(
         synapse,
     )
 
+    # Schedule background processing
+    await asyncio.create_task(
+        process_responses_in_background(
+            validator,
+            responses,
+            task,
+            uids,
+            model_type,
+            stats,
+        )
+    )
+
+
+
+async def process_responses_in_background(
+    validator: "StableValidator",
+    responses: List[bt.Synapse],
+    task: ImageGenerationTaskModel,
+    uids: torch.LongTensor,
+    model_type: str,
+    stats: Stats,
+) -> None:
     log_query_to_history(validator, uids)
 
     uids = get_uids(responses)
@@ -442,14 +465,12 @@ async def run_step(
 
     start_time = time.time()
 
-    # Log the results for monitoring purposes.
     if get_config().DEBUG:
-        log_responses(responses, prompt)
+        log_responses(responses, task.prompt)
 
-    # Calculate rewards
     scoring_results: ScoringResults = await get_scoring_results(
         validator.model_type,
-        synapse,
+        task,
         responses,
     )
 
@@ -463,6 +484,7 @@ async def run_step(
     # )
 
     # Update moving averages
+
     validator.moving_average_scores = await update_moving_averages(
         validator.moving_average_scores,
         scoring_results,
@@ -470,7 +492,6 @@ async def run_step(
         coldkey_blacklist=validator.coldkey_blacklist,
     )
 
-    # Create event for logging
     event: Dict = {}
     rewards_list = scoring_results.combined_scores[uids].tolist()
 
@@ -478,13 +499,12 @@ async def run_step(
         event[reward_score.type] = reward_score.scores[uids]
 
     try:
-        # Log the step event.
         event.update(
             {
-                "task_type": task_type,
+                "task_type": task.task_type,
                 "block": ttl_get_block(),
                 "step_length": time.time() - start_time,
-                "prompt": prompt if task_type == "TEXT_TO_IMAGE" else None,
+                "prompt": task.prompt if task.task_type == "TEXT_TO_IMAGE" else None,
                 "uids": uids,
                 "hotkeys": [response.axon.hotkey for response in responses],
                 "images": [
