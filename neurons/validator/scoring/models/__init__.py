@@ -17,6 +17,7 @@ from neurons.validator.scoring.models.rewards.human import (
 from neurons.validator.scoring.models.rewards.image_reward import (
     ImageRewardModel,
 )
+from neurons.validator.scoring.models.rewards.clip import ClipRewardModel
 
 from neurons.validator.scoring.models.types import (
     RewardModelType,
@@ -38,13 +39,17 @@ def get_reward_models() -> ModelStorage:
                 weight=0.0,
                 model=EmptyScoreRewardModel(),
             ),
-            RewardModelType.IMAGE: PackedRewardModel(
-                weight=0.8,
-                model=ImageRewardModel(),
+            RewardModelType.CLIP: PackedRewardModel(
+                weight=0.1,
+                model=ClipRewardModel(),
             ),
             RewardModelType.HUMAN: PackedRewardModel(
                 weight=0.2,
                 model=HumanValidationRewardModel(),
+            ),
+            RewardModelType.IMAGE: PackedRewardModel(
+                weight=0.7,
+                model=ImageRewardModel(),
             ),
         }
 
@@ -92,15 +97,11 @@ def get_function(
 
 
 def get_reward_functions(model_type: ModelType) -> List[PackedRewardModel]:
-    if model_type != ModelType.ALCHEMY:
-        return [
-            get_function(get_reward_models(), RewardModelType.IMAGE),
-            get_function(get_reward_models(), RewardModelType.HUMAN),
-        ]
-
-    raise NotImplementedError("Alchemy model not yet imlepmented")
+    if model_type == ModelType.ALCHEMY:
+        raise NotImplementedError("Alchemy model not yet imlepmented")
 
     return [
+        get_function(get_reward_models(), RewardModelType.CLIP),
         get_function(get_reward_models(), RewardModelType.IMAGE),
         get_function(get_reward_models(), RewardModelType.HUMAN),
     ]
