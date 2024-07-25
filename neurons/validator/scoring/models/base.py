@@ -1,3 +1,4 @@
+import inspect
 from abc import abstractmethod
 from typing import Callable, List, TYPE_CHECKING
 
@@ -89,7 +90,10 @@ class BaseRewardModel:
         responses: List[bt.Synapse],
     ) -> "ScoringResult":
         # Get rewards for the responses
-        rewards = await self.get_rewards(synapse, responses)
+        if inspect.iscoroutinefunction(self.get_rewards):
+            rewards = await self.get_rewards(synapse, responses)
+        else:
+            rewards = self.get_rewards(synapse, responses)
 
         # Normalize rewards
         normalized_rewards = self.normalize_rewards(rewards)
