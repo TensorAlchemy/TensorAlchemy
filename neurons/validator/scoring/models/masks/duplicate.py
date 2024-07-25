@@ -35,7 +35,7 @@ class DuplicateFilter(BaseRewardModel):
         synapse: bt.Synapse,
         responses: List[bt.Synapse],
     ) -> torch.Tensor:
-        logger.info("Checking for duplicate images...")
+        logger.info(f"Checking {len(responses)} images for duplicates...")
 
         metagraph = get_metagraph()
         mask = torch.zeros(metagraph.n).to(get_device())
