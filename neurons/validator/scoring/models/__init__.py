@@ -52,7 +52,8 @@ def get_reward_models() -> ModelStorage:
 
 
 def more_than_one_response(
-    _synapse: bt.Synapse, responses: List[bt.Synapse]
+    _synapse: bt.Synapse,
+    responses: List[bt.Synapse],
 ) -> bool:
     return len(responses) > 0
 
