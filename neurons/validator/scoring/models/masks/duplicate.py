@@ -52,6 +52,7 @@ class DuplicateFilter(BaseRewardModel):
         for response in responses:
             if not response.images:
                 continue
+
             if any(image is None for image in response.images):
                 continue
 
@@ -82,8 +83,8 @@ class DuplicateFilter(BaseRewardModel):
 
         for idx, is_duplicate in enumerate(duplicate_mask):
             if is_duplicate:
-                mask[
-                    metagraph.hotkeys.index(valid_responses[idx].axon.hotkey)
-                ] = 1.0
+                hotkey = valid_responses[idx].axon.hotkey
+                if hotkey in metagraph.hotkeys:
+                    mask[metagraph.hotkeys.index(hotkey)] = 1.0
 
         return mask

@@ -19,17 +19,17 @@ def mock_metagraph():
 
 @pytest.fixture
 def duplicate_filter():
-    return DuplicateFilter(hash_size=8, threshold=5)
+    return DuplicateFilter()
 
 
 def create_image(color):
-    return Image.new("RGB", (100, 100), color=color)
+    return Image.new("RGB", (64, 64), color=color)
 
 
-def create_synapse(images):
+def create_synapse(hotkey: str, images):
     synapse = MagicMock(spec=bt.Synapse)
     synapse.images = images
-    synapse.axon = bt.TerminalInfo(hotkey=f"hotkey{id(synapse)}")
+    synapse.axon = bt.TerminalInfo(hotkey=hotkey)
     return synapse
 
 
@@ -50,8 +50,8 @@ async def test_no_duplicates(duplicate_filter, mock_metagraph):
             / 255
         ]
 
-        synapse1 = create_synapse(images1)
-        synapse2 = create_synapse(images2)
+        synapse1 = create_synapse("hotkey1", images1)
+        synapse2 = create_synapse("hotkey2", images2)
 
         mask = await duplicate_filter.get_rewards(None, [synapse1, synapse2])
 
@@ -79,9 +79,9 @@ async def test_with_duplicates(duplicate_filter, mock_metagraph):
             / 255
         ]
 
-        synapse1 = create_synapse(images1)
-        synapse2 = create_synapse(images2)
-        synapse3 = create_synapse(images3)
+        synapse1 = create_synapse("hotkey1", images1)
+        synapse2 = create_synapse("hotkey2", images2)
+        synapse3 = create_synapse("hotkey3", images3)
 
         mask = await duplicate_filter.get_rewards(
             None, [synapse1, synapse2, synapse3]
@@ -91,11 +91,13 @@ async def test_with_duplicates(duplicate_filter, mock_metagraph):
 
 
 @pytest.mark.asyncio
-async def test_slight_modification(duplicate_filter, mock_metagraph):
+async def test_slight_modification(mock_metagraph):
     with patch(
         "neurons.validator.scoring.models.masks.duplicate.get_metagraph",
         return_value=mock_metagraph,
     ):
+        duplicate_filter = DuplicateFilter()
+
         image1 = create_image("red")
         image2 = image1.copy()
         # Slightly modify image2
@@ -115,8 +117,8 @@ async def test_slight_modification(duplicate_filter, mock_metagraph):
             torch.tensor(np.array(image2)).permute(2, 0, 1).float() / 255
         ]
 
-        synapse1 = create_synapse(images1)
-        synapse2 = create_synapse(images2)
+        synapse1 = create_synapse("hotkey1", images1)
+        synapse2 = create_synapse("hotkey2", images2)
 
         mask = await duplicate_filter.get_rewards(None, [synapse1, synapse2])
 
@@ -142,8 +144,8 @@ async def test_invalid_responses(duplicate_filter, mock_metagraph):
         "neurons.validator.scoring.models.masks.duplicate.get_metagraph",
         return_value=mock_metagraph,
     ):
-        synapse1 = create_synapse([])
-        synapse2 = create_synapse([None])
+        synapse1 = create_synapse("hotkey1", [])
+        synapse2 = create_synapse("hotkey2", [None])
 
         mask = await duplicate_filter.get_rewards(None, [synapse1, synapse2])
 
@@ -167,9 +169,9 @@ async def test_mixed_valid_invalid_responses(duplicate_filter, mock_metagraph):
             / 255
         ]
 
-        synapse1 = create_synapse(images1)
-        synapse2 = create_synapse([])
-        synapse3 = create_synapse(images2)
+        synapse1 = create_synapse("hotkey1", images1)
+        synapse2 = create_synapse("hotkey2", [])
+        synapse3 = create_synapse("hotkey3", images2)
 
         mask = await duplicate_filter.get_rewards(
             None, [synapse1, synapse2, synapse3]
