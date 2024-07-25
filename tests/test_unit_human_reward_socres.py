@@ -63,11 +63,11 @@ def patch_all_dependencies(func):
         return_value=mock_meta,
     )
     @patch(
-        "neurons.validator.scoring.models.human.get_metagraph",
+        "neurons.validator.scoring.models.rewards.human.get_metagraph",
         return_value=mock_meta,
     )
     @patch(
-        "neurons.validator.scoring.models.human.get_backend_client",
+        "neurons.validator.scoring.models.rewards.human.get_backend_client",
         return_value=mock_client,
     )
     async def wrapper(*args, **kwargs):

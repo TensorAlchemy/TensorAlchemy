@@ -1,18 +1,23 @@
-from typing import Dict, List, Tuple
+from typing import List
 
 import torch
 
 from neurons.protocol import ModelType
 
-from neurons.validator.scoring.models.base import BaseRewardModel
 from neurons.validator.scoring.models.empty import EmptyScoreRewardModel
-from neurons.validator.scoring.models.blacklist import BlacklistFilter
-from neurons.validator.scoring.models.human import HumanValidationRewardModel
-from neurons.validator.scoring.models.image_reward import ImageRewardModel
-from neurons.validator.scoring.models.nsfw import NSFWRewardModel
 
-from neurons.validator.scoring.models.types import RewardModelType
+from neurons.validator.scoring.models.masks.nsfw import NSFWRewardModel
+from neurons.validator.scoring.models.masks.blacklist import BlacklistFilter
+
+from neurons.validator.scoring.models.rewards.human import (
+    HumanValidationRewardModel,
+)
+from neurons.validator.scoring.models.rewards.image_reward import (
+    ImageRewardModel,
+)
+
 from neurons.validator.scoring.models.types import (
+    RewardModelType,
     ModelStorage,
     PackedRewardModel,
 )

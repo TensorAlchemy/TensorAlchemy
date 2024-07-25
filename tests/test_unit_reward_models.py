@@ -17,8 +17,8 @@ from neurons.utils.image import (
     bytesio_to_base64,
 )
 from neurons.validator.scoring.models import ImageRewardModel
-from neurons.validator.scoring.models.blacklist import BlacklistFilter
-from neurons.validator.scoring.models.nsfw import NSFWRewardModel
+from neurons.validator.scoring.models.masks.blacklist import BlacklistFilter
+from neurons.validator.scoring.models.masks.nsfw import NSFWRewardModel
 from tests.fixtures import TEST_IMAGES
 
 

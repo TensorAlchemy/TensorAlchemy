@@ -241,15 +241,15 @@ class MockBackendClient:
     return_value=mock_meta,
 )
 @patch(
-    "neurons.validator.scoring.models.human.get_metagraph",
+    "neurons.validator.scoring.models.rewards.human.get_metagraph",
     return_value=mock_meta,
 )
 @patch(
-    "neurons.validator.scoring.models.human.get_backend_client",
+    "neurons.validator.scoring.models.rewards.human.get_backend_client",
     return_value=mock_client,
 )
 @patch(
-    "neurons.validator.scoring.models.image_reward.RM.load",
+    "neurons.validator.scoring.models.rewards.image_reward.RM.load",
     mock_imagereward_load,
 )
 async def test_full_pipeline_integration_multiple_runs(*mocks):
@@ -316,15 +316,15 @@ async def test_full_pipeline_integration_multiple_runs(*mocks):
     return_value=mock_meta,
 )
 @patch(
-    "neurons.validator.scoring.models.human.get_metagraph",
+    "neurons.validator.scoring.models.rewards.human.get_metagraph",
     return_value=mock_meta,
 )
 @patch(
-    "neurons.validator.scoring.models.human.get_backend_client",
+    "neurons.validator.scoring.models.rewards.human.get_backend_client",
     return_value=mock_client,
 )
 @patch(
-    "neurons.validator.scoring.models.image_reward.RM.load",
+    "neurons.validator.scoring.models.rewards.image_reward.RM.load",
     mock_imagereward_load,
 )
 async def test_full_pipeline_integration_with_moving_averages(*mocks):

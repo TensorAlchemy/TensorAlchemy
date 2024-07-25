@@ -1,13 +1,16 @@
-# In neurons/validator/rewards/models/human.py
-
 from typing import Dict, List
+
 from loguru import logger
 import bittensor as bt
 import torch
 
 from neurons.validator.scoring.models.base import BaseRewardModel
 from neurons.validator.scoring.models.types import RewardModelType
-from neurons.validator.config import get_backend_client, get_device, get_metagraph
+from neurons.validator.config import (
+    get_backend_client,
+    get_device,
+    get_metagraph,
+)
 
 
 HumanVotingResults = Dict[str, Dict[str, float]]
