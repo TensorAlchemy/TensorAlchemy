@@ -11,7 +11,7 @@ from neurons.validator.scoring.models.base import BaseRewardModel
 from neurons.validator.scoring.models.types import RewardModelType
 
 
-class DuplicateRewardModel(BaseRewardModel):
+class DuplicateFilter(BaseRewardModel):
     @property
     def name(self) -> RewardModelType:
         return RewardModelType.DUPLICATE

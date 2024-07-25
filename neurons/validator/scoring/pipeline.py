@@ -95,6 +95,9 @@ async def apply_functions(
     results: ScoringResults = ScoringResults(combined_scores=initial_seed)
 
     for function in functions:
+        if not function.should_apply(synapse, responses):
+            continue
+
         reward: ScoringResult = await apply_function(
             initial_seed,
             function,

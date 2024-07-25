@@ -1,12 +1,14 @@
 from typing import List
 
 import torch
+import bittensor as bt
 
 from neurons.protocol import ModelType
 
 from neurons.validator.scoring.models.empty import EmptyScoreRewardModel
 
 from neurons.validator.scoring.models.masks.nsfw import NSFWRewardModel
+from neurons.validator.scoring.models.masks.duplicate import DuplicateFilter
 from neurons.validator.scoring.models.masks.blacklist import BlacklistFilter
 
 from neurons.validator.scoring.models.rewards.human import (
@@ -49,6 +51,12 @@ def get_reward_models() -> ModelStorage:
     return REWARD_MODELS
 
 
+def more_than_one_response(
+    _synapse: bt.Synapse, responses: List[bt.Synapse]
+) -> bool:
+    return len(responses) > 0
+
+
 def get_masking_models() -> ModelStorage:
     global MASKING_MODELS
     if not MASKING_MODELS:
@@ -60,6 +68,11 @@ def get_masking_models() -> ModelStorage:
             RewardModelType.BLACKLIST: PackedRewardModel(
                 weight=1.0,
                 model=BlacklistFilter(),
+            ),
+            RewardModelType.DUPLICATE: PackedRewardModel(
+                weight=1.0,
+                model=DuplicateFilter(),
+                when=more_than_one_response,
             ),
         }
 

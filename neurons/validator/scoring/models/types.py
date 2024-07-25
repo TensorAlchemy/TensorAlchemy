@@ -1,9 +1,9 @@
-from pydantic import BaseModel
 from enum import Enum
-from typing import Dict, Tuple
-from pydantic import ConfigDict, BaseModel
+from typing import Callable, Dict, List, Optional, Tuple
 
 import torch
+import bittensor as bt
+from pydantic import ConfigDict, BaseModel, Field
 
 from neurons.validator.scoring.models.base import BaseRewardModel
 
@@ -21,10 +21,21 @@ class RewardModelType(str, Enum):
     IMAGE = "IMAGE"
 
 
+def default_should_apply(
+    _synapse: bt.Synapse,
+    _responses: List[bt.Synapse],
+) -> bool:
+    return True
+
+
 class PackedRewardModel(BaseModel):
     weight: float
     model: BaseRewardModel
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    should_apply: Optional[
+        Callable[[bt.Synapse, List[bt.Synapse]], bool]
+    ] = Field(default=default_should_apply)
 
     @property
     def name(self) -> RewardModelType:
