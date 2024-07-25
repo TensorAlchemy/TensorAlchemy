@@ -79,15 +79,7 @@ async def test_no_duplicates(duplicate_filter, mock_metagraph):
         synapse1 = create_synapse("hotkey1", images1)
         synapse2 = create_synapse("hotkey2", images2)
         mask = await duplicate_filter.get_rewards(None, [synapse1, synapse2])
-        print(f"Resulting mask: {mask}")
-        print(f"Image1 hash: {duplicate_filter.compute_phash(images1[0])}")
-        print(f"Image2 hash: {duplicate_filter.compute_phash(images2[0])}")
-        print(
-            f"Hash difference: {duplicate_filter.compute_phash(images1[0]) - duplicate_filter.compute_phash(images2[0])}"
-        )
-        print(
-            f"Threshold: {int(duplicate_filter.hash_size * duplicate_filter.hash_size * duplicate_filter.threshold_ratio)}"
-        )
+
         assert torch.allclose(mask, torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0]))
 
 
@@ -224,17 +216,6 @@ async def test_partial_duplicates(duplicate_filter, mock_metagraph):
         synapse2 = create_synapse("hotkey2", images2)
 
         mask = await duplicate_filter.get_rewards(None, [synapse1, synapse2])
-
-        print(f"Resulting mask: {mask}")
-        print(
-            f"Shared image hash: {duplicate_filter.compute_phash(images1[0])}"
-        )
-        print(
-            f"Unique image1 hash: {duplicate_filter.compute_phash(images1[1])}"
-        )
-        print(
-            f"Unique image2 hash: {duplicate_filter.compute_phash(images2[1])}"
-        )
 
         assert torch.allclose(mask, torch.tensor([1.0, 1.0, 0.0, 0.0, 0.0]))
 
