@@ -107,4 +107,5 @@ def get_masking_functions(_model_type: ModelType) -> List[PackedRewardModel]:
     return [
         get_function(get_masking_models(), RewardModelType.NSFW),
         get_function(get_masking_models(), RewardModelType.BLACKLIST),
+        get_function(get_masking_models(), RewardModelType.DUPLICATE),
     ]
