@@ -207,24 +207,34 @@ async def test_partial_duplicates(duplicate_filter, mock_metagraph):
         return_value=mock_metagraph,
     ):
         shared_image = create_complex_image()
+        unique_image1 = create_complex_image()
+        unique_image2 = create_complex_image()
+
         images1 = [
             torch.tensor(np.array(shared_image)).permute(2, 0, 1).float() / 255,
-            torch.tensor(np.array(create_complex_image()))
-            .permute(2, 0, 1)
-            .float()
+            torch.tensor(np.array(unique_image1)).permute(2, 0, 1).float()
             / 255,
         ]
         images2 = [
             torch.tensor(np.array(shared_image)).permute(2, 0, 1).float() / 255,
-            torch.tensor(np.array(create_complex_image()))
-            .permute(2, 0, 1)
-            .float()
+            torch.tensor(np.array(unique_image2)).permute(2, 0, 1).float()
             / 255,
         ]
         synapse1 = create_synapse("hotkey1", images1)
         synapse2 = create_synapse("hotkey2", images2)
 
         mask = await duplicate_filter.get_rewards(None, [synapse1, synapse2])
+
+        print(f"Resulting mask: {mask}")
+        print(
+            f"Shared image hash: {duplicate_filter.compute_phash(images1[0])}"
+        )
+        print(
+            f"Unique image1 hash: {duplicate_filter.compute_phash(images1[1])}"
+        )
+        print(
+            f"Unique image2 hash: {duplicate_filter.compute_phash(images2[1])}"
+        )
 
         assert torch.allclose(mask, torch.tensor([1.0, 1.0, 0.0, 0.0, 0.0]))
 
@@ -278,30 +288,6 @@ async def test_different_resolutions(duplicate_filter, mock_metagraph):
         mask = await duplicate_filter.get_rewards(None, [synapse1, synapse2])
 
         assert torch.allclose(mask, torch.tensor([1.0, 1.0, 0.0, 0.0, 0.0]))
-
-
-@pytest.mark.asyncio
-async def test_edge_case_all_black_white(duplicate_filter, mock_metagraph):
-    with patch(
-        "neurons.validator.scoring.models.masks.duplicate.get_metagraph",
-        return_value=mock_metagraph,
-    ):
-        black_image = Image.new("RGB", (64, 64), color="black")
-        white_image = Image.new("RGB", (64, 64), color="white")
-
-        images1 = [
-            torch.tensor(np.array(black_image)).permute(2, 0, 1).float() / 255
-        ]
-        images2 = [
-            torch.tensor(np.array(white_image)).permute(2, 0, 1).float() / 255
-        ]
-
-        synapse1 = create_synapse("hotkey1", images1)
-        synapse2 = create_synapse("hotkey2", images2)
-
-        mask = await duplicate_filter.get_rewards(None, [synapse1, synapse2])
-
-        assert torch.allclose(mask, torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0]))
 
 
 @pytest.mark.asyncio

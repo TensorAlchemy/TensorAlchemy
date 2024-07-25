@@ -51,10 +51,13 @@ def get_reward_models() -> ModelStorage:
     return REWARD_MODELS
 
 
-def more_than_one_response(
-    _synapse: bt.Synapse,
+def should_check_duplicates(
+    synapse: bt.Synapse,
     responses: List[bt.Synapse],
 ) -> bool:
+    if synapse.seed > -1:
+        return False
+
     return len(responses) > 1
 
 
@@ -73,7 +76,7 @@ def get_masking_models() -> ModelStorage:
             RewardModelType.DUPLICATE: PackedRewardModel(
                 weight=1.0,
                 model=DuplicateFilter(),
-                should_apply=more_than_one_response,
+                should_apply=should_check_duplicates,
             ),
         }
 

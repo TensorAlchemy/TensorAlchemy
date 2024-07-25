@@ -1,5 +1,4 @@
 from typing import List
-
 import torch
 import numpy as np
 import imagehash
@@ -24,7 +23,6 @@ class DuplicateFilter(BaseRewardModel):
         self.threshold_ratio = threshold_ratio
 
     def compute_phash(self, image: torch.Tensor) -> imagehash.ImageHash:
-        # Convert torch tensor to PIL Image
         img = Image.fromarray(
             (image.permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8)
         )
@@ -41,7 +39,7 @@ class DuplicateFilter(BaseRewardModel):
         _synapse: bt.Synapse,
         responses: List[bt.Synapse],
     ) -> torch.Tensor:
-        logger.info(f"Checking {len(responses)} images for duplicates...")
+        logger.info(f"Checking {len(responses)} responses for duplicates...")
 
         metagraph = get_metagraph()
         mask = torch.zeros(metagraph.n).to(get_device())
@@ -71,12 +69,11 @@ class DuplicateFilter(BaseRewardModel):
             if duplicate_mask[i]:
                 continue
             for j in range(i + 1, n):
-                if len(all_hashes[i]) != len(all_hashes[j]):
-                    continue
-                if all(
+                similar_images = sum(
                     self.are_images_similar(hash1, hash2)
                     for hash1, hash2 in zip(all_hashes[i], all_hashes[j])
-                ):
+                )
+                if similar_images > 0:
                     duplicate_mask[i] = True
                     duplicate_mask[j] = True
                     break
