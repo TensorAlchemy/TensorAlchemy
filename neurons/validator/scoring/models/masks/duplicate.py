@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List
 import random
 
 import torch
@@ -6,7 +6,7 @@ import bittensor as bt
 from loguru import logger
 
 from neurons.utils.image import synapse_to_tensors
-from neurons.validator.config import get_device
+from neurons.validator.config import get_device, get_metagraph
 from neurons.validator.scoring.models.base import BaseRewardModel
 from neurons.validator.scoring.models.types import RewardModelType
 
@@ -24,7 +24,6 @@ class DuplicateFilter(BaseRewardModel):
         self, images: List[torch.Tensor]
     ) -> List[torch.Tensor]:
         check_pixels = []
-
         for image in images:
             height, width = image.shape[1:3]
             num_pixels = int(height * width * self.pixel_check_percentage)
@@ -49,36 +48,32 @@ class DuplicateFilter(BaseRewardModel):
     ) -> bool:
         return torch.allclose(pixels1, pixels2, atol=tolerance)
 
-    def get_rewards(
+    async def get_rewards(
         self,
-        _synapse: bt.Synapse,
+        synapse: bt.Synapse,
         responses: List[bt.Synapse],
     ) -> torch.Tensor:
         logger.info("Checking for duplicate images...")
 
-        rewards = torch.ones(len(responses)).to(get_device())
+        metagraph = get_metagraph()
+        mask = torch.zeros(metagraph.n).to(get_device())
 
         # Extract check pixels for all images
         all_check_pixels = []
+        valid_responses = []
         for response in responses:
             if not response.images or any(
                 image is None for image in response.images
             ):
-                all_check_pixels.append(None)
-            else:
-                images = synapse_to_tensors(response)
-                all_check_pixels.append(self.extract_check_pixels(images))
+                continue
+            images = synapse_to_tensors(response)
+            all_check_pixels.append(self.extract_check_pixels(images))
+            valid_responses.append(response)
 
         # Check for duplicates
-        for i in range(len(responses)):
-            if all_check_pixels[i] is None:
-                rewards[i] = 0.0
-                continue
-
-            for j in range(i + 1, len(responses)):
-                if all_check_pixels[j] is None:
-                    continue
-
+        non_duplicate_indices = set(range(len(valid_responses)))
+        for i in range(len(valid_responses)):
+            for j in range(i + 1, len(valid_responses)):
                 if len(all_check_pixels[i]) != len(all_check_pixels[j]):
                     continue
 
@@ -90,8 +85,16 @@ class DuplicateFilter(BaseRewardModel):
                 )
 
                 if all_duplicates:
-                    rewards[i] = 0.0
-                    rewards[j] = 0.0
-                    break
+                    non_duplicate_indices.discard(i)
+                    non_duplicate_indices.discard(j)
 
-        return rewards
+        # Set mask to one for non-duplicates
+        for idx in non_duplicate_indices:
+            hotkey = valid_responses[idx].axon.hotkey
+            try:
+                metagraph_idx = metagraph.hotkeys.index(hotkey)
+                mask[metagraph_idx] = 1.0
+            except ValueError:
+                logger.error(f"Hotkey {hotkey} not found in metagraph")
+
+        return mask
