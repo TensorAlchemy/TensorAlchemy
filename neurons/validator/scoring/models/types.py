@@ -5,7 +5,7 @@ from pydantic import ConfigDict, BaseModel
 
 import torch
 
-from neurons.validator.rewards.models.base import BaseRewardModel
+from neurons.validator.scoring.models.base import BaseRewardModel
 
 
 class RewardModelType(str, Enum):

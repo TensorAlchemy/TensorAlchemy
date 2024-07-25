@@ -16,9 +16,9 @@ from neurons.utils.image import (
     image_tensor_to_base64,
     bytesio_to_base64,
 )
-from neurons.validator.rewards.models import ImageRewardModel
-from neurons.validator.rewards.models.blacklist import BlacklistFilter
-from neurons.validator.rewards.models.nsfw import NSFWRewardModel
+from neurons.validator.scoring.models import ImageRewardModel
+from neurons.validator.scoring.models.blacklist import BlacklistFilter
+from neurons.validator.scoring.models.nsfw import NSFWRewardModel
 from tests.fixtures import TEST_IMAGES
 
 
@@ -66,7 +66,7 @@ def create_mock_synapse(images, height, width, hotkey):
 
 @pytest.mark.asyncio
 @patch(
-    "neurons.validator.rewards.models.base.get_metagraph",
+    "neurons.validator.scoring.models.base.get_metagraph",
     return_value=mock_meta,
 )
 async def test_black_image(mock_meta, blacklist_filter):
@@ -90,7 +90,7 @@ async def test_black_image(mock_meta, blacklist_filter):
 
 @pytest.mark.asyncio
 @patch(
-    "neurons.validator.rewards.models.base.get_metagraph",
+    "neurons.validator.scoring.models.base.get_metagraph",
     return_value=mock_meta,
 )
 async def test_incorrect_image_size(mock_meta, blacklist_filter):
@@ -116,7 +116,7 @@ async def test_incorrect_image_size(mock_meta, blacklist_filter):
 
 @pytest.mark.asyncio
 @patch(
-    "neurons.validator.rewards.models.base.get_metagraph",
+    "neurons.validator.scoring.models.base.get_metagraph",
     return_value=mock_meta,
 )
 async def test_nsfw_image(mock_meta, nsfw_reward_model):
@@ -150,7 +150,7 @@ async def test_nsfw_image(mock_meta, nsfw_reward_model):
 
 @pytest.mark.asyncio
 @patch(
-    "neurons.validator.rewards.models.base.get_metagraph",
+    "neurons.validator.scoring.models.base.get_metagraph",
     return_value=mock_meta,
 )
 @pytest.mark.skipif(IS_CI_ENV, reason="Skipping this test in CI environment")

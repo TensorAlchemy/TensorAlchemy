@@ -26,7 +26,7 @@ from neurons.constants import (
 from neurons.utils.common import is_validator
 from neurons.utils.gcloud import retrieve_public_file
 
-from neurons.validator.rewards.models.types import (
+from neurons.validator.scoring.models.types import (
     RewardModelType,
 )
 from neurons.utils.log import configure_logging

@@ -11,12 +11,12 @@ from neurons.protocol import ImageGeneration, ModelType
 from neurons.utils.image import image_tensor_to_base64, image_to_tensor
 from neurons.validator.backend.exceptions import PostMovingAveragesError
 from neurons.validator.forward import update_moving_averages
-from neurons.validator.rewards.models import RewardModelType
-from neurons.validator.rewards.pipeline import (
+from neurons.validator.scoring.models import RewardModelType
+from neurons.validator.scoring.pipeline import (
     get_scoring_results,
     filter_rewards,
 )
-from neurons.validator.rewards.types import ScoringResults
+from neurons.validator.scoring.types import ScoringResults
 from tests.fixtures import TEST_IMAGES
 
 
@@ -233,23 +233,23 @@ class MockBackendClient:
     return_value=mock_meta,
 )
 @patch(
-    "neurons.validator.rewards.models.base.get_metagraph",
+    "neurons.validator.scoring.models.base.get_metagraph",
     return_value=mock_meta,
 )
 @patch(
-    "neurons.validator.rewards.pipeline.get_metagraph",
+    "neurons.validator.scoring.pipeline.get_metagraph",
     return_value=mock_meta,
 )
 @patch(
-    "neurons.validator.rewards.models.human.get_metagraph",
+    "neurons.validator.scoring.models.human.get_metagraph",
     return_value=mock_meta,
 )
 @patch(
-    "neurons.validator.rewards.models.human.get_backend_client",
+    "neurons.validator.scoring.models.human.get_backend_client",
     return_value=mock_client,
 )
 @patch(
-    "neurons.validator.rewards.models.image_reward.RM.load",
+    "neurons.validator.scoring.models.image_reward.RM.load",
     mock_imagereward_load,
 )
 async def test_full_pipeline_integration_multiple_runs(*mocks):
@@ -308,23 +308,23 @@ async def test_full_pipeline_integration_multiple_runs(*mocks):
     return_value=mock_meta,
 )
 @patch(
-    "neurons.validator.rewards.models.base.get_metagraph",
+    "neurons.validator.scoring.models.base.get_metagraph",
     return_value=mock_meta,
 )
 @patch(
-    "neurons.validator.rewards.pipeline.get_metagraph",
+    "neurons.validator.scoring.pipeline.get_metagraph",
     return_value=mock_meta,
 )
 @patch(
-    "neurons.validator.rewards.models.human.get_metagraph",
+    "neurons.validator.scoring.models.human.get_metagraph",
     return_value=mock_meta,
 )
 @patch(
-    "neurons.validator.rewards.models.human.get_backend_client",
+    "neurons.validator.scoring.models.human.get_backend_client",
     return_value=mock_client,
 )
 @patch(
-    "neurons.validator.rewards.models.image_reward.RM.load",
+    "neurons.validator.scoring.models.image_reward.RM.load",
     mock_imagereward_load,
 )
 async def test_full_pipeline_integration_with_moving_averages(*mocks):

@@ -4,15 +4,15 @@ import torch
 
 from neurons.protocol import ModelType
 
-from neurons.validator.rewards.models.base import BaseRewardModel
-from neurons.validator.rewards.models.empty import EmptyScoreRewardModel
-from neurons.validator.rewards.models.blacklist import BlacklistFilter
-from neurons.validator.rewards.models.human import HumanValidationRewardModel
-from neurons.validator.rewards.models.image_reward import ImageRewardModel
-from neurons.validator.rewards.models.nsfw import NSFWRewardModel
+from neurons.validator.scoring.models.base import BaseRewardModel
+from neurons.validator.scoring.models.empty import EmptyScoreRewardModel
+from neurons.validator.scoring.models.blacklist import BlacklistFilter
+from neurons.validator.scoring.models.human import HumanValidationRewardModel
+from neurons.validator.scoring.models.image_reward import ImageRewardModel
+from neurons.validator.scoring.models.nsfw import NSFWRewardModel
 
-from neurons.validator.rewards.models.types import RewardModelType
-from neurons.validator.rewards.models.types import (
+from neurons.validator.scoring.models.types import RewardModelType
+from neurons.validator.scoring.models.types import (
     ModelStorage,
     PackedRewardModel,
 )

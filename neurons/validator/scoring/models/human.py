@@ -5,8 +5,8 @@ from loguru import logger
 import bittensor as bt
 import torch
 
-from neurons.validator.rewards.models.base import BaseRewardModel
-from neurons.validator.rewards.models.types import RewardModelType
+from neurons.validator.scoring.models.base import BaseRewardModel
+from neurons.validator.scoring.models.types import RewardModelType
 from neurons.validator.config import get_backend_client, get_device, get_metagraph
 
 

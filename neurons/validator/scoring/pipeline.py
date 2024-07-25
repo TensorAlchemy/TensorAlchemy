@@ -8,12 +8,12 @@ from neurons.protocol import ModelType
 from neurons.utils.log import summarize_rewards
 from neurons.validator.config import get_device, get_metagraph
 
-from neurons.validator.rewards.models.types import PackedRewardModel
-from neurons.validator.rewards.models import (
+from neurons.validator.scoring.models.types import PackedRewardModel
+from neurons.validator.scoring.models import (
     get_reward_functions,
     get_masking_functions,
 )
-from neurons.validator.rewards.types import (
+from neurons.validator.scoring.types import (
     ScoringResult,
     ScoringResults,
 )

@@ -6,8 +6,8 @@ from neurons.utils.image import synapse_to_tensors
 from neurons.safety import StableDiffusionSafetyChecker
 
 from neurons.validator.config import get_device
-from neurons.validator.rewards.models.base import BaseRewardModel
-from neurons.validator.rewards.models.types import RewardModelType
+from neurons.validator.scoring.models.base import BaseRewardModel
+from neurons.validator.scoring.models.types import RewardModelType
 
 
 class NSFWRewardModel(BaseRewardModel):

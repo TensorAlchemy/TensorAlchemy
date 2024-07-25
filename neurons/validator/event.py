@@ -2,7 +2,7 @@ from enum import Enum
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
-from neurons.validator.rewards.models.types import RewardModelType
+from neurons.validator.scoring.models.types import RewardModelType
 
 
 def convert_enum_keys_to_strings(data) -> dict:

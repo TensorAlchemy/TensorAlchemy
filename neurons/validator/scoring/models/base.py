@@ -9,8 +9,8 @@ from loguru import logger
 from neurons.validator.config import get_device, get_metagraph
 
 if TYPE_CHECKING:
-    from neurons.validator.rewards.types import ScoringResult
-    from neurons.validator.rewards.models.types import RewardModelType
+    from neurons.validator.scoring.types import ScoringResult
+    from neurons.validator.scoring.models.types import RewardModelType
 
 
 class BaseRewardModel:
@@ -94,7 +94,7 @@ class BaseRewardModel:
         # Normalize rewards
         normalized_rewards = self.normalize_rewards(rewards)
 
-        from neurons.validator.rewards.types import ScoringResult
+        from neurons.validator.scoring.types import ScoringResult
 
         return ScoringResult(
             scores=rewards,

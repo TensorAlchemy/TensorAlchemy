@@ -3,7 +3,7 @@ from typing import List, Optional
 import torch
 from pydantic import ConfigDict, BaseModel, Field
 
-from neurons.validator.rewards.models.types import RewardModelType
+from neurons.validator.scoring.models.types import RewardModelType
 
 
 class ScoringResult(BaseModel):
