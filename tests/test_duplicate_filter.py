@@ -1,7 +1,7 @@
 import pytest
 import torch
 import bittensor as bt
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageEnhance
 import numpy as np
 from unittest.mock import MagicMock, patch
 import random
@@ -154,3 +154,193 @@ async def test_slight_modification(mock_metagraph):
         assert torch.allclose(
             mask, torch.tensor([1.0, 1.0, 0.0, 0.0, 0.0])
         )  # Both should be considered duplicates
+
+
+def apply_random_transform(image):
+    transforms = [
+        lambda img: img.rotate(random.uniform(-5, 5)),
+        lambda img: ImageEnhance.Brightness(img).enhance(
+            random.uniform(0.8, 1.2)
+        ),
+        lambda img: ImageEnhance.Contrast(img).enhance(
+            random.uniform(0.8, 1.2)
+        ),
+        lambda img: img.transpose(Image.FLIP_LEFT_RIGHT)
+        if random.choice([True, False])
+        else img,
+    ]
+    return random.choice(transforms)(image)
+
+
+@pytest.mark.asyncio
+async def test_multiple_images_per_synapse(duplicate_filter, mock_metagraph):
+    with patch(
+        "neurons.validator.scoring.models.masks.duplicate.get_metagraph",
+        return_value=mock_metagraph,
+    ):
+        images1 = [
+            torch.tensor(np.array(create_complex_image()))
+            .permute(2, 0, 1)
+            .float()
+            / 255
+            for _ in range(3)
+        ]
+        images2 = [
+            torch.tensor(np.array(create_complex_image()))
+            .permute(2, 0, 1)
+            .float()
+            / 255
+            for _ in range(3)
+        ]
+        synapse1 = create_synapse("hotkey1", images1)
+        synapse2 = create_synapse("hotkey2", images2)
+
+        mask = await duplicate_filter.get_rewards(None, [synapse1, synapse2])
+
+        assert torch.allclose(mask, torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0]))
+
+
+@pytest.mark.asyncio
+async def test_partial_duplicates(duplicate_filter, mock_metagraph):
+    with patch(
+        "neurons.validator.scoring.models.masks.duplicate.get_metagraph",
+        return_value=mock_metagraph,
+    ):
+        shared_image = create_complex_image()
+        images1 = [
+            torch.tensor(np.array(shared_image)).permute(2, 0, 1).float() / 255,
+            torch.tensor(np.array(create_complex_image()))
+            .permute(2, 0, 1)
+            .float()
+            / 255,
+        ]
+        images2 = [
+            torch.tensor(np.array(shared_image)).permute(2, 0, 1).float() / 255,
+            torch.tensor(np.array(create_complex_image()))
+            .permute(2, 0, 1)
+            .float()
+            / 255,
+        ]
+        synapse1 = create_synapse("hotkey1", images1)
+        synapse2 = create_synapse("hotkey2", images2)
+
+        mask = await duplicate_filter.get_rewards(None, [synapse1, synapse2])
+
+        assert torch.allclose(mask, torch.tensor([1.0, 1.0, 0.0, 0.0, 0.0]))
+
+
+@pytest.mark.asyncio
+async def test_transformed_duplicates(duplicate_filter, mock_metagraph):
+    with patch(
+        "neurons.validator.scoring.models.masks.duplicate.get_metagraph",
+        return_value=mock_metagraph,
+    ):
+        original_image = create_complex_image()
+        transformed_image = apply_random_transform(original_image)
+
+        images1 = [
+            torch.tensor(np.array(original_image)).permute(2, 0, 1).float()
+            / 255
+        ]
+        images2 = [
+            torch.tensor(np.array(transformed_image)).permute(2, 0, 1).float()
+            / 255
+        ]
+
+        synapse1 = create_synapse("hotkey1", images1)
+        synapse2 = create_synapse("hotkey2", images2)
+
+        mask = await duplicate_filter.get_rewards(None, [synapse1, synapse2])
+
+        assert torch.allclose(mask, torch.tensor([1.0, 1.0, 0.0, 0.0, 0.0]))
+
+
+@pytest.mark.asyncio
+async def test_different_resolutions(duplicate_filter, mock_metagraph):
+    with patch(
+        "neurons.validator.scoring.models.masks.duplicate.get_metagraph",
+        return_value=mock_metagraph,
+    ):
+        original_image = create_complex_image(size=(64, 64))
+        resized_image = original_image.resize((128, 128))
+
+        images1 = [
+            torch.tensor(np.array(original_image)).permute(2, 0, 1).float()
+            / 255
+        ]
+        images2 = [
+            torch.tensor(np.array(resized_image)).permute(2, 0, 1).float() / 255
+        ]
+
+        synapse1 = create_synapse("hotkey1", images1)
+        synapse2 = create_synapse("hotkey2", images2)
+
+        mask = await duplicate_filter.get_rewards(None, [synapse1, synapse2])
+
+        assert torch.allclose(mask, torch.tensor([1.0, 1.0, 0.0, 0.0, 0.0]))
+
+
+@pytest.mark.asyncio
+async def test_edge_case_all_black_white(duplicate_filter, mock_metagraph):
+    with patch(
+        "neurons.validator.scoring.models.masks.duplicate.get_metagraph",
+        return_value=mock_metagraph,
+    ):
+        black_image = Image.new("RGB", (64, 64), color="black")
+        white_image = Image.new("RGB", (64, 64), color="white")
+
+        images1 = [
+            torch.tensor(np.array(black_image)).permute(2, 0, 1).float() / 255
+        ]
+        images2 = [
+            torch.tensor(np.array(white_image)).permute(2, 0, 1).float() / 255
+        ]
+
+        synapse1 = create_synapse("hotkey1", images1)
+        synapse2 = create_synapse("hotkey2", images2)
+
+        mask = await duplicate_filter.get_rewards(None, [synapse1, synapse2])
+
+        assert torch.allclose(mask, torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0]))
+
+
+@pytest.mark.asyncio
+async def test_multiple_duplicates(duplicate_filter, mock_metagraph):
+    with patch(
+        "neurons.validator.scoring.models.masks.duplicate.get_metagraph",
+        return_value=mock_metagraph,
+    ):
+        image1 = create_complex_image()
+        image2 = create_complex_image()
+
+        synapse1 = create_synapse(
+            "hotkey1",
+            [torch.tensor(np.array(image1)).permute(2, 0, 1).float() / 255],
+        )
+        synapse2 = create_synapse(
+            "hotkey2",
+            [torch.tensor(np.array(image1)).permute(2, 0, 1).float() / 255],
+        )
+        synapse3 = create_synapse(
+            "hotkey3",
+            [torch.tensor(np.array(image2)).permute(2, 0, 1).float() / 255],
+        )
+        synapse4 = create_synapse(
+            "hotkey4",
+            [torch.tensor(np.array(image2)).permute(2, 0, 1).float() / 255],
+        )
+        synapse5 = create_synapse(
+            "hotkey5",
+            [
+                torch.tensor(np.array(create_complex_image()))
+                .permute(2, 0, 1)
+                .float()
+                / 255
+            ],
+        )
+
+        mask = await duplicate_filter.get_rewards(
+            None, [synapse1, synapse2, synapse3, synapse4, synapse5]
+        )
+
+        assert torch.allclose(mask, torch.tensor([1.0, 1.0, 1.0, 1.0, 0.0]))
