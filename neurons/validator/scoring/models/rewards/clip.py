@@ -42,20 +42,23 @@ class ClipRewardModel(BaseRewardModel):
                 for tensor in synapse_to_tensors(response)
             ]
 
-            clip_input = self.processor(
-                scaled_tensors[0],
+            # Ensure the prompt is a list of strings
+            prompt = [response.prompt]
+
+            inputs = self.processor(
+                text=prompt,
+                images=scaled_tensors[0],
                 return_tensors="pt",
+                padding=True,
             ).to(get_device())
 
-            results = self.scoring_model(
-                images=response.images[0],
-                text=response.prompt,
-                clip_input=clip_input.pixel_values.to(get_device()),
-            )
+            outputs = self.scoring_model(**inputs)
 
-            print(results)
+            # Get the similarity score
+            logits_per_image = outputs.logits_per_image
+            similarity_score = logits_per_image.softmax(dim=1)[0][0].item()
 
-            return results.logits_per_image
+            return similarity_score
 
         except Exception as e:
             logger.error(f"Error in CLIP scoring: {e}")
