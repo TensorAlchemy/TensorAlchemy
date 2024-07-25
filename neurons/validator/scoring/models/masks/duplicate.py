@@ -95,10 +95,3 @@ class DuplicateFilter(BaseRewardModel):
                     break
 
         return rewards
-
-    async def get_rewards(
-        self,
-        synapse: bt.Synapse,
-        responses: List[bt.Synapse],
-    ) -> torch.Tensor:
-        return self.get_rewards(synapse, responses)
