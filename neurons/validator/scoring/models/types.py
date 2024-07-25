@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Tuple
 
 import torch
 import bittensor as bt
@@ -33,9 +33,9 @@ class PackedRewardModel(BaseModel):
     model: BaseRewardModel
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    should_apply: Optional[
-        Callable[[bt.Synapse, List[bt.Synapse]], bool]
-    ] = Field(default=default_should_apply)
+    should_apply: Callable[[bt.Synapse, List[bt.Synapse]], bool] = Field(
+        default=default_should_apply
+    )
 
     @property
     def name(self) -> RewardModelType:
