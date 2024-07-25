@@ -12,6 +12,7 @@ class RewardModelType(str, Enum):
     # Masking models
     # TODO: Maybe move these out
     NSFW = "NSFW"
+    DUPLICATE = "DUPLICATE"
     BLACKLIST = "BLACKLIST"
 
     # Reward models
