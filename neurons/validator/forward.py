@@ -432,7 +432,6 @@ async def run_step(
     )
 
 
-
 async def process_responses_in_background(
     validator: "StableValidator",
     responses: List[bt.Synapse],
@@ -502,7 +501,9 @@ async def process_responses_in_background(
                 "task_type": task.task_type,
                 "block": ttl_get_block(),
                 "step_length": time.time() - start_time,
-                "prompt": task.prompt if task.task_type == "TEXT_TO_IMAGE" else None,
+                "prompt": (
+                    task.prompt if task.task_type == "TEXT_TO_IMAGE" else None
+                ),
                 "uids": uids,
                 "hotkeys": [response.axon.hotkey for response in responses],
                 "images": [
