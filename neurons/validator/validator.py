@@ -305,20 +305,27 @@ class StableValidator:
         self.batches_upload_queue: Queue = manager.Queue(maxsize=2048)
 
         # Create a Dict for storing miner query history
-        self.miner_query_history_duration = {
-            self.metagraph.axons[uid].hotkey: float("inf")
-            for uid in range(self.metagraph.n.item())
-        }
-
-        self.miner_query_history_count = {
-            self.metagraph.axons[uid].hotkey: 0
-            for uid in range(self.metagraph.n.item())
-        }
-
-        self.miner_query_history_fail_count = {
-            self.metagraph.axons[uid].hotkey: 0
-            for uid in range(self.metagraph.n.item())
-        }
+        try:
+            self.miner_query_history_duration = {
+                self.metagraph.axons[uid].hotkey: float("inf")
+                for uid in range(self.metagraph.n.item())
+            }
+        except Exception:
+            pass
+        try:
+            self.miner_query_history_count = {
+                self.metagraph.axons[uid].hotkey: 0
+                for uid in range(self.metagraph.n.item())
+            }
+        except Exception:
+            pass
+        try:
+            self.miner_query_history_fail_count = {
+                self.metagraph.axons[uid].hotkey: 0
+                for uid in range(self.metagraph.n.item())
+            }
+        except Exception:
+            pass
 
         self.model_type = ModelType.CUSTOM
 
