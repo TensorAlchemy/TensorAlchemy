@@ -413,7 +413,6 @@ async def run_step(
         model_type=model_type,
     )
 
-    # Query axons and process responses
     responses = await query_axons_and_process_responses(
         validator,
         task,
@@ -421,7 +420,6 @@ async def run_step(
         synapse,
     )
 
-    # Schedule background processing
     await asyncio.create_task(
         process_responses_in_background(
             validator,
