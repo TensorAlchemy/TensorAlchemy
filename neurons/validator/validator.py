@@ -53,7 +53,7 @@ from neurons.validator.config import (
 )
 from neurons.validator.backend.client import TensorAlchemyBackendClient
 from neurons.validator.backend.models import TaskState
-from neurons.validator.forward import run_step
+from neurons.validator.forward import run_step, process_forward_responses_loop
 from neurons.validator.services.openai.service import get_openai_service
 from neurons.validator.utils.version import get_validator_version
 from neurons.validator.utils import (
@@ -303,6 +303,7 @@ class StableValidator:
         manager = Manager()
         self.set_weights_queue: Queue = manager.Queue(maxsize=128)
         self.batches_upload_queue: Queue = manager.Queue(maxsize=2048)
+        self.forward_responses_queue: Queue = manager.Queue(maxsize=128)
 
         # Create a Dict for storing miner query history
         try:
@@ -332,6 +333,7 @@ class StableValidator:
         self.background_timer: BackgroundTimer = None
         self.set_weights_process: MultiprocessBackgroundTimer = None
         self.upload_images_process: MultiprocessBackgroundTimer = None
+        self.process_forward_responses: MultiprocessBackgroundTimer = None
 
         # Start all background threads
         self.start_threads()
@@ -368,6 +370,13 @@ class StableValidator:
                 0.2,
                 set_weights_loop,
                 [self.set_weights_queue],
+            ),
+            (
+                "process_forward_responses",
+                MultiprocessBackgroundTimer,
+                0.2,
+                process_forward_responses_loop,
+                [self.forward_responses_queue],
             ),
         ]
 
@@ -451,12 +460,12 @@ class StableValidator:
 
                 # Get a random number of uids
                 try:
-                    uids = await get_random_uids(
+                    uuids = await get_random_uids(
                         self,
                         k=N_NEURONS,
                     )
-                    uids = uids.to(self.device)
-                    axons = [self.metagraph.axons[uid] for uid in uids]
+                    uuids = uuids.to(self.device)
+                    axons = [self.metagraph.axons[uid] for uid in uuids]
 
                 except Exception as e:
                     logger.error(
@@ -484,10 +493,9 @@ class StableValidator:
 
                 # Text to Image Run
                 await run_step(
-                    validator=self,
                     task=task,
                     axons=axons,
-                    uids=uids,
+                    uuids=uuids,
                     model_type=self.model_type,
                     stats=self.stats,
                 )

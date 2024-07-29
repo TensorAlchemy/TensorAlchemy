@@ -1,6 +1,8 @@
 import json
 import asyncio
+import queue
 import time
+from multiprocessing import Queue
 from typing import AsyncIterator, Dict, List, Optional, Tuple
 
 from datetime import datetime
@@ -10,6 +12,7 @@ import torch
 import torchvision.transforms as T
 from bittensor import AxonInfo
 from loguru import logger
+from pydantic import BaseModel, ConfigDict
 
 from neurons.constants import MOVING_AVERAGE_ALPHA
 from neurons.protocol import ImageGeneration, ImageGenerationTaskModel
@@ -385,19 +388,18 @@ def get_uids(responses: List[bt.Synapse]) -> torch.Tensor:
     ).to(get_device())
 
 
-async def process_responses(
-    uids: torch.Tensor,
-    responses: List[bt.Synapse],
-    prompt: str,
-    task_type: str,
-    model_type: str,
-    stats: Stats,
-    synapse: bt.Synapse,
-):
+async def process_forward_responses_loop(forward_responses_queue: Queue):
     validator = get_validator()
-    log_query_to_history(validator, uids)
+    try:
+        forward_process_event: ProcessForwardResponsesTask = (
+            forward_responses_queue.get(block=False)
+        )
+    except queue.Empty:
+        return
 
-    uids = get_uids(responses)
+    log_query_to_history(validator, forward_process_event.uuids)
+
+    uids = get_uids(forward_process_event.responses)
 
     logger.info(f"UIDs -> {' | '.join([str(uid.item()) for uid in uids])}")
 
@@ -411,17 +413,19 @@ async def process_responses(
         f"| Emissions: {validator_info['emissions']:.4f}",
     )
 
-    stats.total_requests += 1
+    forward_process_event.stats.total_requests += 1
 
     start_time = time.time()
 
     if get_config().DEBUG:
-        log_responses(responses, prompt)
+        log_responses(
+            forward_process_event.responses, forward_process_event.prompt
+        )
 
     scoring_results: ScoringResults = await get_scoring_results(
         validator.model_type,
-        synapse,
-        responses,
+        forward_process_event.synapse,
+        forward_process_event.responses,
     )
 
     validator.moving_average_scores = await update_moving_averages(
@@ -440,22 +444,31 @@ async def process_responses(
     try:
         event.update(
             {
-                "task_type": task_type,
+                "task_type": forward_process_event.task_type,
                 "block": ttl_get_block(),
                 "step_length": time.time() - start_time,
-                "prompt": prompt if task_type == "TEXT_TO_IMAGE" else None,
+                "prompt": (
+                    forward_process_event.prompt
+                    if forward_process_event.task_type == "TEXT_TO_IMAGE"
+                    else None
+                ),
                 "uids": uids,
-                "hotkeys": [response.axon.hotkey for response in responses],
+                "hotkeys": [
+                    response.axon.hotkey
+                    for response in forward_process_event.responses
+                ],
                 "images": [
                     (
                         response.images[0]
                         if (response.images != [])
                         else empty_image_tensor()
                     )
-                    for response, reward in zip(responses, rewards_list)
+                    for response, reward in zip(
+                        forward_process_event.responses, rewards_list
+                    )
                 ],
                 "rewards": rewards_list,
-                "model_type": model_type,
+                "model_type": forward_process_event.model_type,
             }
         )
         event.update(validator_info)
@@ -470,14 +483,24 @@ async def process_responses(
     return event
 
 
+class ProcessForwardResponsesTask(BaseModel):
+    uuids: torch.LongTensor
+    responses: List[bt.Synapse]
+    prompt: str
+    task_type: str
+    model_type: str
+    stats: Stats
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+
 async def run_step(
     task: ImageGenerationTaskModel,
     axons: List[AxonInfo],
-    uids: torch.LongTensor,
+    uuids: torch.LongTensor,
     model_type: str,
     stats: Stats,
 ):
-    validator = get_validator()
     # Get Arguments
     prompt = task.prompt
     task_type = task.task_type
@@ -506,15 +529,13 @@ async def run_step(
         axons,
         synapse,
     )
-    MultiprocessBackgroundTimer(
-        0.2,
-        process_responses,
-        args=[
-            uids,
-            responses,
-            prompt,
-            task_type,
-            model_type,
-            stats,
-        ],
-    ).start()
+    get_validator().set_weights_queue.put_nowait(
+        ProcessForwardResponsesTask(
+            uuids=uuids,
+            responses=responses,
+            prompt=prompt,
+            task_type=task_type,
+            model_type=model_type,
+            stats=stats,
+        ),
+    )
