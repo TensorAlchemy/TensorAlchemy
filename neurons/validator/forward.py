@@ -1,6 +1,8 @@
 import json
 import asyncio
+import queue
 import time
+from multiprocessing import Queue
 from typing import AsyncIterator, Dict, List, Optional, Tuple
 
 from datetime import datetime
@@ -10,9 +12,11 @@ import torch
 import torchvision.transforms as T
 from bittensor import AxonInfo
 from loguru import logger
+from pydantic import BaseModel, ConfigDict
 
 from neurons.constants import MOVING_AVERAGE_ALPHA
 from neurons.protocol import ImageGeneration, ImageGenerationTaskModel
+from neurons.utils import MultiprocessBackgroundTimer
 
 from neurons.utils.defaults import Stats
 from neurons.utils.log import image_to_str
@@ -31,6 +35,7 @@ from neurons.validator.config import (
     get_device,
     get_metagraph,
     get_backend_client,
+    get_validator,
 )
 from neurons.validator.scoring.types import (
     ScoringResult,
@@ -185,11 +190,11 @@ async def query_axons_async(
 
 
 async def query_axons_and_process_responses(
-    validator: "StableValidator",
     task: ImageGenerationTaskModel,
     axons: List[AxonInfo],
     synapse: bt.Synapse,
 ) -> List[bt.Synapse]:
+    validator = get_validator()
     """Request image generation from axons"""
     responses = []
     async for uid, response in query_axons_async(
@@ -225,7 +230,8 @@ async def query_axons_and_process_responses(
     return responses
 
 
-def log_query_to_history(validator: "StableValidator", uids: torch.Tensor):
+def log_query_to_history(uids: torch.Tensor):
+    validator = get_validator()
     try:
         for uid in uids:
             validator.miner_query_history_duration[
@@ -382,11 +388,116 @@ def get_uids(responses: List[bt.Synapse]) -> torch.Tensor:
     ).to(get_device())
 
 
+async def process_forward_responses_loop(forward_responses_queue: Queue):
+    validator = get_validator()
+    try:
+        forward_process_event: ProcessForwardResponsesTask = (
+            forward_responses_queue.get(block=False)
+        )
+    except queue.Empty:
+        return
+
+    log_query_to_history(validator, forward_process_event.uuids)
+
+    uids = get_uids(forward_process_event.responses)
+
+    logger.info(f"UIDs -> {' | '.join([str(uid.item()) for uid in uids])}")
+
+    validator_info = validator.get_validator_info()
+    logger.info(
+        f"Stats -> Block: {validator_info['block']} "
+        f"| Stake: {validator_info['stake']:.4f} "
+        f"| Rank: {validator_info['rank']:.4f} "
+        f"| VTrust: {validator_info['vtrust']:.4f} "
+        f"| Dividends: {validator_info['dividends']:.4f} "
+        f"| Emissions: {validator_info['emissions']:.4f}",
+    )
+
+    forward_process_event.stats.total_requests += 1
+
+    start_time = time.time()
+
+    if get_config().DEBUG:
+        log_responses(
+            forward_process_event.responses, forward_process_event.prompt
+        )
+
+    scoring_results: ScoringResults = await get_scoring_results(
+        validator.model_type,
+        forward_process_event.synapse,
+        forward_process_event.responses,
+    )
+
+    validator.moving_average_scores = await update_moving_averages(
+        validator.moving_average_scores,
+        scoring_results,
+        hotkey_blacklist=validator.hotkey_blacklist,
+        coldkey_blacklist=validator.coldkey_blacklist,
+    )
+
+    event: Dict = {}
+    rewards_list = scoring_results.combined_scores[uids].tolist()
+
+    for reward_score in scoring_results.scores:
+        event[reward_score.type] = reward_score.scores[uids]
+
+    try:
+        event.update(
+            {
+                "task_type": forward_process_event.task_type,
+                "block": ttl_get_block(),
+                "step_length": time.time() - start_time,
+                "prompt": (
+                    forward_process_event.prompt
+                    if forward_process_event.task_type == "TEXT_TO_IMAGE"
+                    else None
+                ),
+                "uids": uids,
+                "hotkeys": [
+                    response.axon.hotkey
+                    for response in forward_process_event.responses
+                ],
+                "images": [
+                    (
+                        response.images[0]
+                        if (response.images != [])
+                        else empty_image_tensor()
+                    )
+                    for response, reward in zip(
+                        forward_process_event.responses, rewards_list
+                    )
+                ],
+                "rewards": rewards_list,
+                "model_type": forward_process_event.model_type,
+            }
+        )
+        event.update(validator_info)
+    except Exception as err:
+        logger.error(f"Error updating event dict: {err}")
+
+    try:
+        log_event(event)
+    except Exception as e:
+        logger.error(f"Failed while logging event: {e}")
+
+    return event
+
+
+class ProcessForwardResponsesTask(BaseModel):
+    uuids: torch.LongTensor
+    responses: List[bt.Synapse]
+    prompt: str
+    task_type: str
+    model_type: str
+    stats: Stats
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+
 async def run_step(
-    validator: "StableValidator",
     task: ImageGenerationTaskModel,
     axons: List[AxonInfo],
-    uids: torch.LongTensor,
+    uuids: torch.LongTensor,
     model_type: str,
     stats: Stats,
 ):
@@ -414,98 +525,17 @@ async def run_step(
     )
 
     responses = await query_axons_and_process_responses(
-        validator,
         task,
         axons,
         synapse,
     )
-
-    log_query_to_history(validator, uids)
-
-    uids = get_uids(responses)
-
-    logger.info(
-        f"UIDs -> {' | '.join([str(uid.item()) for uid in uids])}",
+    get_validator().set_weights_queue.put_nowait(
+        ProcessForwardResponsesTask(
+            uuids=uuids,
+            responses=responses,
+            prompt=prompt,
+            task_type=task_type,
+            model_type=model_type,
+            stats=stats,
+        ),
     )
-
-    validator_info = validator.get_validator_info()
-    logger.info(
-        f"Stats -> Block: {validator_info['block']} "
-        f"| Stake: {validator_info['stake']:.4f} "
-        f"| Rank: {validator_info['rank']:.4f} "
-        f"| VTrust: {validator_info['vtrust']:.4f} "
-        f"| Dividends: {validator_info['dividends']:.4f} "
-        f"| Emissions: {validator_info['emissions']:.4f}",
-    )
-
-    stats.total_requests += 1
-
-    start_time = time.time()
-
-    # Log the results for monitoring purposes.
-    if get_config().DEBUG:
-        log_responses(responses, prompt)
-
-    # Calculate rewards
-    scoring_results: ScoringResults = await get_scoring_results(
-        validator.model_type,
-        synapse,
-        responses,
-    )
-
-    # TODO: Check and see if miners are getting dropped scores
-    #       because the is-alive filter is too strict or broken
-    # rewards_tensor_adjusted = filter_rewards(
-    #     validator.isalive_dict,
-    #     validator.isalive_threshold,
-    #     # No need for scattering, directly use the rewards
-    #     scoring_results.combined_scores,
-    # )
-
-    # Update moving averages
-    validator.moving_average_scores = await update_moving_averages(
-        validator.moving_average_scores,
-        scoring_results,
-        hotkey_blacklist=validator.hotkey_blacklist,
-        coldkey_blacklist=validator.coldkey_blacklist,
-    )
-
-    # Create event for logging
-    event: Dict = {}
-    rewards_list = scoring_results.combined_scores[uids].tolist()
-
-    for reward_score in scoring_results.scores:
-        event[reward_score.type] = reward_score.scores[uids]
-
-    try:
-        # Log the step event.
-        event.update(
-            {
-                "task_type": task_type,
-                "block": ttl_get_block(),
-                "step_length": time.time() - start_time,
-                "prompt": prompt if task_type == "TEXT_TO_IMAGE" else None,
-                "uids": uids,
-                "hotkeys": [response.axon.hotkey for response in responses],
-                "images": [
-                    (
-                        response.images[0]
-                        if (response.images != [])
-                        else empty_image_tensor()
-                    )
-                    for response, reward in zip(responses, rewards_list)
-                ],
-                "rewards": rewards_list,
-                "model_type": model_type,
-            }
-        )
-        event.update(validator_info)
-    except Exception as err:
-        logger.error(f"Error updating event dict: {err}")
-
-    try:
-        log_event(event)
-    except Exception as e:
-        logger.error(f"Failed while logging event: {e}")
-
-    return event

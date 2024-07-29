@@ -53,7 +53,7 @@ from neurons.validator.config import (
 )
 from neurons.validator.backend.client import TensorAlchemyBackendClient
 from neurons.validator.backend.models import TaskState
-from neurons.validator.forward import run_step
+from neurons.validator.forward import run_step, process_forward_responses_loop
 from neurons.validator.services.openai.service import get_openai_service
 from neurons.validator.utils.version import get_validator_version
 from neurons.validator.utils import (
@@ -303,6 +303,7 @@ class StableValidator:
         manager = Manager()
         self.set_weights_queue: Queue = manager.Queue(maxsize=128)
         self.batches_upload_queue: Queue = manager.Queue(maxsize=2048)
+        self.forward_responses_queue: Queue = manager.Queue(maxsize=128)
 
         # Create a Dict for storing miner query history
         try:
@@ -332,6 +333,7 @@ class StableValidator:
         self.background_timer: BackgroundTimer = None
         self.set_weights_process: MultiprocessBackgroundTimer = None
         self.upload_images_process: MultiprocessBackgroundTimer = None
+        self.process_forward_responses: MultiprocessBackgroundTimer = None
 
         # Start all background threads
         self.start_threads()
@@ -368,6 +370,13 @@ class StableValidator:
                 0.2,
                 set_weights_loop,
                 [self.set_weights_queue],
+            ),
+            (
+                "process_forward_responses",
+                MultiprocessBackgroundTimer,
+                0.2,
+                process_forward_responses_loop,
+                [self.forward_responses_queue],
             ),
         ]
 
@@ -411,9 +420,9 @@ class StableValidator:
                     # If miner doesn't respond for 3 iterations rest it's count to
                     # the average to avoid spamming
                     if self.miner_query_history_fail_count[key] >= 3:
-                        self.miner_query_history_duration[
-                            key
-                        ] = time.perf_counter()
+                        self.miner_query_history_duration[key] = (
+                            time.perf_counter()
+                        )
                         self.miner_query_history_count[key] = int(
                             np.array(
                                 list(self.miner_query_history_count.values())
@@ -451,12 +460,12 @@ class StableValidator:
 
                 # Get a random number of uids
                 try:
-                    uids = await get_random_uids(
+                    uuids = await get_random_uids(
                         self,
                         k=N_NEURONS,
                     )
-                    uids = uids.to(self.device)
-                    axons = [self.metagraph.axons[uid] for uid in uids]
+                    uuids = uuids.to(self.device)
+                    axons = [self.metagraph.axons[uid] for uid in uuids]
 
                 except Exception as e:
                     logger.error(
@@ -466,9 +475,9 @@ class StableValidator:
                     )
                     continue
 
-                task: Optional[
-                    ImageGenerationTaskModel
-                ] = await self.get_image_generation_task()
+                task: Optional[ImageGenerationTaskModel] = (
+                    await self.get_image_generation_task()
+                )
 
                 if task is None:
                     logger.warning(
@@ -484,10 +493,9 @@ class StableValidator:
 
                 # Text to Image Run
                 await run_step(
-                    validator=self,
                     task=task,
                     axons=axons,
-                    uids=uids,
+                    uuids=uuids,
                     model_type=self.model_type,
                     stats=self.stats,
                 )
@@ -791,9 +799,9 @@ class StableValidator:
                     + f"does not match metagraph n {self.metagraph.n}"
                     "Populating new moving_averaged_scores IDs with zeros"
                 )
-                self.moving_average_scores[
-                    : len(neuron_weights)
-                ] = neuron_weights.to(self.device)
+                self.moving_average_scores[: len(neuron_weights)] = (
+                    neuron_weights.to(self.device)
+                )
                 # self.update_hotkeys()
 
             # Check for nans in saved state dict

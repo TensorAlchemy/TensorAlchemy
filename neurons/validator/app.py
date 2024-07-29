@@ -57,10 +57,16 @@ def check_password():
 
     def password_entered():
         """Checks whether a password entered by the user is correct."""
-        username_correct = constant_time_compare(st.session_state["username"], username)
-        password_correct = constant_time_compare(st.session_state["password"], password)
+        username_correct = constant_time_compare(
+            st.session_state["username"], username
+        )
+        password_correct = constant_time_compare(
+            st.session_state["password"], password
+        )
 
-        st.session_state["password_correct"] = username_correct and password_correct
+        st.session_state["password_correct"] = (
+            username_correct and password_correct
+        )
 
         # Don't store the username or password in the session
         del st.session_state["password"]

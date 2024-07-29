@@ -116,6 +116,7 @@ def add_args(parser):
 config: bt.config = None
 wallet: bt.wallet = None
 device: torch.device = None
+global_validator: "StableValidator" = None
 metagraph: bt.metagraph = None
 subtensor: bt.subtensor = None
 backend_client: "TensorAlchemyBackendClient" = None
@@ -249,3 +250,12 @@ def get_device(new_device: Optional[torch.device] = None) -> torch.device:
             device = new_device
 
     return device
+
+
+def get_validator():
+    global global_validator
+    if global_validator is None:
+        from neurons.validator.validator import StableValidator
+
+        global_validator = StableValidator()
+    return global_validator
