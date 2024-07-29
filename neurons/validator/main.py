@@ -39,6 +39,6 @@ if __name__ == "__main__":
         )
 
     # Import StableValidator after fixing paths
-    from validator import StableValidator
+    from neurons.validator.config import get_validator
 
-    asyncio.run(StableValidator().run())
+    asyncio.run(get_validator().run())

@@ -32,6 +32,7 @@ from neurons.validator.config import (
     get_device,
     get_metagraph,
     get_backend_client,
+    get_validator,
 )
 from neurons.validator.scoring.types import (
     ScoringResult,
@@ -186,11 +187,11 @@ async def query_axons_async(
 
 
 async def query_axons_and_process_responses(
-    validator: "StableValidator",
     task: ImageGenerationTaskModel,
     axons: List[AxonInfo],
     synapse: bt.Synapse,
 ) -> List[bt.Synapse]:
+    validator = get_validator()
     """Request image generation from axons"""
     responses = []
     async for uid, response in query_axons_async(
@@ -226,7 +227,8 @@ async def query_axons_and_process_responses(
     return responses
 
 
-def log_query_to_history(validator: "StableValidator", uids: torch.Tensor):
+def log_query_to_history(uids: torch.Tensor):
+    validator = get_validator()
     try:
         for uid in uids:
             validator.miner_query_history_duration[
@@ -383,8 +385,7 @@ def get_uids(responses: List[bt.Synapse]) -> torch.Tensor:
     ).to(get_device())
 
 
-def process_responses(
-    validator: "StableValidator",
+async def process_responses(
     uids: torch.Tensor,
     responses: List[bt.Synapse],
     prompt: str,
@@ -393,6 +394,7 @@ def process_responses(
     stats: Stats,
     synapse: bt.Synapse,
 ):
+    validator = get_validator()
     log_query_to_history(validator, uids)
 
     uids = get_uids(responses)
@@ -416,21 +418,17 @@ def process_responses(
     if get_config().DEBUG:
         log_responses(responses, prompt)
 
-    scoring_results: ScoringResults = asyncio.run(
-        get_scoring_results(
-            validator.model_type,
-            synapse,
-            responses,
-        )
+    scoring_results: ScoringResults = await get_scoring_results(
+        validator.model_type,
+        synapse,
+        responses,
     )
 
-    validator.moving_average_scores = asyncio.run(
-        update_moving_averages(
-            validator.moving_average_scores,
-            scoring_results,
-            hotkey_blacklist=validator.hotkey_blacklist,
-            coldkey_blacklist=validator.coldkey_blacklist,
-        )
+    validator.moving_average_scores = await update_moving_averages(
+        validator.moving_average_scores,
+        scoring_results,
+        hotkey_blacklist=validator.hotkey_blacklist,
+        coldkey_blacklist=validator.coldkey_blacklist,
     )
 
     event: Dict = {}
@@ -473,13 +471,13 @@ def process_responses(
 
 
 async def run_step(
-    validator: "StableValidator",
     task: ImageGenerationTaskModel,
     axons: List[AxonInfo],
     uids: torch.LongTensor,
     model_type: str,
     stats: Stats,
 ):
+    validator = get_validator()
     # Get Arguments
     prompt = task.prompt
     task_type = task.task_type
@@ -504,7 +502,6 @@ async def run_step(
     )
 
     responses = await query_axons_and_process_responses(
-        validator,
         task,
         axons,
         synapse,
@@ -513,7 +510,6 @@ async def run_step(
         0.2,
         process_responses,
         args=[
-            validator,
             uids,
             responses,
             prompt,

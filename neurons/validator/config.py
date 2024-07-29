@@ -11,6 +11,7 @@ from loguru import logger
 from neurons.constants import (
     IS_TEST,
 )
+from neurons.validator.validator import StableValidator
 
 
 def get_default_device() -> torch.device:
@@ -249,3 +250,10 @@ def get_device(new_device: Optional[torch.device] = None) -> torch.device:
             device = new_device
 
     return device
+
+
+def get_validator():
+    global global_validator
+    if global_validator is None:
+        global_validator = StableValidator()
+    return global_validator
