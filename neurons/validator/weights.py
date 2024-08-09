@@ -42,9 +42,11 @@ async def set_weights_loop(
     # Log empty queue each minute
     try:
         weights_event: SetWeightsTask = set_weights_queue.get(block=False)
-        logger.info(
-            f"[set_weights_loop] set_weights_queue size={set_weights_queue.qsize()}"
-        )
+        queue_size: int = set_weights_queue.qsize()
+
+        logger.info(f"[set_weights_loop] {queue_size=}")
+        if not weights_event:
+            return
     except queue.Empty:
         # Only output each minute to prevent spamming
         if int(time.time()) % 60 == 0:
