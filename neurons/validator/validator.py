@@ -23,7 +23,6 @@ import numpy as np
 from loguru import logger
 
 from neurons.exceptions import StakeBelowThreshold
-
 from neurons.update_checker import safely_check_for_updates
 from neurons.protocol import (
     ModelType,
