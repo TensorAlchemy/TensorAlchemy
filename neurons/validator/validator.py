@@ -20,6 +20,7 @@ import torch
 import numpy as np
 from loguru import logger
 
+
 from neurons.exceptions import StakeBelowThreshold
 from neurons.update_checker import safely_check_for_updates
 from neurons.protocol import (
@@ -68,6 +69,7 @@ set_start_method("spawn", force=True)
 
 # Define a type alias for our thread-like objects
 ThreadLike = Union[Thread, Process]
+upload_images_loop_suspension_end_time = None
 
 upload_images_loop_suspension_end_time = None
 
