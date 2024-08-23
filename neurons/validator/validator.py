@@ -20,11 +20,7 @@ import torch
 import numpy as np
 from loguru import logger
 
-from neurons.constants import (
-    VALIDATOR_SETTINGS_FILE,
-)
 from neurons.exceptions import StakeBelowThreshold
-
 from neurons.update_checker import safely_check_for_updates
 from neurons.protocol import (
     ModelType,
@@ -116,7 +112,6 @@ async def upload_images_loop(
             f"Skipping uploads until {upload_images_loop_suspension_end_time}"
         )
         return
-
     # Send new batches to the Human Validation Bot
     try:
         backend_client: TensorAlchemyBackendClient = get_backend_client()
@@ -583,77 +578,6 @@ class StableValidator:
         logger.info(f"Should set weights: {should_set}")
 
         return should_set
-
-    def save_state(self):
-        """Save hotkeys, neuron model and moving average scores to filesystem."""
-        logger.info("Saving current validator state...")
-        try:
-            neuron_state_dict = {
-                "neuron_weights": self.moving_average_scores.to("cpu").tolist(),
-            }
-            torch.save(
-                neuron_state_dict,
-                f"{self.config.alchemy.full_path}/model.torch",
-            )
-            logger.info(
-                f"Saved model {self.config.alchemy.full_path}/model.torch",
-            )
-            # empty cache
-            torch.cuda.empty_cache()
-            logger.info("Saved current validator state.")
-        except Exception as e:
-            logger.error(f"Failed to save model with error: {e}")
-
-    def load_state(self):
-        """Load hotkeys and moving average scores from filesystem."""
-        logger.info("Loading previously saved validator state...")
-        try:
-            state_dict = torch.load(
-                f"{self.config.alchemy.full_path}/model.torch"
-            )
-            neuron_weights = torch.tensor(state_dict["neuron_weights"])
-
-            has_nans = torch.isnan(neuron_weights).any()
-            has_infs = torch.isinf(neuron_weights).any()
-
-            if has_nans:
-                logger.info(f"Nans found in the model state: {has_nans}")
-
-            if has_infs:
-                logger.info(f"Infs found in the model state: {has_infs}")
-
-            # Check to ensure that the size of the neruon
-            # weights matches the metagraph size.
-            if neuron_weights.shape != (self.metagraph.n,):
-                logger.warning(
-                    f"Neuron weights shape {neuron_weights.shape} "
-                    + f"does not match metagraph n {self.metagraph.n}"
-                    "Populating new moving_averaged_scores IDs with zeros"
-                )
-                self.moving_average_scores[: len(neuron_weights)] = (
-                    neuron_weights.to(self.device)
-                )
-                # self.update_hotkeys()
-
-            # Check for nans in saved state dict
-            elif not any([has_nans, has_infs]):
-                self.moving_average_scores = neuron_weights.to(self.device)
-                logger.info(f"MA scores: {self.moving_average_scores}")
-                # self.update_hotkeys()
-            else:
-                logger.info("Loaded MA scores from scratch.")
-
-            # Zero out any negative scores
-            for i, average in enumerate(self.moving_average_scores):
-                if average < 0:
-                    self.moving_average_scores[i] = 0
-
-            logger.info(
-                f"Loaded model {self.config.alchemy.full_path}/model.torch",
-            )
-
-        except Exception as e:
-            logger.error(f"Failed to load model with error: {e}")
 
     def serve_axon(self):
         """Serve axon to enable external connections."""
