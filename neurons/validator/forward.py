@@ -44,6 +44,7 @@ from scoring.pipeline import (
 )
 
 transform = T.Compose([T.PILToTensor()])
+block_last_ma_decay: int = -1
 
 
 def log_moving_averages_for_grafana(
@@ -70,6 +71,8 @@ async def update_moving_averages(
     scoring_results: ScoringResults,
     alpha: Optional[float] = MOVING_AVERAGE_ALPHA,
 ) -> torch.FloatTensor:
+    global block_last_ma_decay
+
     metagraph: bt.metagraph = get_metagraph()
 
     rewards = torch.nan_to_num(
@@ -113,9 +116,19 @@ async def update_moving_averages(
     uids_to_scatter: torch.Tensor = scoring_results.combined_uids.to(torch.long)
     logger.info(f"Scattering MA deltas over UIDS {uids_to_scatter}")
 
+    block_now: int = ttl_get_block()
+    block_delta: float = float(block_now - block_last_ma_decay)
+
+    # Ensure we don't apply a massive gradient
+    if block_last_ma_decay < 0:
+        block_delta = 1
+
+    # Update the last block update so we can apply timedelta for next MA decay
+    block_last_ma_decay = block_now
+
     # Now each step we apply a small decay to the weights
     # this prevents miners from just turning off and still getting rewarded
-    updated_ma_scores *= 1.0 - get_config().alchemy.ma_decay
+    updated_ma_scores *= (1.0 - get_config().alchemy.ma_decay) ** block_delta
 
     # But actually set scores for the miners who replied to us
     # This prevents overly negatively weighting the miner response over time
