@@ -94,10 +94,12 @@ async def update_moving_averages(
 
     # Calculate the time elapsed since last update
     block_now: int = ttl_get_block()
-    block_delta: float = float(block_now - block_last_ma_decay)
+    block_delta: float = float(max(1, block_now - block_last_ma_decay))
+
     # Ensure we don't apply a massive change if it's the first update
     if block_last_ma_decay < 0:
         block_delta = 1
+
     # Update the last block update for next calculation
     block_last_ma_decay = block_now
 
