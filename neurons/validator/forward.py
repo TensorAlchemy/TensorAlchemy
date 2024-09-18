@@ -44,6 +44,7 @@ from scoring.pipeline import (
 )
 
 transform = T.Compose([T.PILToTensor()])
+block_last_ma_decay: int = -1
 
 
 def log_moving_averages_for_grafana(
@@ -70,8 +71,8 @@ async def update_moving_averages(
     scoring_results: ScoringResults,
     alpha: Optional[float] = MOVING_AVERAGE_ALPHA,
 ) -> torch.FloatTensor:
+    global block_last_ma_decay
     metagraph: bt.metagraph = get_metagraph()
-
     rewards = torch.nan_to_num(
         scoring_results.combined_scores,
         nan=0.0,
@@ -79,54 +80,61 @@ async def update_moving_averages(
         neginf=0.0,
     ).to(get_device())
 
-    # Number of miners has increased (a new miner has joined)
+    # Handle changes in the number of miners
     if rewards.size(0) > previous_ma_scores.size(0):
         logger.info("New miners detected. Adjusting moving averages.")
         new_miners_count = rewards.size(0) - previous_ma_scores.size(0)
         new_miner_scores = torch.zeros(new_miners_count, device=get_device())
         previous_ma_scores = torch.cat([previous_ma_scores, new_miner_scores])
-
-    # Number of miners has reduced (less miners online now)
     elif rewards.size(0) < previous_ma_scores.size(0):
         logger.warning(
             "Fewer miners than expected. Truncating moving averages."
         )
         previous_ma_scores = previous_ma_scores[: rewards.size(0)]
 
-    # We merge the new rewards into the moving average using ALPHA
-    # Alpha is the rate of integration of a new component into the MA tensor.
-    #
-    # Example:
-    #  - Alpha    = 0.01
-    #  - MA_SCORE = 1.00
-    #  - Rewards  = 0.50
-    #
-    # So the result is:
-    # (0.01 * 0.5) + (1.0 - 0.01) * 1.00 = 0.995
-    new_moving_average_scores = alpha * rewards + (
-        1 - alpha
+    # Calculate the time elapsed since last update
+    block_now: int = ttl_get_block()
+    block_delta: float = float(max(1, block_now - block_last_ma_decay))
+
+    # Ensure we don't apply a massive change if it's the first update
+    if block_last_ma_decay < 0:
+        block_delta = 1
+
+    # Update the last block update for next calculation
+    block_last_ma_decay = block_now
+
+    # Calculate the adjusted alpha based on time elapsed
+    # This increases the weight of new scores when more time has passed
+    adjusted_alpha = 1 - (1 - alpha) ** block_delta
+
+    # Apply the moving average update with adjusted alpha
+    # This gives more weight to new scores when there's been
+    # a longer time since last update
+    new_moving_average_scores = adjusted_alpha * rewards + (
+        1 - adjusted_alpha
     ) * previous_ma_scores.to(get_device())
 
-    # Scatter the scores into the moving average scores
+    # Prepare to update scores
     updated_ma_scores = previous_ma_scores.clone()
-
     uids_to_scatter: torch.Tensor = scoring_results.combined_uids.to(torch.long)
     logger.info(f"Scattering MA deltas over UIDS {uids_to_scatter}")
 
-    # Now each step we apply a small decay to the weights
-    # this prevents miners from just turning off and still getting rewarded
-    updated_ma_scores *= 1.0 - get_config().alchemy.ma_decay
-
-    # But actually set scores for the miners who replied to us
-    # This prevents overly negatively weighting the miner response over time
+    # Update scores for miners who responded
     updated_ma_scores[uids_to_scatter] = new_moving_average_scores[
         uids_to_scatter
     ]
 
-    # Ensure values don't go below zero
+    # Apply decay to scores of miners who didn't respond
+    # The decay is stronger when more time has passed
+    decay_factor = 1 - adjusted_alpha
+    mask = torch.ones_like(updated_ma_scores, dtype=torch.bool)
+    mask[uids_to_scatter] = False
+    updated_ma_scores[mask] *= decay_factor
+
+    # Ensure no negative scores
     updated_ma_scores = torch.clamp(updated_ma_scores, min=0)
 
-    # Outputs MA scores for grafana
+    # Log moving averages for monitoring
     log_moving_averages_for_grafana(updated_ma_scores)
 
     # Save moving averages scores on backend
@@ -136,19 +144,20 @@ async def update_moving_averages(
             updated_ma_scores,
         )
     except PostMovingAveragesError as e:
-        logger.error(f"failed to post moving averages: {e}")
+        logger.error(f"Failed to post moving averages: {e}")
 
+    # Apply blacklist
     try:
         hotkey_blacklist, coldkey_blacklist = await get_blacklist()
-
         for i, (hotkey, coldkey) in enumerate(
             zip(metagraph.hotkeys, metagraph.coldkeys)
         ):
             if hotkey in hotkey_blacklist or coldkey in coldkey_blacklist:
                 updated_ma_scores[i] = 0
-
     except Exception as e:
-        logger.error(f"An unexpected error occurred (E1): {e}")
+        logger.error(
+            f"An unexpected error occurred while applying blacklist: {e}"
+        )
 
     return updated_ma_scores
 
