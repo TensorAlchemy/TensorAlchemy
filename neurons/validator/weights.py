@@ -1,7 +1,6 @@
 import queue
-import time
 import traceback
-from typing import List, Optional
+from typing import Dict, List, Optional
 from multiprocessing import Event, Queue
 
 import torch
@@ -152,8 +151,14 @@ async def set_weights(
         )
         return
 
-    logger.info(f"Processed weights: {processed_weights.tolist()}")
-    logger.info(f"Processed weight UIDs: {processed_weight_uids.tolist()}")
+    zipped_weights: Dict[int, float] = dict(
+        zip(
+            processed_weight_uids.tolist(),
+            processed_weights.tolist(),
+        )
+    )
+
+    logger.info(f"Processed weights: {zipped_weights}")
 
     try:
         _success, message = subtensor.set_weights(
