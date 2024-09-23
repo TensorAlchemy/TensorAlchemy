@@ -15,7 +15,7 @@ from tenacity import (
     retry_if_result,
 )
 
-
+from neurons.config.utils import is_testnet
 from neurons.constants import DEVELOP_URL, TESTNET_URL, MAINNET_URL
 from neurons.exceptions import StakeBelowThreshold
 from neurons.protocol import denormalize_image_model, ImageGenerationTaskModel
@@ -27,7 +27,7 @@ from neurons.validator.backend.exceptions import (
     UpdateTaskError,
     UploadScoresError,
 )
-from neurons.config import get_config
+from neurons.config import get_config, AlchemyHost
 from neurons.validator.backend.models import TaskState
 from neurons.validator.schemas import Batch, ScoresUploadRequest
 
@@ -43,11 +43,11 @@ class TensorAlchemyBackendClient:
 
         self.api_url = MAINNET_URL
 
-        if self.config.netuid == 25:
-            self.api_url = DEVELOP_URL
+        if is_testnet():
+            self.api_url = TESTNET_URL
 
-            if self.config.alchemy.host == "testnet":
-                self.api_url = TESTNET_URL
+            if self.config.alchemy.host == AlchemyHost.DEVELOP:
+                self.api_url = DEVELOP_URL
 
         logger.info(f"Using backend server {self.api_url}")
 

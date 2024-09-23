@@ -20,6 +20,7 @@ import torch
 import numpy as np
 from loguru import logger
 
+from neurons.common.saas.utils import saas_generate_dashboard_url
 from neurons.exceptions import StakeBelowThreshold
 
 from neurons.update_checker import safely_check_for_updates
@@ -307,8 +308,21 @@ class StableValidator:
         self.upload_images_process: MultiprocessBackgroundTimer = None
         self.upload_scores_process: MultiprocessBackgroundTimer = None
 
+        self.show_saas_dashboard_url()
         # Start all background threads
         self.start_threads(True)
+
+    def show_saas_dashboard_url(self):
+        saas_dashboard_url = saas_generate_dashboard_url(self.wallet)
+        logger.info(
+            f"------------------------------------------------------------"
+        )
+        logger.info(
+            f"You can access your SaaS dashboard using this URL: {saas_dashboard_url}"
+        )
+        logger.info(
+            f"------------------------------------------------------------"
+        )
 
     def start_thread(self, thread: ThreadLike, is_startup: bool = True) -> None:
         if thread.is_alive():
