@@ -8,6 +8,7 @@ from substrateinterface import Keypair
 from neurons import constants
 from neurons.config import get_config, AlchemyHost
 from neurons.config.utils import is_testnet
+from neurons.utils.common import is_validator
 
 
 def get_dashboard_base_url():
@@ -45,6 +46,9 @@ def saas_generate_dashboard_url(wallet: bt.wallet):
 
     token = base64.b64encode(json.dumps(token_data).encode()).decode()
 
-    dashboard_url = f"{get_dashboard_base_url()}?token={token}"
+    neuron_type = "validator" if is_validator() else "miner"
+    dashboard_url = (
+        f"{get_dashboard_base_url()}?type={neuron_type}&token={token}"
+    )
 
     return dashboard_url
