@@ -44,10 +44,10 @@ class TensorAlchemyBackendClient:
         self.api_url = MAINNET_URL
 
         if is_testnet():
-            self.api_url = TESTNET_URL
+            self.api_url = DEVELOP_URL
 
-            if self.config.alchemy.host == AlchemyHost.DEVELOP:
-                self.api_url = DEVELOP_URL
+            if self.config.alchemy.host == AlchemyHost.TESTNET:
+                self.api_url = TESTNET_URL
 
         logger.info(f"Using backend server {self.api_url}")
 

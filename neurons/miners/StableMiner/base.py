@@ -9,6 +9,8 @@ from multiprocessing import Manager, Event
 
 import torch
 from loguru import logger
+
+from neurons.common.saas.utils import saas_generate_dashboard_url
 from neurons.constants import VPERMIT_TAO
 from neurons.protocol import ImageGeneration, IsAlive, ModelType
 
@@ -44,8 +46,22 @@ class BaseMiner(ABC):
             ["5C5PXHeYLV5fAx31HkosfCkv8ark3QjbABbjEusiD3HXH2Ta"]
         )
 
+        self.show_saas_dashboard_url()
+
         self.initialize_components()
         self.request_dict: Dict[str, Dict[str, Union[List[float], int]]] = {}
+
+    def show_saas_dashboard_url(self):
+        saas_dashboard_url = saas_generate_dashboard_url(get_wallet())
+        logger.info(
+            f"------------------------------------------------------------"
+        )
+        logger.info(
+            f"You can access your SaaS dashboard using this URL: {saas_dashboard_url}"
+        )
+        logger.info(
+            f"------------------------------------------------------------"
+        )
 
     def initialize_components(self) -> None:
         self.initialize_event_dict()

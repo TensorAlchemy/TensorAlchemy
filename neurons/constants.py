@@ -38,7 +38,8 @@ MAINNET_URL = "https://api.tensoralchemy.ai/api"
 TESTNET_URL = "https://api-testnet.tensoralchemy.ai/api"
 DEVELOP_URL = "https://api-develop.tensoralchemy.ai/api"
 
-SAAS_DASHBOARD_TESTNET_URL = "https://saas-develop.tensoralchemy.ai/signin"
+SAAS_DASHBOARD_DEVELOP_URL = "https://saas-develop.tensoralchemy.ai/signin"
+SAAS_DASHBOARD_TESTNET_URL = "https://saas-testnet.tensoralchemy.ai/signin"
 SAAS_DASHBOARD_MAINNET_URL = "https://saas.tensoralchemy.ai/signin"
 SAAS_DASHBOARD_URL_EXPIRATION_TIME = 3600
 

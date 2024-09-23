@@ -6,13 +6,15 @@ import bittensor as bt
 from substrateinterface import Keypair
 
 from neurons import constants
-from neurons.config import get_config
+from neurons.config import get_config, AlchemyHost
 from neurons.config.utils import is_testnet
 
 
 def get_dashboard_base_url():
     if is_testnet():
-        return constants.SAAS_DASHBOARD_TESTNET_URL
+        if get_config().alchemy.host == AlchemyHost.TESTNET:
+            return constants.SAAS_DASHBOARD_TESTNET_URL
+        return constants.SAAS_DASHBOARD_DEVELOP_URL
 
     return constants.SAAS_DASHBOARD_MAINNET_URL
 
