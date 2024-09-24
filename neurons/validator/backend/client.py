@@ -25,10 +25,11 @@ from neurons.validator.backend.exceptions import (
     PostMovingAveragesError,
     PostWeightsError,
     UpdateTaskError,
+    UploadScoresError,
 )
 from neurons.config import get_config
 from neurons.validator.backend.models import TaskState
-from neurons.validator.schemas import Batch
+from neurons.validator.schemas import Batch, ScoresUploadRequest
 
 
 class TensorAlchemyBackendClient:
@@ -282,6 +283,32 @@ class TensorAlchemyBackendClient:
             )
 
         return None
+
+    async def upload_scores(
+        self,
+        scores_upload_request: ScoresUploadRequest,
+        timeout: int = 10,
+    ) -> None:
+        """Upload scores to the backend"""
+        try:
+            data = scores_upload_request.model_dump_json()
+            logger.info(f"[upload_scores] data={data}")
+            async with self._client() as client:
+                response = await client.post(
+                    f"{self.api_url}/scores",
+                    json=data,
+                    timeout=timeout,
+                )
+        except httpx.ReadTimeout:
+            raise UploadScoresError(
+                f"failed to upload scores - read timeout ({timeout}s)"
+            )
+
+        if response.status_code != 200:
+            raise UploadScoresError(
+                f"failed to upload scores with status_code "
+                f"{response.status_code}: {self._error_response_text(response)}"
+            )
 
     async def _add_auth_headers(self, request: httpx.Request):
         """Sign request (adding X-Signature and X-Timestamp headers)

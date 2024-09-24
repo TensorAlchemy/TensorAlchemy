@@ -16,3 +16,7 @@ class PostMovingAveragesError(Exception):
 
 class PostWeightsError(Exception):
     pass
+
+
+class UploadScoresError(Exception):
+    pass
