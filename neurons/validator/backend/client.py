@@ -323,7 +323,6 @@ class TensorAlchemyBackendClient:
             request.headers.update(
                 {"X-Validator-Version": get_validator_version()}
             )
-            print(f"headers={request.headers}")
         except Exception:
             logger.error(
                 f"Exception raised while including validator's version"
