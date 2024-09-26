@@ -1,5 +1,6 @@
-import base64
+import json
 import time
+from base64 import b64encode
 from typing import Dict, List
 
 import bittensor as bt
@@ -55,7 +56,7 @@ class TensorAlchemyBackendClient:
             event_hooks={
                 "request": [
                     # Add signature to request
-                    self._sign_request,
+                    self._add_auth_headers,
                     self._include_validator_version,
                 ]
             }
@@ -282,23 +283,37 @@ class TensorAlchemyBackendClient:
 
         return None
 
-    async def _sign_request(self, request: httpx.Request):
+    async def _add_auth_headers(self, request: httpx.Request):
         """Sign request (adding X-Signature and X-Timestamp headers)
         using validator's hotkey
         """
         try:
-            timestamp = str(int(time.time()))
-            message = f"{request.method} {request.url}?timestamp={timestamp}"
-
-            signature = self._sign_message(message)
-
             request.headers.update(
-                {"X-Signature": signature, "X-Timestamp": timestamp}
+                {"Authorization": self._get_authorization_header()}
             )
         except Exception as e:
             logger.error(
-                f"Exception raised while signing request: {e}; sending plain old request"
+                f"Exception raised while adding auth headers: {e}; sending request without authentication"
             )
+
+    def _get_authorization_header(self) -> str:
+        """Returns authorization header with use of hotkey signing"""
+        timestamp = int(time.time())
+        token_expiration_time = 60
+        message = json.dumps(
+            {
+                "exp": timestamp + token_expiration_time,
+                "iat": timestamp,
+                "hotkey": self.hotkey.ss58_address,
+            }
+        )
+
+        signature = self.hotkey.sign(message.encode())
+        signature_base64: str = b64encode(signature).decode()
+
+        message_base64: str = b64encode(message.encode()).decode()
+
+        return f"Hotkey {message_base64}.{signature_base64}"
 
     async def _include_validator_version(self, request: httpx.Request):
         """Put validator's version in request headers"""
@@ -312,11 +327,6 @@ class TensorAlchemyBackendClient:
             logger.error(
                 f"Exception raised while including validator's version"
             )
-
-    def _sign_message(self, message: str):
-        """Sign message using validator's hotkey"""
-        signature = self.hotkey.sign(message.encode())
-        return base64.b64encode(signature).decode()
 
     def _error_response_text(self, response: httpx.Response):
         if response.status_code == 502:
