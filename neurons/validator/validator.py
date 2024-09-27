@@ -36,7 +36,10 @@ from neurons.utils import (
     background_loop,
 )
 from neurons.utils.log import configure_logging
-from neurons.validator.schemas import Batch
+from neurons.validator.schemas import (
+    Batch,
+    ScoresUploadRequest,
+)
 from neurons.config import (
     get_device,
     get_config,
@@ -138,6 +141,25 @@ async def upload_images_loop(
             "An error occurred trying to submit a batch: "
             + f"{e}\n{traceback.format_exc()}"
         )
+
+
+async def upload_scores_loop(
+    _should_quit: Event,
+    scores_upload_queue: Queue,
+) -> None:
+    backend_client = get_backend_client()
+    queue_size: int = scores_upload_queue.qsize()
+    if queue_size > 0:
+        logger.info(f"{queue_size} scores data items in queue")
+
+    try:
+        scores_upload_request: ScoresUploadRequest = scores_upload_queue.get(
+            block=False
+        )
+    except queue.Empty:
+        return
+
+    await backend_client.upload_scores(scores_upload_request)
 
 
 class StableValidator:
@@ -276,12 +298,14 @@ class StableValidator:
         self.should_quit: Event = manager.Event()
         self.set_weights_queue: Queue = manager.Queue(maxsize=128)
         self.batches_upload_queue: Queue = manager.Queue(maxsize=2048)
+        self.scores_upload_queue: Queue = manager.Queue(maxsize=2048)
 
         self.model_type = ModelType.CUSTOM
 
         self.background_loop: BackgroundTimer = None
         self.set_weights_process: MultiprocessBackgroundTimer = None
         self.upload_images_process: MultiprocessBackgroundTimer = None
+        self.upload_scores_process: MultiprocessBackgroundTimer = None
 
         # Start all background threads
         self.start_threads(True)
@@ -300,6 +324,7 @@ class StableValidator:
         processes: List[str] = [
             "background_loop",
             "upload_images_process",
+            "upload_scores_process",
             "set_weights_process",
         ]
 
@@ -332,6 +357,13 @@ class StableValidator:
                 0.5,
                 upload_images_loop,
                 [self.should_quit, self.batches_upload_queue],
+            ),
+            (
+                "upload_scores_process",
+                MultiprocessBackgroundTimer,
+                1.0,
+                upload_scores_loop,
+                [self.should_quit, self.scores_upload_queue],
             ),
             (
                 "set_weights_process",

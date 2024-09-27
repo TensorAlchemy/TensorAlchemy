@@ -25,10 +25,11 @@ from neurons.validator.backend.exceptions import (
     PostMovingAveragesError,
     PostWeightsError,
     UpdateTaskError,
+    UploadScoresError,
 )
 from neurons.config import get_config
 from neurons.validator.backend.models import TaskState
-from neurons.validator.schemas import Batch
+from neurons.validator.schemas import Batch, ScoresUploadRequest
 
 
 class TensorAlchemyBackendClient:
@@ -116,7 +117,11 @@ class TensorAlchemyBackendClient:
 
         if response.status_code == 200:
             logger.info(f"[get_task] task={task}")
-            return denormalize_image_model(**task)
+            try:
+                return denormalize_image_model(**task)
+            except Exception as e:
+                logger.error(f"[get_task] failed to parse task response: {e}")
+                return None
 
         if response.status_code == 403:
             if task.get("code") == "STAKE_BELOW_THRESHOLD":
@@ -282,6 +287,31 @@ class TensorAlchemyBackendClient:
             )
 
         return None
+
+    async def upload_scores(
+        self,
+        scores_upload_request: ScoresUploadRequest,
+        timeout: int = 10,
+    ) -> None:
+        """Upload scores to the backend"""
+        try:
+            data = scores_upload_request.model_dump()
+            async with self._client() as client:
+                response = await client.post(
+                    f"{self.api_url}/batches/{scores_upload_request.task_id}/scores",
+                    json=data,
+                    timeout=timeout,
+                )
+        except httpx.ReadTimeout:
+            raise UploadScoresError(
+                f"failed to upload scores - read timeout ({timeout}s)"
+            )
+
+        if response.status_code != 200:
+            raise UploadScoresError(
+                f"failed to upload scores with status_code "
+                f"{response.status_code}: {self._error_response_text(response)}"
+            )
 
     async def _add_auth_headers(self, request: httpx.Request):
         """Sign request (adding X-Signature and X-Timestamp headers)

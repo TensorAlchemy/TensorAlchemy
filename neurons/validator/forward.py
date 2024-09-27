@@ -1,7 +1,7 @@
 import json
 import asyncio
 import time
-from typing import AsyncIterator, List, Optional, Tuple
+from typing import AsyncIterator, List, Optional, Tuple, Dict
 
 from datetime import datetime
 
@@ -23,7 +23,7 @@ from neurons.utils.image import (
 
 from neurons.validator.backend.exceptions import PostMovingAveragesError
 from neurons.validator.event import EventSchema
-from neurons.validator.schemas import Batch
+from neurons.validator.schemas import Batch, ScoresUploadRequest
 from neurons.validator.utils import ttl_get_block
 from scoring.models.types import RewardModelType
 from neurons.config import (
@@ -200,6 +200,36 @@ async def query_axons_async(
     for future in asyncio.as_completed(tasks):
         uid, result = await future
         yield uid, result
+
+
+async def enqueue_upload_scores(
+    validator: "StableValidator",
+    task: ImageGenerationTaskModel,
+    uids: torch.Tensor,
+    scoring_results: ScoringResults,
+):
+    metagraph = get_metagraph()
+    scores: Dict[str, Dict[str, float]] = {}
+
+    for score_result in scoring_results.scores:
+        score_type = score_result.type
+        if score_type not in [
+            RewardModelType.IMAGE,
+            RewardModelType.ENHANCED_CLIP,
+        ]:
+            # Don't store other scores like HUMAN, NSFW, etc.
+            continue
+        scores[score_type] = {}
+        for uid, score in zip(uids, score_result.raw[uids]):
+            hotkey = metagraph.hotkeys[uid.item()]
+            scores[score_type][hotkey] = score.item()
+
+    try:
+        validator.scores_upload_queue.put_nowait(
+            ScoresUploadRequest(task_id=task.task_id, scores=scores)
+        )
+    except Exception as e:
+        logger.error(f"Could not add scores to upload queue: {e}")
 
 
 async def query_axons_and_process_responses(
@@ -461,6 +491,9 @@ async def run_step(
             logger.info(
                 f"UID: {uid.item()} - CLIP score: {clip_score.item():.4f}, IMAGE score: {image_score.item():.4f}"
             )
+
+        # Upload scores to backend
+        await enqueue_upload_scores(validator, task, uids, scoring_results)
     else:
         logger.warning("CLIP or IMAGE rewards not found in scoring results")
 
@@ -482,9 +515,11 @@ async def run_step(
             prompt=prompt if task_type == "TEXT_TO_IMAGE" else None,
             step_length=time.time() - start_time,
             images=[
-                image_to_str(response.images[0])
-                if response.images
-                else "NO IMAGE"
+                (
+                    image_to_str(response.images[0])
+                    if response.images
+                    else "NO IMAGE"
+                )
                 for response in responses
             ],
             results=scoring_results,

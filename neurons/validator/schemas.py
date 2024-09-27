@@ -1,6 +1,8 @@
-from typing import List
+from typing import List, Dict
 
 from pydantic import BaseModel
+
+from scoring.models import RewardModelType
 
 
 class Batch(BaseModel):
@@ -20,3 +22,8 @@ class Batch(BaseModel):
 
     # Validator
     validator_hotkey: str
+
+
+class ScoresUploadRequest(BaseModel):
+    task_id: str
+    scores: Dict[RewardModelType, Dict[str, float]]
