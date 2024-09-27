@@ -205,6 +205,7 @@ async def query_axons_async(
 async def enqueue_upload_scores(
     validator: "StableValidator",
     task: ImageGenerationTaskModel,
+    uids: torch.Tensor,
     scoring_results: ScoringResults,
 ):
     metagraph = get_metagraph()
@@ -219,9 +220,7 @@ async def enqueue_upload_scores(
             # Don't store other scores like HUMAN, NSFW, etc.
             continue
         scores[score_type] = {}
-        for uid, score in zip(
-            scoring_results.combined_uids, score_result.normalized
-        ):
+        for uid, score in zip(uids, score_result.scores[uids]):
             hotkey = metagraph.hotkeys[uid.item()]
             scores[score_type][hotkey] = score.item()
 
@@ -482,9 +481,6 @@ async def run_step(
     clip_rewards = scoring_results.get_score(RewardModelType.ENHANCED_CLIP)
     image_rewards = scoring_results.get_score(RewardModelType.IMAGE)
 
-    # Upload scores to backend
-    await enqueue_upload_scores(validator, task, scoring_results)
-
     if clip_rewards is not None and image_rewards is not None:
         clip_scores = clip_rewards.normalized[uids]
         image_scores = image_rewards.normalized[uids]
@@ -495,6 +491,9 @@ async def run_step(
             logger.info(
                 f"UID: {uid.item()} - CLIP score: {clip_score.item():.4f}, IMAGE score: {image_score.item():.4f}"
             )
+
+        # Upload scores to backend
+        await enqueue_upload_scores(validator, task, uids, scoring_results)
     else:
         logger.warning("CLIP or IMAGE rewards not found in scoring results")
 
