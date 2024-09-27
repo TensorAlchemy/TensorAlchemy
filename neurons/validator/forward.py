@@ -212,6 +212,12 @@ async def enqueue_upload_scores(
 
     for score_result in scoring_results.scores:
         score_type = score_result.type
+        if score_type not in [
+            RewardModelType.IMAGE,
+            RewardModelType.ENHANCED_CLIP,
+        ]:
+            # Don't store other scores like HUMAN, NSFW, etc.
+            continue
         scores[score_type] = {}
         for uid, score in zip(
             scoring_results.combined_uids, score_result.normalized
@@ -220,7 +226,7 @@ async def enqueue_upload_scores(
             scores[score_type][hotkey] = score.item()
 
     try:
-        await validator.scores_upload_queue.put_nowait(
+        validator.scores_upload_queue.put_nowait(
             ScoresUploadRequest(task_id=task.task_id, scores=scores)
         )
     except Exception as e:

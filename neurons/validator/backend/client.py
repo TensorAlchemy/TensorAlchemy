@@ -295,11 +295,11 @@ class TensorAlchemyBackendClient:
     ) -> None:
         """Upload scores to the backend"""
         try:
-            data = scores_upload_request.model_dump_json()
+            data = scores_upload_request.model_dump()
             logger.info(f"[upload_scores] data={data}")
             async with self._client() as client:
                 response = await client.post(
-                    f"{self.api_url}/scores",
+                    f"{self.api_url}/batches/{scores_upload_request.task_id}/scores",
                     json=data,
                     timeout=timeout,
                 )
