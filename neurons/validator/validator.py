@@ -160,10 +160,6 @@ async def upload_scores_loop(
     except queue.Empty:
         return
 
-    logger.info(
-        #
-        f"uploading scores ({len(scores_upload_request.scores)}) for task {scores_upload_request.task_id}"
-    )
     await backend_client.upload_scores(scores_upload_request)
 
 
