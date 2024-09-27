@@ -220,7 +220,7 @@ async def enqueue_upload_scores(
             # Don't store other scores like HUMAN, NSFW, etc.
             continue
         scores[score_type] = {}
-        for uid, score in zip(uids, score_result.scores[uids]):
+        for uid, score in zip(uids, score_result.raw[uids]):
             hotkey = metagraph.hotkeys[uid.item()]
             scores[score_type][hotkey] = score.item()
 
