@@ -39,7 +39,6 @@ from neurons.utils.log import configure_logging
 from neurons.validator.schemas import (
     Batch,
     ScoresUploadRequest,
-    ScoresUploadRequest,
 )
 from neurons.config import (
     get_device,
