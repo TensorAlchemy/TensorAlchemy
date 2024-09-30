@@ -16,6 +16,7 @@ from neurons.protocol import ImageGeneration, IsAlive, ModelType
 
 from neurons.config import get_config, get_wallet, get_metagraph, get_subtensor
 from neurons.utils import BackgroundTimer, background_loop
+from neurons.utils.common import show_warning_message
 from neurons.utils.defaults import Stats, get_defaults
 from neurons.utils.log import sh
 from neurons.utils.nsfw import clean_nsfw_from_prompt
@@ -54,15 +55,8 @@ class BaseMiner(ABC):
     def show_saas_dashboard_url(self):
         try:
             saas_dashboard_url = saas_generate_dashboard_url(get_wallet())
-            logger.info(
-                f"------------------------------------------------------------"
-            )
-            logger.info(
-                f"You can access your SaaS dashboard using this URL: {saas_dashboard_url}"
-            )
-            logger.info(
-                f"------------------------------------------------------------"
-            )
+            msg = f"You can access your SaaS dashboard using this URL: {saas_dashboard_url}"
+            show_warning_message(msg, header="SAAS DASHBOARD")
         except Exception as e:
             logger.error(f"Failed to generate saas dashboard url: {e}")
 

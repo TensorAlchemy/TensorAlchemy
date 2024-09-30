@@ -1,6 +1,8 @@
 import base64
 import json
 import time
+import urllib.parse
+
 import bittensor as bt
 
 from substrateinterface import Keypair
@@ -47,8 +49,10 @@ def saas_generate_dashboard_url(wallet: bt.wallet):
     token = base64.b64encode(json.dumps(token_data).encode()).decode()
 
     neuron_type = "validator" if is_validator() else "miner"
+    query_params = {"type": neuron_type, "token": token}
+
     dashboard_url = (
-        f"{get_dashboard_base_url()}?type={neuron_type}&token={token}"
+        f"{get_dashboard_base_url()}?{urllib.parse.urlencode(query_params)}"
     )
 
     return dashboard_url

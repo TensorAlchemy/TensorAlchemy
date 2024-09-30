@@ -40,3 +40,26 @@ def log_dependencies() -> None:
         logger.info(f"dependencies: {dependencies_str}")
     except Exception as e:
         logger.error(f"error logger dependencies: {str(e)}")
+
+
+def show_warning_message(msg: str, window_width=70, header="WARNING"):
+
+    def create_line(content):
+        return f"* {content:<{window_width-4}} *"
+
+    line = "*" * window_width
+    empty_line = create_line("")
+
+    msg_lines = msg.split("\n")
+    if any([len(line) > window_width for line in msg_lines]):
+        warning_lines = [line.strip() for line in msg_lines]
+    else:
+        warning_lines = [create_line(line.strip()) for line in msg_lines]
+
+    message = "\n".join(
+        [line, empty_line, create_line(header), empty_line]
+        + warning_lines
+        + [empty_line, line]
+    )
+
+    logger.warning(f"\n{message}")
