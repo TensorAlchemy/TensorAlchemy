@@ -9,11 +9,14 @@ from multiprocessing import Manager, Event
 
 import torch
 from loguru import logger
+
+from neurons.common.saas.utils import saas_generate_dashboard_url
 from neurons.constants import VPERMIT_TAO
 from neurons.protocol import ImageGeneration, IsAlive, ModelType
 
 from neurons.config import get_config, get_wallet, get_metagraph, get_subtensor
 from neurons.utils import BackgroundTimer, background_loop
+from neurons.utils.common import show_warning_message
 from neurons.utils.defaults import Stats, get_defaults
 from neurons.utils.log import sh
 from neurons.utils.nsfw import clean_nsfw_from_prompt
@@ -44,8 +47,18 @@ class BaseMiner(ABC):
             ["5C5PXHeYLV5fAx31HkosfCkv8ark3QjbABbjEusiD3HXH2Ta"]
         )
 
+        self.show_saas_dashboard_url()
+
         self.initialize_components()
         self.request_dict: Dict[str, Dict[str, Union[List[float], int]]] = {}
+
+    def show_saas_dashboard_url(self):
+        try:
+            saas_dashboard_url = saas_generate_dashboard_url(get_wallet())
+            msg = f"You can access your SaaS dashboard using this URL: {saas_dashboard_url}"
+            show_warning_message(msg, header="SAAS DASHBOARD")
+        except Exception as e:
+            logger.error(f"Failed to generate saas dashboard url: {e}")
 
     def initialize_components(self) -> None:
         self.initialize_event_dict()
