@@ -3,7 +3,7 @@ import subprocess
 import httpx
 from loguru import logger
 
-from neurons.utils.common import show_warning_message
+from neurons.utils.common import show_boxed_message
 
 
 def get_current_branch():
@@ -57,7 +57,7 @@ def show_update_warning_message(local_commit, remote_commit):
     1) git fetch && git reset --hard origin/main
     2) Restart your validator
     """.strip()
-    show_warning_message(msg)
+    show_boxed_message(msg)
 
 
 def check_for_updates() -> None:

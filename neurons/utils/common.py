@@ -2,6 +2,7 @@ import os
 import sys
 import pathlib
 import subprocess
+from typing import List
 
 from loguru import logger
 
@@ -42,24 +43,44 @@ def log_dependencies() -> None:
         logger.error(f"error logger dependencies: {str(e)}")
 
 
-def show_warning_message(msg: str, window_width=70, header="WARNING"):
+from typing import List
+import logging
 
-    def create_line(content):
-        return f"* {content:<{window_width-4}} *"
 
-    line = "*" * window_width
-    empty_line = create_line("")
+def show_boxed_message(
+    msg: str,
+    window_width: int = 90,
+    show_edges: bool = True,
+    header: str = "WARNING",
+    message_type: str = "warning",
+) -> None:
+    valid_message_types = ["error", "success", "warning", "info"]
+    if message_type not in valid_message_types:
+        raise ValueError(
+            #
+            "Invalid message_type. Must be one of "
+            + valid_message_types
+        )
 
-    msg_lines = msg.split("\n")
-    if any([len(line) > window_width for line in msg_lines]):
-        warning_lines = [line.strip() for line in msg_lines]
-    else:
-        warning_lines = [create_line(line.strip()) for line in msg_lines]
+    def create_line(content: str = " ") -> str:
+        if not show_edges:
+            return f"{content}\n"
 
-    message = "\n".join(
-        [line, empty_line, create_line(header), empty_line]
-        + warning_lines
-        + [empty_line, line]
+        return f"* {content:<{window_width-4}} *\n"
+
+    def format_lines(content: str) -> List[str]:
+        return [create_line(part) for part in content.split("\n")]
+
+    message = "".join(
+        [
+            "*" * window_width + "\n",
+            create_line(),
+            *format_lines(header),
+            create_line(),
+            *format_lines(msg),
+            create_line(),
+            "*" * window_width + "\n",
+        ]
     )
 
-    logger.warning(f"\n{message}")
+    getattr(logger, message_type)(f"\n{message}")

@@ -5,12 +5,13 @@ import urllib.parse
 
 import bittensor as bt
 
+from loguru import logger
 from substrateinterface import Keypair
 
 from neurons import constants
-from neurons.config import get_config, AlchemyHost
+from neurons.config import get_config, get_wallet, AlchemyHost
 from neurons.config.utils import is_testnet
-from neurons.utils.common import is_validator
+from neurons.utils.common import is_validator, show_boxed_message
 
 
 def get_dashboard_base_url():
@@ -22,7 +23,7 @@ def get_dashboard_base_url():
     return constants.SAAS_DASHBOARD_MAINNET_URL
 
 
-def saas_generate_dashboard_url(wallet: bt.wallet):
+def saas_generate_dashboard_url(wallet: bt.wallet = get_wallet()):
     """
     Generates a dashboard URL with a signed token for authentication.
 
@@ -56,3 +57,18 @@ def saas_generate_dashboard_url(wallet: bt.wallet):
     )
 
     return dashboard_url
+
+
+def saas_show_dashboard_url() -> None:
+    try:
+        show_boxed_message(
+            (
+                "You can access your SaaS dashboard using this URL:\n\n"
+                + saas_generate_dashboard_url()
+            ),
+            show_edges=False,
+            message_type="success",
+            header="SAAS DASHBOARD",
+        )
+    except Exception as e:
+        logger.error(f"Failed to generate saas dashboard url: {e}")
