@@ -2,10 +2,8 @@ import logging
 import os
 import random
 import argparse
-from typing import Optional
 
 import bittensor
-import torch
 import bittensor as bt
 
 miner_config: bt.config = None

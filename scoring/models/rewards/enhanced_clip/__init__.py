@@ -19,7 +19,7 @@ Date: July 30, 2024
 """
 
 import traceback
-from typing import List, Dict, Any
+from typing import List, Dict
 
 import torch
 import bittensor as bt

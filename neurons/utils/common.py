@@ -44,7 +44,6 @@ def log_dependencies() -> None:
 
 
 from typing import List
-import logging
 
 
 def show_boxed_message(

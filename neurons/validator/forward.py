@@ -18,7 +18,6 @@ from neurons.utils.defaults import Stats
 from neurons.utils.log import image_to_str
 from neurons.utils.image import (
     synapse_to_base64,
-    empty_image_tensor,
 )
 
 from neurons.validator.backend.exceptions import PostMovingAveragesError

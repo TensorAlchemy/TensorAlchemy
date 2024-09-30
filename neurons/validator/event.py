@@ -1,11 +1,10 @@
 from enum import Enum
-from typing import Dict, List, Optional
-from pydantic import BaseModel, Field, ConfigDict
+from typing import List
+from pydantic import BaseModel
 
 import torch
 
-from scoring.types import ScoringResults, ScoringResult
-from scoring.models.types import RewardModelType
+from scoring.types import ScoringResults
 
 
 class EventSchema(BaseModel):

@@ -6,7 +6,6 @@ import urllib.parse
 import bittensor as bt
 
 from loguru import logger
-from substrateinterface import Keypair
 
 from neurons import constants
 from neurons.config import get_config, get_wallet, AlchemyHost

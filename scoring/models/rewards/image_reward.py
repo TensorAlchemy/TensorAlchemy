@@ -4,7 +4,6 @@ from PIL.Image import Image as ImageType
 import ImageReward as RM
 import bittensor as bt
 import torch
-from loguru import logger
 
 from neurons.utils.image import synapse_to_images
 
@@ -30,7 +29,7 @@ class ImageRewardModel(BaseRewardModel):
                 if not images:
                     raise ValueError("No images")
 
-            except Exception as e:
+            except Exception:
                 return 0.0
 
             _, scores = self.scoring_model.inference_rank(

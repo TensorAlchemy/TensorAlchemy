@@ -29,7 +29,7 @@ from neurons.protocol import (
     denormalize_image_model,
     ImageGenerationTaskModel,
 )
-from neurons.utils.common import log_dependencies, show_boxed_message
+from neurons.utils.common import log_dependencies
 from neurons.utils.defaults import get_defaults
 from neurons.utils import (
     BackgroundTimer,
@@ -715,7 +715,7 @@ class StableValidator:
                 stats=self.stats,
             )
             return True
-        except Exception as e:
+        except Exception:
             logger.error(f"Mid-step failed: {traceback.format_exc()}")
             return False
 
@@ -725,7 +725,7 @@ class StableValidator:
             self.reload_settings,
             self.start_threads,
             self.update_check,
-            saas_show_dashboard_url(),
+            saas_show_dashboard_url,
             lambda: save_ma_scores(self.moving_average_scores),
         ]:
             try:
@@ -734,7 +734,7 @@ class StableValidator:
                     await method()
                 else:
                     method()
-            except Exception as e:
+            except Exception:
                 logger.error(
                     f"{method.__name__} failed: " + traceback.format_exc()
                 )
