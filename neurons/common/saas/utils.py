@@ -44,9 +44,7 @@ def saas_generate_dashboard_url(wallet: bt.wallet = get_wallet()):
 
     signature_base64 = base64.b64encode(signature).decode()
 
-    token_data = {"payload": payload, "signature": signature_base64}
-
-    token = base64.b64encode(json.dumps(token_data).encode()).decode()
+    token = base64.b64encode(message.encode()).decode() + "." + signature_base64
 
     neuron_type = "validator" if is_validator() else "miner"
     query_params = {"type": neuron_type, "token": token}
