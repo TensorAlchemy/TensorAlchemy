@@ -52,16 +52,19 @@ class BaseMiner(ABC):
         self.request_dict: Dict[str, Dict[str, Union[List[float], int]]] = {}
 
     def show_saas_dashboard_url(self):
-        saas_dashboard_url = saas_generate_dashboard_url(get_wallet())
-        logger.info(
-            f"------------------------------------------------------------"
-        )
-        logger.info(
-            f"You can access your SaaS dashboard using this URL: {saas_dashboard_url}"
-        )
-        logger.info(
-            f"------------------------------------------------------------"
-        )
+        try:
+            saas_dashboard_url = saas_generate_dashboard_url(get_wallet())
+            logger.info(
+                f"------------------------------------------------------------"
+            )
+            logger.info(
+                f"You can access your SaaS dashboard using this URL: {saas_dashboard_url}"
+            )
+            logger.info(
+                f"------------------------------------------------------------"
+            )
+        except Exception as e:
+            logger.error(f"Failed to generate saas dashboard url: {e}")
 
     def initialize_components(self) -> None:
         self.initialize_event_dict()

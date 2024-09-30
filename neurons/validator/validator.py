@@ -313,16 +313,19 @@ class StableValidator:
         self.start_threads(True)
 
     def show_saas_dashboard_url(self):
-        saas_dashboard_url = saas_generate_dashboard_url(self.wallet)
-        logger.info(
-            f"------------------------------------------------------------"
-        )
-        logger.info(
-            f"You can access your SaaS dashboard using this URL: {saas_dashboard_url}"
-        )
-        logger.info(
-            f"------------------------------------------------------------"
-        )
+        try:
+            saas_dashboard_url = saas_generate_dashboard_url(self.wallet)
+            logger.info(
+                f"------------------------------------------------------------"
+            )
+            logger.info(
+                f"You can access your SaaS dashboard using this URL: {saas_dashboard_url}"
+            )
+            logger.info(
+                f"------------------------------------------------------------"
+            )
+        except Exception as e:
+            logger.error(f"Failed to generate saas dashboard url: {e}")
 
     def start_thread(self, thread: ThreadLike, is_startup: bool = True) -> None:
         if thread.is_alive():
