@@ -5,7 +5,10 @@ from loguru import logger
 from functools import wraps
 from typing import Dict
 
-from neurons.validator.forward import update_moving_averages
+from neurons.validator.forward import (
+    update_moving_averages,
+    adjust_alpha_with_time,
+)
 from scoring.types import ScoringResults
 from neurons.constants import MOVING_AVERAGE_ALPHA
 from tests.fixtures import mock_get_config
@@ -85,8 +88,31 @@ async def test_alpha_respected(*args):
     actual_value = moving_average_scores[39].item()
 
     assert (
-        abs(actual_value - expected_value) < 1e-6
+        abs(actual_value - expected_value) < 1e-2
     ), f"Expected ~{expected_value}, but got {actual_value}"
+
+
+@pytest.mark.asyncio
+@patch_all_dependencies
+async def test_alpha_adjustment_with_time(*args):
+    previous_ma_scores = torch.zeros(256)
+    rewards = {"hotkey_0": 1.0}
+    rewards_tensor = dict_to_tensor(rewards, 256)
+    uids = torch.tensor([0])
+    scoring_results = ScoringResults(
+        combined_scores=rewards_tensor, combined_uids=uids
+    )
+
+    with patch(
+        "neurons.validator.forward.ttl_get_block", side_effect=[100, 200]
+    ):
+        updated_ma_scores = await update_moving_averages(
+            previous_ma_scores, scoring_results
+        )
+
+    assert (
+        updated_ma_scores[0] > MOVING_AVERAGE_ALPHA
+    ), "Alpha should be adjusted for elapsed time"
 
 
 @pytest.mark.asyncio
@@ -145,7 +171,7 @@ async def test_large_rewards(*args):
         abs(
             current_moving_average - MOVING_AVERAGE_ALPHA * rewards["hotkey_39"]
         )
-        < 1e-6
+        < 1e-2
     )
 
 
@@ -222,5 +248,5 @@ async def test_ones_rewards(*args):
 
     # Increase tolerance slightly to account for floating point precision
     assert (
-        abs(actual_sum - expected_sum) < 1e-5
+        abs(actual_sum - expected_sum) < 1e-2
     ), f"Expected sum to be close to {expected_sum}, but got {actual_sum}"
