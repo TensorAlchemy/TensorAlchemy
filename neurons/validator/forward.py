@@ -65,6 +65,23 @@ def log_moving_averages_for_grafana(
             logger.error(str(e))
 
 
+def adjust_alpha_with_time(base_alpha: float, block_delta: int) -> float:
+    """
+    Adjust the alpha value based on the time elapsed since the last update.
+
+    :param base_alpha: The base alpha value for moving average calculations.
+    :param block_delta: The number of blocks that have passed since the last update.
+    :return: An adjusted alpha value.
+    """
+    # Ensure we don't apply a massive change if it's the first update
+    if block_delta <= 1:
+        return base_alpha
+
+    # Adjust alpha based on time elapsed
+    # This increases the weight of new scores when more time has passed
+    return 1 - (1 - base_alpha) ** block_delta
+
+
 async def update_moving_averages(
     previous_ma_scores: torch.FloatTensor,
     scoring_results: ScoringResults,
@@ -72,6 +89,7 @@ async def update_moving_averages(
 ) -> torch.FloatTensor:
     global block_last_ma_decay
     metagraph: bt.metagraph = get_metagraph()
+
     rewards = torch.nan_to_num(
         scoring_results.combined_scores,
         nan=0.0,
@@ -93,22 +111,13 @@ async def update_moving_averages(
 
     # Calculate the time elapsed since last update
     block_now: int = ttl_get_block()
-    block_delta: float = float(max(1, block_now - block_last_ma_decay))
-
-    # Ensure we don't apply a massive change if it's the first update
-    if block_last_ma_decay < 0:
-        block_delta = 1
-
-    # Update the last block update for next calculation
+    block_delta: int = max(1, block_now - block_last_ma_decay)
     block_last_ma_decay = block_now
 
-    # Calculate the adjusted alpha based on time elapsed
-    # This increases the weight of new scores when more time has passed
-    adjusted_alpha = 1 - (1 - alpha) ** block_delta
+    # Adjust alpha based on time elapsed
+    adjusted_alpha = adjust_alpha_with_time(alpha, block_delta)
 
     # Apply the moving average update with adjusted alpha
-    # This gives more weight to new scores when there's been
-    # a longer time since last update
     new_moving_average_scores = adjusted_alpha * rewards + (
         1 - adjusted_alpha
     ) * previous_ma_scores.to(get_device())
@@ -118,20 +127,14 @@ async def update_moving_averages(
     uids_to_scatter: torch.Tensor = scoring_results.combined_uids.to(torch.long)
     logger.info(f"Scattering MA deltas over UIDS {uids_to_scatter}")
 
+    # Apply decay to all scores
+    ma_decay = get_config().alchemy.ma_decay
+    updated_ma_scores *= 1.0 - ma_decay
+
     # Update scores for miners who responded
     updated_ma_scores[uids_to_scatter] = new_moving_average_scores[
         uids_to_scatter
     ]
-
-    # Apply decay to scores of miners who didn't respond
-    # The decay is stronger when more time has passed
-    decay_factor = 1 - adjusted_alpha
-    mask = torch.ones_like(updated_ma_scores, dtype=torch.bool)
-    mask[uids_to_scatter] = False
-    updated_ma_scores[mask] *= decay_factor
-
-    # Ensure no negative scores
-    updated_ma_scores = torch.clamp(updated_ma_scores, min=0)
 
     # Log moving averages for monitoring
     log_moving_averages_for_grafana(updated_ma_scores)
