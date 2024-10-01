@@ -127,14 +127,14 @@ async def update_moving_averages(
     uids_to_scatter: torch.Tensor = scoring_results.combined_uids.to(torch.long)
     logger.info(f"Scattering MA deltas over UIDS {uids_to_scatter}")
 
+    # Apply decay to all scores
+    ma_decay = get_config().alchemy.ma_decay
+    updated_ma_scores *= 1.0 - ma_decay
+
     # Update scores for miners who responded
     updated_ma_scores[uids_to_scatter] = new_moving_average_scores[
         uids_to_scatter
     ]
-
-    # Apply decay to all scores
-    ma_decay = get_config().alchemy.ma_decay
-    updated_ma_scores *= 1.0 - ma_decay
 
     # Log moving averages for monitoring
     log_moving_averages_for_grafana(updated_ma_scores)
