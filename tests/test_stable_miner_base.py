@@ -1,6 +1,5 @@
 import pytest
 from unittest.mock import MagicMock, patch
-import asyncio
 
 from neurons.miners.StableMiner.base import BaseMiner
 from neurons.protocol import IsAlive, ImageGeneration, ModelType

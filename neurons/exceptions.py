@@ -29,4 +29,3 @@ class MinimumValidImagesError(ApiError):
 
 class StakeBelowThreshold(Exception):
     """Exception raised when stake is below the required threshold."""
-    pass

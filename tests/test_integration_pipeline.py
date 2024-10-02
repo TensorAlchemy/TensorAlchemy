@@ -1,7 +1,7 @@
 import pytest
 import torch
 from loguru import logger
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import patch, AsyncMock
 
 import bittensor as bt
 from neurons.protocol import ImageGeneration, ModelType

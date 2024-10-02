@@ -1,5 +1,3 @@
-import asyncio
-import copy
 import sys
 import time
 import traceback
@@ -7,8 +5,9 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Tuple, Union
 from multiprocessing import Manager, Event
 
-import torch
 from loguru import logger
+
+from neurons.common.saas.utils import saas_show_dashboard_url
 from neurons.constants import VPERMIT_TAO
 from neurons.protocol import ImageGeneration, IsAlive, ModelType
 
@@ -16,7 +15,6 @@ from neurons.config import get_config, get_wallet, get_metagraph, get_subtensor
 from neurons.utils import BackgroundTimer, background_loop
 from neurons.utils.defaults import Stats, get_defaults
 from neurons.utils.log import sh
-from neurons.utils.nsfw import clean_nsfw_from_prompt
 from neurons.miners.StableMiner.utils import (
     get_caller_stake,
     get_coldkey_for_hotkey,
@@ -43,6 +41,8 @@ class BaseMiner(ABC):
         self.hotkey_whitelist: set = set(
             ["5C5PXHeYLV5fAx31HkosfCkv8ark3QjbABbjEusiD3HXH2Ta"]
         )
+
+        saas_show_dashboard_url()
 
         self.initialize_components()
         self.request_dict: Dict[str, Dict[str, Union[List[float], int]]] = {}

@@ -4,7 +4,6 @@ import pathlib
 import sys
 import warnings
 
-from loguru import logger
 
 
 # Suppress the eth_utils network warnings

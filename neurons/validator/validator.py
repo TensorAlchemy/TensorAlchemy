@@ -20,6 +20,7 @@ import torch
 import numpy as np
 from loguru import logger
 
+from neurons.common.saas.utils import saas_show_dashboard_url
 from neurons.exceptions import StakeBelowThreshold
 
 from neurons.update_checker import safely_check_for_updates
@@ -36,7 +37,10 @@ from neurons.utils import (
     background_loop,
 )
 from neurons.utils.log import configure_logging
-from neurons.validator.schemas import Batch
+from neurons.validator.schemas import (
+    Batch,
+    ScoresUploadRequest,
+)
 from neurons.config import (
     get_device,
     get_config,
@@ -138,6 +142,25 @@ async def upload_images_loop(
             "An error occurred trying to submit a batch: "
             + f"{e}\n{traceback.format_exc()}"
         )
+
+
+async def upload_scores_loop(
+    _should_quit: Event,
+    scores_upload_queue: Queue,
+) -> None:
+    backend_client = get_backend_client()
+    queue_size: int = scores_upload_queue.qsize()
+    if queue_size > 0:
+        logger.info(f"{queue_size} scores data items in queue")
+
+    try:
+        scores_upload_request: ScoresUploadRequest = scores_upload_queue.get(
+            block=False
+        )
+    except queue.Empty:
+        return
+
+    await backend_client.upload_scores(scores_upload_request)
 
 
 class StableValidator:
@@ -276,12 +299,16 @@ class StableValidator:
         self.should_quit: Event = manager.Event()
         self.set_weights_queue: Queue = manager.Queue(maxsize=128)
         self.batches_upload_queue: Queue = manager.Queue(maxsize=2048)
+        self.scores_upload_queue: Queue = manager.Queue(maxsize=2048)
 
         self.model_type = ModelType.CUSTOM
 
         self.background_loop: BackgroundTimer = None
         self.set_weights_process: MultiprocessBackgroundTimer = None
         self.upload_images_process: MultiprocessBackgroundTimer = None
+        self.upload_scores_process: MultiprocessBackgroundTimer = None
+
+        saas_show_dashboard_url()
 
         # Start all background threads
         self.start_threads(True)
@@ -300,6 +327,7 @@ class StableValidator:
         processes: List[str] = [
             "background_loop",
             "upload_images_process",
+            "upload_scores_process",
             "set_weights_process",
         ]
 
@@ -332,6 +360,13 @@ class StableValidator:
                 0.5,
                 upload_images_loop,
                 [self.should_quit, self.batches_upload_queue],
+            ),
+            (
+                "upload_scores_process",
+                MultiprocessBackgroundTimer,
+                1.0,
+                upload_scores_loop,
+                [self.should_quit, self.scores_upload_queue],
             ),
             (
                 "set_weights_process",
@@ -680,7 +715,7 @@ class StableValidator:
                 stats=self.stats,
             )
             return True
-        except Exception as e:
+        except Exception:
             logger.error(f"Mid-step failed: {traceback.format_exc()}")
             return False
 
@@ -690,6 +725,7 @@ class StableValidator:
             self.reload_settings,
             self.start_threads,
             self.update_check,
+            saas_show_dashboard_url,
             lambda: save_ma_scores(self.moving_average_scores),
         ]:
             try:
@@ -698,7 +734,7 @@ class StableValidator:
                     await method()
                 else:
                     method()
-            except Exception as e:
+            except Exception:
                 logger.error(
                     f"{method.__name__} failed: " + traceback.format_exc()
                 )

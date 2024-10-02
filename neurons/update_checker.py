@@ -3,6 +3,8 @@ import subprocess
 import httpx
 from loguru import logger
 
+from neurons.utils.common import show_boxed_message
+
 
 def get_current_branch():
     result = subprocess.run(
@@ -42,35 +44,20 @@ def get_remote_commit_hash(repo_url, branch):
     return None
 
 
-def show_warning_message(local_commit, remote_commit):
-    window_width = 60
+def show_update_warning_message(local_commit, remote_commit):
+    msg = f"""
+    Your TensorAlchemy is OUTDATED
 
-    def create_line(content):
-        padding = window_width - len(content) - 4
-        return f"* {content}{' ' * padding} *"
+    Your local TensorAlchemy is not up-to-date with
+    the TensorAlchemy repository.
+    Your hash:   {local_commit}
+    Remote hash: {remote_commit}
 
-    line = "*" * window_width
-    new_line = f"\n{line}"
-    empty_line = create_line("")
-    warning_lines = [
-        create_line("WARNING"),
-        create_line("Your TensorAlchemy is OUTDATED"),
-        create_line(""),
-        create_line("Your local TensorAlchemy is not up-to-date with"),
-        create_line("the TensorAlchemy repository."),
-        create_line(f"Your hash:   {local_commit}"),
-        create_line(f"Remote hash: {remote_commit}"),
-        create_line(""),
-        create_line("Please update:"),
-        create_line("1) git fetch && git reset --hard origin/main"),
-        create_line("2) Restart your validator"),
-    ]
-
-    message = "\n".join(
-        [new_line, empty_line] + warning_lines + [empty_line, line]
-    )
-
-    logger.warning(message)
+    Please update:
+    1) git fetch && git reset --hard origin/main
+    2) Restart your validator
+    """.strip()
+    show_boxed_message(msg)
 
 
 def check_for_updates() -> None:
@@ -82,7 +69,7 @@ def check_for_updates() -> None:
     remote_commit = get_remote_commit_hash(repo_url, current_branch)
 
     if local_commit and remote_commit and local_commit != remote_commit:
-        show_warning_message(local_commit, remote_commit)
+        show_update_warning_message(local_commit, remote_commit)
 
     elif local_commit == remote_commit:
         logger.info(

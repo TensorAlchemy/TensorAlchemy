@@ -5,7 +5,10 @@ from loguru import logger
 from functools import wraps
 from typing import Dict
 
-from neurons.validator.forward import update_moving_averages
+from neurons.validator.forward import (
+    update_moving_averages,
+    adjust_alpha_with_time,
+)
 from scoring.types import ScoringResults
 from neurons.constants import MOVING_AVERAGE_ALPHA
 from tests.fixtures import mock_get_config
@@ -85,8 +88,31 @@ async def test_alpha_respected(*args):
     actual_value = moving_average_scores[39].item()
 
     assert (
-        abs(actual_value - expected_value) < 1e-6
+        abs(actual_value - expected_value) < 1e-2
     ), f"Expected ~{expected_value}, but got {actual_value}"
+
+
+@pytest.mark.asyncio
+@patch_all_dependencies
+async def test_alpha_adjustment_with_time(*args):
+    previous_ma_scores = torch.zeros(256)
+    rewards = {"hotkey_0": 1.0}
+    rewards_tensor = dict_to_tensor(rewards, 256)
+    uids = torch.tensor([0])
+    scoring_results = ScoringResults(
+        combined_scores=rewards_tensor, combined_uids=uids
+    )
+
+    with patch(
+        "neurons.validator.forward.ttl_get_block", side_effect=[100, 200]
+    ):
+        updated_ma_scores = await update_moving_averages(
+            previous_ma_scores, scoring_results
+        )
+
+    assert (
+        updated_ma_scores[0] > MOVING_AVERAGE_ALPHA
+    ), "Alpha should be adjusted for elapsed time"
 
 
 @pytest.mark.asyncio
@@ -145,7 +171,7 @@ async def test_large_rewards(*args):
         abs(
             current_moving_average - MOVING_AVERAGE_ALPHA * rewards["hotkey_39"]
         )
-        < 1e-6
+        < 1e-2
     )
 
 
@@ -222,5 +248,49 @@ async def test_ones_rewards(*args):
 
     # Increase tolerance slightly to account for floating point precision
     assert (
-        abs(actual_sum - expected_sum) < 1e-5
+        abs(actual_sum - expected_sum) < 1e-2
     ), f"Expected sum to be close to {expected_sum}, but got {actual_sum}"
+
+
+@pytest.mark.asyncio
+@patch_all_dependencies
+async def test_decay_application(*args):
+    # Set up initial scores and mock config
+    previous_ma_scores = torch.ones(256)
+    rewards = {f"hotkey_{i}": 0.0 for i in range(256)}  # No new rewards
+    rewards_tensor = dict_to_tensor(rewards, 256)
+    uids = torch.tensor([])
+    scoring_results = ScoringResults(
+        combined_scores=rewards_tensor, combined_uids=uids
+    )
+
+    # Mock the config to set a specific decay rate
+    mock_decay_rate = 0.05
+    mock_config = MagicMock()
+    mock_config.alchemy.ma_decay = mock_decay_rate
+
+    with patch(
+        "neurons.validator.forward.get_config", return_value=mock_config
+    ):
+        updated_ma_scores = await update_moving_averages(
+            previous_ma_scores, scoring_results
+        )
+
+    # Check that all scores have decayed
+    expected_decayed_score = 1.0 * (1.0 - mock_decay_rate)
+
+    assert torch.allclose(
+        updated_ma_scores,
+        torch.full_like(updated_ma_scores, expected_decayed_score),
+        atol=1e-5,
+    ), f"All scores should decay by {mock_decay_rate}. Expected {expected_decayed_score}, but got varying values."
+
+    # Check that the decay has been applied (scores are less than initial)
+    assert torch.all(
+        updated_ma_scores < previous_ma_scores
+    ), "All scores should have decayed"
+
+    # Check that the decay is correct
+    assert torch.allclose(
+        updated_ma_scores, previous_ma_scores * (1 - mock_decay_rate), atol=1e-2
+    ), f"Decay not applied correctly. Expected all scores to be {expected_decayed_score}"

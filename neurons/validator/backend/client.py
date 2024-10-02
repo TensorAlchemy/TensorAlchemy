@@ -1,5 +1,6 @@
-import base64
+import json
 import time
+from base64 import b64encode
 from typing import Dict, List
 
 import bittensor as bt
@@ -14,7 +15,7 @@ from tenacity import (
     retry_if_result,
 )
 
-
+from neurons.config.utils import is_testnet
 from neurons.constants import DEVELOP_URL, TESTNET_URL, MAINNET_URL
 from neurons.exceptions import StakeBelowThreshold
 from neurons.protocol import denormalize_image_model, ImageGenerationTaskModel
@@ -24,10 +25,11 @@ from neurons.validator.backend.exceptions import (
     PostMovingAveragesError,
     PostWeightsError,
     UpdateTaskError,
+    UploadScoresError,
 )
-from neurons.config import get_config
+from neurons.config import get_config, AlchemyHost
 from neurons.validator.backend.models import TaskState
-from neurons.validator.schemas import Batch
+from neurons.validator.schemas import Batch, ScoresUploadRequest
 
 
 class TensorAlchemyBackendClient:
@@ -41,10 +43,10 @@ class TensorAlchemyBackendClient:
 
         self.api_url = MAINNET_URL
 
-        if self.config.netuid == 25:
+        if is_testnet():
             self.api_url = DEVELOP_URL
 
-            if self.config.alchemy.host == "testnet":
+            if self.config.alchemy.host == AlchemyHost.TESTNET:
                 self.api_url = TESTNET_URL
 
         logger.info(f"Using backend server {self.api_url}")
@@ -55,7 +57,7 @@ class TensorAlchemyBackendClient:
             event_hooks={
                 "request": [
                     # Add signature to request
-                    self._sign_request,
+                    self._add_auth_headers,
                     self._include_validator_version,
                 ]
             }
@@ -115,7 +117,11 @@ class TensorAlchemyBackendClient:
 
         if response.status_code == 200:
             logger.info(f"[get_task] task={task}")
-            return denormalize_image_model(**task)
+            try:
+                return denormalize_image_model(**task)
+            except Exception as e:
+                logger.error(f"[get_task] failed to parse task response: {e}")
+                return None
 
         if response.status_code == 403:
             if task.get("code") == "STAKE_BELOW_THRESHOLD":
@@ -282,23 +288,62 @@ class TensorAlchemyBackendClient:
 
         return None
 
-    async def _sign_request(self, request: httpx.Request):
+    async def upload_scores(
+        self,
+        scores_upload_request: ScoresUploadRequest,
+        timeout: int = 10,
+    ) -> None:
+        """Upload scores to the backend"""
+        try:
+            data = scores_upload_request.model_dump()
+            async with self._client() as client:
+                response = await client.post(
+                    f"{self.api_url}/batches/{scores_upload_request.task_id}/scores",
+                    json=data,
+                    timeout=timeout,
+                )
+        except httpx.ReadTimeout:
+            raise UploadScoresError(
+                f"failed to upload scores - read timeout ({timeout}s)"
+            )
+
+        if response.status_code != 200:
+            raise UploadScoresError(
+                f"failed to upload scores with status_code "
+                f"{response.status_code}: {self._error_response_text(response)}"
+            )
+
+    async def _add_auth_headers(self, request: httpx.Request):
         """Sign request (adding X-Signature and X-Timestamp headers)
         using validator's hotkey
         """
         try:
-            timestamp = str(int(time.time()))
-            message = f"{request.method} {request.url}?timestamp={timestamp}"
-
-            signature = self._sign_message(message)
-
             request.headers.update(
-                {"X-Signature": signature, "X-Timestamp": timestamp}
+                {"Authorization": self._get_authorization_header()}
             )
         except Exception as e:
             logger.error(
-                f"Exception raised while signing request: {e}; sending plain old request"
+                f"Exception raised while adding auth headers: {e}; sending request without authentication"
             )
+
+    def _get_authorization_header(self) -> str:
+        """Returns authorization header with use of hotkey signing"""
+        timestamp = int(time.time())
+        token_expiration_time = 60
+        message = json.dumps(
+            {
+                "exp": timestamp + token_expiration_time,
+                "iat": timestamp,
+                "hotkey": self.hotkey.ss58_address,
+            }
+        )
+
+        signature = self.hotkey.sign(message.encode())
+        signature_base64: str = b64encode(signature).decode()
+
+        message_base64: str = b64encode(message.encode()).decode()
+
+        return f"Hotkey {message_base64}.{signature_base64}"
 
     async def _include_validator_version(self, request: httpx.Request):
         """Put validator's version in request headers"""
@@ -312,11 +357,6 @@ class TensorAlchemyBackendClient:
             logger.error(
                 f"Exception raised while including validator's version"
             )
-
-    def _sign_message(self, message: str):
-        """Sign message using validator's hotkey"""
-        signature = self.hotkey.sign(message.encode())
-        return base64.b64encode(signature).decode()
 
     def _error_response_text(self, response: httpx.Response):
         if response.status_code == 502:
