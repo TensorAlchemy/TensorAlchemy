@@ -21,6 +21,8 @@ from scoring.types import (
     ScoringResults,
 )
 
+block_last_ma_decay: int = -1
+
 
 def log_moving_averages_for_grafana(
     moving_average_scores: torch.FloatTensor,

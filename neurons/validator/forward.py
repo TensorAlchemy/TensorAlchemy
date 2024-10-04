@@ -43,7 +43,6 @@ from scoring.pipeline import (
 )
 
 transform = T.Compose([T.PILToTensor()])
-block_last_ma_decay: int = -1
 
 
 async def query_axons_async(
