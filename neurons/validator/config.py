@@ -20,35 +20,14 @@ def add_args(parser: argparse.ArgumentParser) -> None:
     Args:
         parser (argparse.ArgumentParser): The argument parser to add arguments
     """
+
+    # NOTE: Items here are used only for adding to config
+    #       they will be overridden by downloaded JSON
     parser.add_argument(
-        "--netuid",
-        type=int,
-        help="Network netuid",
-        default=26,
-    )
-    parser.add_argument(
-        "--alchemy.name",
-        type=str,
-        help="Validator name",
-        default="tensor_alchemy_validator",
-    )
-    parser.add_argument(
-        "--alchemy.debug",
-        type=bool,
-        default=False,
-        help="Enable debug logging",
-    )
-    parser.add_argument(
-        "--alchemy.device",
-        type=str,
-        default=get_default_device(),
-        help="Device to run the validator on",
-    )
-    parser.add_argument(
-        "--alchemy.host",
-        type=AlchemyHost,
-        choices=list(AlchemyHost),
-        help="Choose the Alchemy host",
+        "--alchemy.delta_factor",
+        type=float,
+        default=0.5,
+        help="Factor to adjust the delta effect in moving average calculations",
     )
     parser.add_argument(
         "--alchemy.ma_decay",
@@ -79,6 +58,36 @@ def add_args(parser: argparse.ArgumentParser) -> None:
         type=int,
         default=100,
         help="Epoch length for the validator",
+    )
+    parser.add_argument(
+        "--netuid",
+        type=int,
+        help="Network netuid",
+        default=26,
+    )
+    parser.add_argument(
+        "--alchemy.name",
+        type=str,
+        help="Validator name",
+        default="tensor_alchemy_validator",
+    )
+    parser.add_argument(
+        "--alchemy.debug",
+        type=bool,
+        default=False,
+        help="Enable debug logging",
+    )
+    parser.add_argument(
+        "--alchemy.device",
+        type=str,
+        default=get_default_device(),
+        help="Device to run the validator on",
+    )
+    parser.add_argument(
+        "--alchemy.host",
+        type=AlchemyHost,
+        choices=list(AlchemyHost),
+        help="Choose the Alchemy host",
     )
 
 
@@ -144,6 +153,12 @@ async def update_validator_settings() -> None:
         validator_settings.get(
             "ma_decay",
             config.ma_decay,
+        )
+    )
+    config.alchemy.delta_factor = float(
+        validator_settings.get(
+            "delta_factor",
+            config.delta_factor,
         )
     )
     config.alchemy.request_frequency = int(
