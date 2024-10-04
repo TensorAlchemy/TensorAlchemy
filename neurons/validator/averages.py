@@ -55,7 +55,9 @@ def adjust_alpha_with_time(base_alpha: float, block_delta: int) -> float:
 
     # Adjust alpha based on time elapsed
     # This increases the weight of new scores when more time has passed
-    return 1 - (1 - base_alpha) ** block_delta
+    # Use the DELTA_ADJUSTMENT_FACTOR to control the
+    # aggressiveness of the adjustment
+    return 1 - (1 - base_alpha) ** (block_delta * get_config().delta_factor)
 
 
 async def update_moving_averages(
