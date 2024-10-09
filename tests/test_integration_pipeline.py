@@ -97,6 +97,10 @@ mock_configs = {
         "get_config": mock_get_config,
         "get_metagraph": mock_local_get_metagraph,
     },
+    "neurons.validator.averages": {
+        "get_config": mock_get_config,
+        "get_metagraph": mock_local_get_metagraph,
+    },
     "scoring.models.base": {"get_metagraph": mock_local_get_metagraph},
     "scoring.pipeline": {"get_metagraph": mock_local_get_metagraph},
     "scoring.models.rewards.human": {

@@ -29,29 +29,27 @@ def mock_backend_client():
     return FakeBackendClient()
 
 
-# Create instances of our mocks
-mock_meta = mock_metagraph()
-mock_client = mock_backend_client()
+# Patch configuration
+mock_configs = {
+    "neurons.validator.forward": {
+        "get_config": mock_get_config,
+        "get_metagraph": mock_metagraph,
+        "get_backend_client": mock_backend_client,
+    },
+    "neurons.validator.averages": {
+        "get_config": mock_get_config,
+        "get_metagraph": mock_metagraph,
+        "get_backend_client": mock_backend_client,
+    },
+}
 
 
 # Custom decorator to apply all patches
 def patch_all_dependencies(func):
-    @wraps(func)
-    @patch(
-        "neurons.validator.forward.get_config",
-        return_value=mock_get_config(ma_decay=0.00001),
-    )
-    @patch("neurons.validator.forward.get_metagraph", return_value=mock_meta)
-    @patch(
-        "neurons.validator.forward.get_backend_client", return_value=mock_client
-    )
-    @patch(
-        "neurons.validator.forward.get_device", return_value=torch.device("cpu")
-    )
-    async def wrapper(*args, **kwargs):
-        return await func(*args, **kwargs)
+    for module, mocks in mock_configs.items():
+        func = patch.multiple(module, **mocks)(func)
 
-    return wrapper
+    return func
 
 
 def dict_to_tensor(rewards_dict: Dict[str, float], n: int) -> torch.FloatTensor:
@@ -110,7 +108,8 @@ async def test_alpha_adjustment_with_time(*args):
         )
 
     assert (
-        updated_ma_scores[0] > MOVING_AVERAGE_ALPHA
+        previous_ma_scores[0].item() - updated_ma_scores[0].item()
+        >= MOVING_AVERAGE_ALPHA
     ), "Alpha should be adjusted for elapsed time"
 
 
