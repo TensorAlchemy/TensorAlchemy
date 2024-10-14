@@ -85,11 +85,13 @@ def adjust_alpha_with_time(base_alpha: float, block_delta: int) -> float:
     if block_delta <= 1:
         return base_alpha
 
+    delta_factor: float = get_config().alchemy.delta_factor
+
     # Adjust alpha based on time elapsed
     # This increases the weight of new scores when more time has passed
     # Use the DELTA_ADJUSTMENT_FACTOR to control the
     # aggressiveness of the adjustment
-    return 1 - (1 - base_alpha) ** (block_delta * get_config().delta_factor)
+    return 1 - (1 - base_alpha) ** (block_delta * delta_factor)
 
 
 async def update_moving_averages(
