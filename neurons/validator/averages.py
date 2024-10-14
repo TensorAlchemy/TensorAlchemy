@@ -51,26 +51,30 @@ def log_moving_averages_for_grafana(
             logger.error(str(e))
 
 
-def should_apply_decay(uid: int, current_iteration: int) -> bool:
+def should_apply_decay(uid: int, current_block: int) -> bool:
     global miner_response_history
     if not miner_response_history:
-        return False
+        # Initialize the history with the current block number and an empty set
+        miner_response_history.appendleft((current_block, set()))
+        logger.info(
+            f"Initialized miner response history at block {current_block}"
+        )
+        return False  # Don't apply decay immediately after initialization
 
     last_seen = next(
-        (
-            #
-            i
-            for i, uids in enumerate(miner_response_history)
-            if uid in uids
-        ),
-        None,
+        (block for block, uids in miner_response_history if uid in uids), None
     )
 
     if last_seen is None:
         # Miner has never been seen
-        return len(miner_response_history) >= GLOBAL_INACTIVITY_THRESHOLD
+        oldest_block = (
+            miner_response_history[-1][0]
+            if miner_response_history
+            else current_block
+        )
+        return (current_block - oldest_block) >= GLOBAL_INACTIVITY_THRESHOLD
 
-    return (current_iteration - last_seen) > DECAY_THRESHOLD
+    return (current_block - last_seen) > DECAY_THRESHOLD
 
 
 def adjust_alpha_with_time(base_alpha: float, block_delta: int) -> float:
@@ -144,7 +148,7 @@ async def update_moving_averages(
 
     # Apply decay to all scores
     ma_decay = get_config().alchemy.ma_decay
-    current_iteration = len(miner_response_history) - 1
+    current_block = ttl_get_block()
 
     for uid in range(len(updated_ma_scores)):
         if uid in uids_to_scatter:
@@ -152,7 +156,7 @@ async def update_moving_averages(
             updated_ma_scores[uid] = new_moving_average_scores[uid]
             continue
 
-        if should_apply_decay(uid, current_iteration):
+        if should_apply_decay(uid, current_block):
             # decay for inactive miners
             updated_ma_scores[uid] *= 1.0 - ma_decay
 
