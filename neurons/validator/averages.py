@@ -1,3 +1,4 @@
+from collections import deque
 from typing import List, Optional
 
 
@@ -23,6 +24,13 @@ from scoring.types import (
 
 block_last_ma_decay: int = -1
 
+# Store the last 256 iterations of miner responses
+miner_response_history = deque(maxlen=256)
+# Start decay after ~21 iterations of inactivity
+DECAY_THRESHOLD: int = 255 // 12
+# Start decay for never-seen miners after 255 iterations
+GLOBAL_INACTIVITY_THRESHOLD: int = 255
+
 
 def log_moving_averages_for_grafana(
     moving_average_scores: torch.FloatTensor,
@@ -41,6 +49,28 @@ def log_moving_averages_for_grafana(
 
         except Exception as e:
             logger.error(str(e))
+
+
+def should_apply_decay(uid: int, current_iteration: int) -> bool:
+    global miner_response_history
+    if not miner_response_history:
+        return False
+
+    last_seen = next(
+        (
+            #
+            i
+            for i, uids in enumerate(miner_response_history)
+            if uid in uids
+        ),
+        None,
+    )
+
+    if last_seen is None:
+        # Miner has never been seen
+        return len(miner_response_history) >= GLOBAL_INACTIVITY_THRESHOLD
+
+    return (current_iteration - last_seen) > DECAY_THRESHOLD
 
 
 def adjust_alpha_with_time(base_alpha: float, block_delta: int) -> float:
@@ -67,7 +97,7 @@ async def update_moving_averages(
     scoring_results: ScoringResults,
     alpha: Optional[float] = MOVING_AVERAGE_ALPHA,
 ) -> torch.FloatTensor:
-    global block_last_ma_decay
+    global block_last_ma_decay, miner_response_history
     metagraph: bt.metagraph = get_metagraph()
 
     rewards = torch.nan_to_num(
@@ -107,14 +137,22 @@ async def update_moving_averages(
     uids_to_scatter: torch.Tensor = scoring_results.combined_uids.to(torch.long)
     logger.info(f"Scattering MA deltas over UIDS {uids_to_scatter}")
 
+    # Update miner response history
+    miner_response_history.appendleft(set(uids_to_scatter.tolist()))
+
     # Apply decay to all scores
     ma_decay = get_config().alchemy.ma_decay
-    updated_ma_scores *= 1.0 - ma_decay
+    current_iteration = len(miner_response_history) - 1
 
-    # Update scores for miners who responded
-    updated_ma_scores[uids_to_scatter] = new_moving_average_scores[
-        uids_to_scatter
-    ]
+    for uid in range(len(updated_ma_scores)):
+        if uid in uids_to_scatter:
+            # Update scores for miners who responded
+            updated_ma_scores[uid] = new_moving_average_scores[uid]
+            continue
+
+        if should_apply_decay(uid, current_iteration):
+            # decay for inactive miners
+            updated_ma_scores[uid] *= 1.0 - ma_decay
 
     # Log moving averages for monitoring
     log_moving_averages_for_grafana(updated_ma_scores)
