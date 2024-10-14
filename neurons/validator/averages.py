@@ -147,17 +147,22 @@ async def update_moving_averages(
     # Section 1: Prepare data and adjust for miner count changes
     metagraph: bt.metagraph = get_metagraph()
     rewards = torch.nan_to_num(
-        scoring_results.combined_scores, nan=0.0, posinf=0.0, neginf=0.0
+        scoring_results.combined_scores,
+        nan=0.0,
+        posinf=0.0,
+        neginf=0.0,
     ).to(get_device())
-    previous_ma_scores = adjust_for_miner_count(previous_ma_scores, rewards)
-
-    # Section 2: Calculate new moving averages
-    new_ma_scores = alpha * rewards + (1 - alpha) * previous_ma_scores.to(
+    previous_ma_scores = adjust_for_miner_count(previous_ma_scores, rewards).to(
         get_device()
     )
 
+    # Section 2: Calculate new moving averages
+    new_ma_scores = alpha * rewards + (1 - alpha) * previous_ma_scores
+
     # Section 3: Track miner responses and apply decay
-    responding_uids = set(scoring_results.combined_uids.to(torch.long).tolist())
+    responding_uids = set(
+        scoring_results.combined_uids.to(torch.long).tolist(),
+    )
     track_miner_responses(responding_uids)
     decay_rate = get_config().alchemy.ma_decay
     updated_ma_scores = torch.tensor(
