@@ -140,9 +140,14 @@ async def update_moving_averages(
     scoring_results: ScoringResults,
     alpha: float = MOVING_AVERAGE_ALPHA,
 ) -> torch.FloatTensor:
-    """Update moving averages based on new scoring results."""
     global iteration_count
     iteration_count += 1
+
+    logger.debug(
+        f"Iteration {iteration_count}: Starting update_moving_averages"
+    )
+    logger.debug(f"Previous MA scores: {previous_ma_scores}")
+    logger.debug(f"Scoring results: {scoring_results}")
 
     # Section 1: Prepare data and adjust for miner count changes
     metagraph: bt.metagraph = get_metagraph()
@@ -152,17 +157,23 @@ async def update_moving_averages(
         posinf=0.0,
         neginf=0.0,
     ).to(get_device())
+    logger.debug(f"Processed rewards: {rewards}")
+
     previous_ma_scores = adjust_for_miner_count(previous_ma_scores, rewards).to(
         get_device()
     )
+    logger.debug(f"Adjusted previous MA scores: {previous_ma_scores}")
 
     # Section 2: Calculate new moving averages
     new_ma_scores = alpha * rewards + (1 - alpha) * previous_ma_scores
+    logger.debug(f"New MA scores after calculation: {new_ma_scores}")
 
     # Section 3: Track miner responses and apply decay
     responding_uids = set(
         scoring_results.combined_uids.to(torch.long).tolist(),
     )
+    logger.debug(f"Responding UIDs: {responding_uids}")
+
     track_miner_responses(responding_uids)
     decay_rate = get_config().alchemy.ma_decay
     updated_ma_scores = torch.tensor(
@@ -175,8 +186,12 @@ async def update_moving_averages(
             for uid, score in enumerate(previous_ma_scores)
         ]
     )
+    logger.debug(f"Updated MA scores after decay: {updated_ma_scores}")
 
     # Section 4: Log, save, and apply blacklist
     log_moving_averages(updated_ma_scores)
     await save_moving_averages(metagraph.hotkeys, updated_ma_scores)
-    return await apply_blacklist(updated_ma_scores, metagraph)
+    final_scores = await apply_blacklist(updated_ma_scores, metagraph)
+    logger.debug(f"Final MA scores after blacklist: {final_scores}")
+
+    return final_scores

@@ -96,10 +96,12 @@ mock_configs = {
     "neurons.validator.forward": {
         "get_config": mock_get_config,
         "get_metagraph": mock_local_get_metagraph,
+        "get_backend_client": mock_get_backend_client,
     },
     "neurons.validator.averages": {
         "get_config": mock_get_config,
         "get_metagraph": mock_local_get_metagraph,
+        "get_backend_client": mock_get_backend_client,
     },
     "scoring.models.base": {"get_metagraph": mock_local_get_metagraph},
     "scoring.pipeline": {"get_metagraph": mock_local_get_metagraph},
@@ -197,8 +199,6 @@ async def run_pipeline_test():
 
     # Get indices that would sort the scores in ascending order
     _, sorted_indices = torch.sort(image_reward_scores, descending=False)
-
-    print(image_reward_scores)
 
     # Check if the order of hotkeys
     # matches the expected order of image qualities
@@ -357,15 +357,17 @@ async def test_full_pipeline_integration_with_moving_averages(num_runs):
     all_final_rewards = []
     moving_average_scores = torch.zeros(11)
     ma_history = [moving_average_scores.clone()]
-
     mock_backend_client = MockBackendClient()
     with patch(
-        "neurons.validator.forward.get_backend_client",
+        "neurons.validator.averages.get_backend_client",
         return_value=mock_backend_client,
     ):
         for run in range(num_runs):
             logger.info(f"Starting run {run + 1} of {num_runs}")
             scoring_results, final_rewards = await run_pipeline_test()
+            logger.debug(f"Run {run + 1} scoring results: {scoring_results}")
+            logger.debug(f"Run {run + 1} final rewards: {final_rewards}")
+
             all_results.append(scoring_results)
             all_final_rewards.append(final_rewards)
 
@@ -374,7 +376,6 @@ async def test_full_pipeline_integration_with_moving_averages(num_runs):
                 scoring_results,
             )
             ma_history.append(moving_average_scores.clone())
-
             logger.info(
                 f"Run {run + 1} - Updated moving average scores: "
                 f"{moving_average_scores}"
