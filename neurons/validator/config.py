@@ -36,6 +36,12 @@ def add_args(parser: argparse.ArgumentParser) -> None:
         help="How much do the moving averages decay each step?",
     )
     parser.add_argument(
+        "--alchemy.ma_decay_cycles",
+        type=int,
+        default=12,
+        help="How many cycles until ma_decay takes affect?",
+    )
+    parser.add_argument(
         "--alchemy.request_frequency",
         type=int,
         default=35,
@@ -153,6 +159,12 @@ async def update_validator_settings() -> None:
         validator_settings.get(
             "ma_decay",
             config.ma_decay,
+        )
+    )
+    config.alchemy.ma_decay_cycles = int(
+        validator_settings.get(
+            "ma_decay_cycles",
+            config.ma_decay_cycles,
         )
     )
     config.alchemy.delta_factor = float(

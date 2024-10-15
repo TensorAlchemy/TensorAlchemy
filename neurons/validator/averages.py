@@ -38,7 +38,6 @@ from scoring.types import ScoringResults
 # Global variables
 miner_response_history: deque = deque(maxlen=256)
 iteration_count: int = 0
-DECAY_INTERVAL: int = 255 // 12
 
 
 def track_miner_responses(responding_uids: Set[int]) -> None:
@@ -59,7 +58,9 @@ def should_apply_decay(uid: int) -> bool:
     )
     if last_seen is None:
         return iteration_count >= len(miner_response_history)
-    return last_seen >= DECAY_INTERVAL
+
+    delay_cycles: int = get_config().alchemy.ma_delay_cycles
+    return last_seen >= (255 // delay_cycles)
 
 
 def apply_decay(
