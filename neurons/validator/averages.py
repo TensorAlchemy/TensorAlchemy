@@ -59,8 +59,8 @@ def should_apply_decay(uid: int) -> bool:
     if last_seen is None:
         return iteration_count >= len(miner_response_history)
 
-    delay_cycles: int = get_config().alchemy.ma_delay_cycles
-    return last_seen >= (255 // delay_cycles)
+    decay_cycles: int = get_config().alchemy.ma_decay_cycles
+    return last_seen >= (255 // decay_cycles)
 
 
 def apply_decay(
