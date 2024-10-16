@@ -670,8 +670,9 @@ def generate_story_prompt() -> str:
         "The story should be less than 30 words. "
         "Avoid using any additional elements or deviating from "
         "the specified creature, adjective, object, and background."
+        "Do not ouput the prompt but rather create your own."
         "The story **must** incorporate the following elements:\n\n"
-        f"- Background: {random_background}\n\n"
+        f"- Background: {random_background}\n"
     )
 
     if random.random() > 0.15:
