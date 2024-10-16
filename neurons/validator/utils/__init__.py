@@ -1,4 +1,5 @@
-from .cache import ttl_cache, ttl_get_block
+from .cache import ttl_cache
+from .bittensor import ttl_get_block, is_hotkey_registered
 from .uid import get_active_uids, select_uids
 from .image import calculate_mean_dissimilarity, cosine_distance
 from .corcel import corcel_parse_response, call_corcel
@@ -31,4 +32,5 @@ __all__ = [
     measure_time,
     ttl_cache,
     ttl_get_block,
+    is_hotkey_registered,
 ]
