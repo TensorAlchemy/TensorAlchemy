@@ -60,6 +60,7 @@ from neurons.validator.utils.version import get_validator_version
 from neurons.validator.utils import (
     select_uids,
     ttl_get_block,
+    is_hotkey_registered,
     generate_random_prompt_gpt,
 )
 from neurons.validator.weights import (
@@ -564,7 +565,7 @@ class StableValidator:
 
     def check_registered(self):
         # --- Check for registration.
-        if not self.subtensor.is_hotkey_registered(
+        if not is_hotkey_registered(
             netuid=self.config.netuid,
             hotkey_ss58=self.wallet.hotkey.ss58_address,
         ):

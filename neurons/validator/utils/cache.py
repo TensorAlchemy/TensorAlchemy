@@ -35,27 +35,3 @@ def ttl_cache(maxsize: int = 128, typed: bool = False, ttl: int = -1):
         return update_wrapper(wrapped, func)
 
     return wrapper
-
-
-@ttl_cache(maxsize=1, ttl=12)
-def ttl_get_block() -> int:
-    try:
-        return get_subtensor().get_current_block()
-
-    except BrokenPipeError:
-        return get_subtensor(nocache=True).get_current_block()
-
-    except ssl.SSLEOFError:
-        return get_subtensor(nocache=True).get_current_block()
-
-    except Exception:
-        logger.error(
-            "An unexpected error occurred "
-            + "while attempting to get the current block: "
-            + traceback.format_exc()
-        )
-
-        try:
-            return get_subtensor(nocache=True).get_current_block()
-        except Exception:
-            return -1
