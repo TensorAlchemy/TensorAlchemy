@@ -1,5 +1,5 @@
-import ssl
 import traceback
+from ssl import SSLEOFError
 from loguru import logger
 from typing import Callable, Any
 
@@ -7,7 +7,7 @@ from neurons.config import get_subtensor
 from neurons.validator.utils.cache import ttl_cache
 
 
-def wrap_with_broken_pipe_handler(method: str, *args, **kwargs) -> Any:
+def get_subtensor_method(method: str) -> Callable:
     if not hasattr(get_subtensor(), method):
         raise ValueError(f"Subtensor has no method {method}")
 
@@ -16,10 +16,14 @@ def wrap_with_broken_pipe_handler(method: str, *args, **kwargs) -> Any:
     if not callable(method):
         raise ValueError(f"Subtensor method {method} is not callable")
 
-    try:
-        return method(*args, **kwargs)
+    return method
 
-    except (BrokenPipeError, ssl.SSLEOFError):
+
+def wrap_with_broken_pipe_handler(method: str, *args, **kwargs) -> Any:
+    try:
+        return get_subtensor_method(method)(*args, **kwargs)
+
+    except (BrokenPipeError, SSLEOFError):
         # Re-init the subtensor
         get_subtensor(nocache=True)
         return wrap_with_broken_pipe_handler(method, *args, **kwargs)
@@ -33,7 +37,7 @@ def wrap_with_broken_pipe_handler(method: str, *args, **kwargs) -> Any:
 
         # Re-init the subtensor
         get_subtensor(nocache=True)
-        return wrap_with_broken_pipe_handler(method, *args, **kwargs)
+        return get_subtensor_method(method)(*args, **kwargs)
 
 
 def is_hotkey_registered(**kwargs) -> int:
