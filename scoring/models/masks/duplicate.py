@@ -94,6 +94,7 @@ class DuplicateFilter(BaseRewardModel):
             if is_duplicate:
                 hotkey = valid_responses[idx].axon.hotkey
                 if hotkey in metagraph.hotkeys:
+                    logger.warning(f"Duplicate detected! {hotkey=}")
                     mask[metagraph.hotkeys.index(hotkey)] = 1.0
 
         return mask
