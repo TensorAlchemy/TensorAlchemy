@@ -10,7 +10,7 @@ from loguru import logger
 
 from scoring.models.masks.duplicate import DuplicateFilter
 
-from tests.fixtures import create_complex_image
+from tests.fixtures import create_complex_image, TEST_IMAGES
 
 
 @pytest.fixture
@@ -59,6 +59,36 @@ async def test_no_duplicates(duplicate_filter, mock_metagraph):
         mask = await duplicate_filter.get_rewards(None, [synapse1, synapse2])
 
         assert torch.allclose(mask, torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0]))
+
+
+@pytest.mark.asyncio
+async def test_exact_duplicates(duplicate_filter, mock_metagraph):
+    with patch(
+        "scoring.models.masks.duplicate.get_metagraph",
+        return_value=mock_metagraph,
+    ), patch(
+        "scoring.models.base.get_metagraph",
+        return_value=mock_metagraph,
+    ):
+        image = create_complex_image()
+        images1 = [TEST_IMAGES["DUP_A"]]
+        images2 = [TEST_IMAGES["DUP_B"]]
+        images3 = [
+            torch.tensor(np.array(create_complex_image()))
+            .permute(2, 0, 1)
+            .float()
+            / 255
+        ]
+
+        synapse1 = create_synapse("hotkey1", images1)
+        synapse2 = create_synapse("hotkey2", images2)
+        synapse3 = create_synapse("hotkey3", images3)
+
+        mask = await duplicate_filter.get_rewards(
+            None, [synapse1, synapse2, synapse3]
+        )
+
+        assert torch.allclose(mask, torch.tensor([1.0, 1.0, 0.0, 0.0, 0.0]))
 
 
 @pytest.mark.asyncio

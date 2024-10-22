@@ -85,6 +85,12 @@ TEST_IMAGES = {
         [3, 64, 64],
         dtype=torch.float,
     ),
+    "DUP_A": image_to_tensor(
+        Image.open(r"tests/images/dup_a.png"),
+    ),
+    "DUP_B": image_to_tensor(
+        Image.open(r"tests/images/dup_b.png"),
+    ),
     "COMPLEX_A": image_to_tensor(create_complex_image()),
     "COMPLEX_B": image_to_tensor(create_complex_image()),
     "COMPLEX_C": image_to_tensor(create_complex_image()),
