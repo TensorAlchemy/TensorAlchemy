@@ -685,6 +685,8 @@ def generate_story_prompt() -> str:
     if random.random() > 0.85:
         to_return += f"- Perspective: {random_perspective}\n\n"
 
+    to_return += "Do not output the above elements, only the resultant story."
+
     return to_return
 
 
