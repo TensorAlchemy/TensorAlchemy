@@ -269,9 +269,6 @@ async def update_moving_averages(
         ]
     )
 
-    if decay_rate < 1e-6:
-        decaying_uids = []
-
     # Apply decay to those UIDs
     if len(decaying_uids) > 0:
         logger.debug(f"Decay rate: {decay_rate}")
