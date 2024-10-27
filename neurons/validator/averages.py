@@ -137,9 +137,8 @@ def should_apply_decay(uid: int, metagraph: bt.metagraph) -> bool:
         return False
 
     decay_cycles: int = get_config().alchemy.ma_decay_cycles
-    min_history_needed = 255 // decay_cycles
 
-    if iteration_count < min_history_needed:
+    if iteration_count < decay_cycles:
         return False
 
     hotkey = metagraph.hotkeys[uid]
@@ -148,7 +147,7 @@ def should_apply_decay(uid: int, metagraph: bt.metagraph) -> bool:
     if last_seen is None:
         return True
 
-    return last_seen >= min_history_needed
+    return last_seen >= decay_cycles
 
 
 def adjust_for_miner_count(
