@@ -28,6 +28,7 @@ def mock_get_config(**kwargs):
     config.alchemy = MagicMock()
 
     config.alchemy.ma_decay = 0.0001
+    config.alchemy.ma_decay_cycles = 32
 
     for key, value in kwargs.items():
         config.alchemy[key] = value
