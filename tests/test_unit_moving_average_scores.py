@@ -29,17 +29,32 @@ def mock_backend_client():
     return FakeBackendClient()
 
 
-# Patch configuration
+# Add at the top where other mock functions are defined
+def mock_get_config():
+    config = MagicMock()
+    config.alchemy.ma_decay = 0.05
+    config.alchemy.ma_decay_cycles = 100
+    return config
+
+
+def mock_get_device():
+    return torch.device("cpu")
+
+
+# Modify the mock_configs dictionary to include these and blacklist
 mock_configs = {
     "neurons.validator.forward": {
         "get_config": mock_get_config,
         "get_metagraph": mock_metagraph,
         "get_backend_client": mock_backend_client,
+        "get_device": mock_get_device,
     },
     "neurons.validator.averages": {
         "get_config": mock_get_config,
         "get_metagraph": mock_metagraph,
         "get_backend_client": mock_backend_client,
+        "get_device": mock_get_device,
+        "get_blacklist": lambda: ([], []),
     },
 }
 
@@ -196,7 +211,7 @@ async def test_decay_application(*args):
     previous_ma_scores = torch.ones(256)
     rewards = {f"hotkey_{i}": 0.0 for i in range(256)}  # No new rewards
     rewards_tensor = dict_to_tensor(rewards, 256)
-    uids = torch.tensor([])  # No responding UIDs
+    uids = torch.tensor([], dtype=torch.long)
     scoring_results = ScoringResults(
         combined_scores=rewards_tensor, combined_uids=uids
     )
@@ -207,7 +222,7 @@ async def test_decay_application(*args):
     mock_config.alchemy.ma_decay = mock_decay_rate
 
     # Mock should_apply_decay to return True for even UIDs and False for odd UIDs
-    def mock_should_apply_decay(uid):
+    def mock_should_apply_decay(uid, metagraph):
         return uid % 2 == 0
 
     with patch(

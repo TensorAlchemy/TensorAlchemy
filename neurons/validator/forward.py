@@ -229,7 +229,7 @@ async def create_batch_for_upload(
             continue
 
     if all(image == "NO_IMAGE" for image in images):
-        raise InvalidBatch("All images dropped (NSFW)")
+        raise InvalidBatch("All images dropped")
 
     logger.info(f"{len(images)} compute responses remain after masking")
 

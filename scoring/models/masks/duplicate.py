@@ -77,6 +77,7 @@ class DuplicateFilter(BaseRewardModel):
         for i in range(n):
             if duplicate_mask[i]:
                 continue
+
             for j in range(i + 1, n):
                 similar_images = sum(
                     self.are_images_similar(hash1, hash2)
@@ -91,9 +92,14 @@ class DuplicateFilter(BaseRewardModel):
         metagraph = get_metagraph()
 
         for idx, is_duplicate in enumerate(duplicate_mask):
-            if is_duplicate:
-                hotkey = valid_responses[idx].axon.hotkey
-                if hotkey in metagraph.hotkeys:
-                    mask[metagraph.hotkeys.index(hotkey)] = 1.0
+            if not is_duplicate:
+                continue
+
+            hotkey = valid_responses[idx].axon.hotkey
+            if hotkey not in metagraph.hotkeys:
+                continue
+
+            logger.warning(f"Duplicate detected! {hotkey=}")
+            mask[metagraph.hotkeys.index(hotkey)] = 1.0
 
         return mask

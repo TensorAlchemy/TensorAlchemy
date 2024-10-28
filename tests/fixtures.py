@@ -28,6 +28,7 @@ def mock_get_config(**kwargs):
     config.alchemy = MagicMock()
 
     config.alchemy.ma_decay = 0.0001
+    config.alchemy.ma_decay_cycles = 32
 
     for key, value in kwargs.items():
         config.alchemy[key] = value
@@ -84,6 +85,12 @@ TEST_IMAGES = {
     "WHITE": torch.ones(
         [3, 64, 64],
         dtype=torch.float,
+    ),
+    "DUP_A": image_to_tensor(
+        Image.open(r"tests/images/dup_a.png"),
+    ),
+    "DUP_B": image_to_tensor(
+        Image.open(r"tests/images/dup_b.png"),
     ),
     "COMPLEX_A": image_to_tensor(create_complex_image()),
     "COMPLEX_B": image_to_tensor(create_complex_image()),
