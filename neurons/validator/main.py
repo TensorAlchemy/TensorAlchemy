@@ -4,6 +4,7 @@ import pathlib
 import sys
 import warnings
 
+from loguru import logger
 
 
 # Suppress the eth_utils network warnings
@@ -21,11 +22,16 @@ if __name__ == "__main__":
     if file_path not in sys.path:
         sys.path.append(file_path)
 
-    from neurons.utils.log import configure_logging
+    from neurons.utils.log import configure_logging, log_banner
     from neurons.update_checker import safely_check_for_updates
 
     configure_logging()
     safely_check_for_updates()
+
+    log_banner(
+        "Starting Validator",
+        width=30,
+    )
 
     # Import StableValidator after fixing paths
     from validator import StableValidator
