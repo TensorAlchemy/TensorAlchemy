@@ -15,6 +15,52 @@ from PIL.Image import Image as ImageType
 from neurons import constants
 
 
+def log_banner(message, width=80, max_url_width=None):
+    def wrap_text(text, width):
+        # Don't wrap URLs/lines that should stay intact
+        if text.startswith(("http://", "https://")):
+            return [text]
+
+        words = text.split()
+        lines = []
+        current_line = []
+        current_length = 0
+
+        for word in words:
+            word_length = len(word)
+            if current_length + word_length + 1 <= width:
+                current_line.append(word)
+                current_length += word_length + 1
+            else:
+                if current_line:
+                    lines.append(" ".join(current_line))
+                current_line = [word]
+                current_length = word_length
+
+        if current_line:
+            lines.append(" ".join(current_line))
+        return lines
+
+    # Split input into lines and wrap each line
+    content_width = width - 4  # Account for borders and padding
+    lines = []
+    for line in message.split("\n"):
+        if line.strip():
+            lines.extend(wrap_text(line, content_width))
+        else:
+            lines.append("")
+
+    # Create the banner
+    print(f"╔{'═' * (width-1)}╗")
+    for line in lines:
+        if line.startswith(("http://", "https://")):
+            # Don't center URLs, just pad with spaces
+            print(f"║ {line}{' ' * (width-3-len(line))}")
+        else:
+            print(f"║ {line:^{width-3}} ║")
+    print(f"╚{'═' * (width-1)}╝")
+
+
 LOKI_VALIDATOR_APP_NAME = "tensoralchemy-validator"
 LOKI_MINER_APP_NAME = "tensoralchemy-miner"
 
