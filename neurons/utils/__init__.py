@@ -5,6 +5,7 @@ import asyncio
 import traceback
 import multiprocessing
 from multiprocessing import Event
+from typing import Any, Callable, Optional, Dict, List, Union
 
 from threading import Timer
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
@@ -15,86 +16,225 @@ from neurons.config.lists import get_warninglist
 from neurons.config import get_metagraph, get_subtensor, get_wallet
 
 
-# Background Loop
-class BackgroundTimer(Timer):
-    def __str__(self) -> str:
-        return self.function.__name__
+class TaskWrapper:
+    """Wraps task execution with error handling and recovery logic"""
 
-    def run(self):
-        configure_logging()
-        self.function(*self.args, **self.kwargs)
-        while not self.finished.wait(self.interval):
-            self.function(*self.args, **self.kwargs)
-
-
-class MultiprocessBackgroundTimer(multiprocessing.Process):
-    def __str__(self) -> str:
-        return self.function.__name__
-
-    def __init__(self, interval, function, args=None, kwargs=None, timeout=300):
-        super().__init__()
-        self.interval = interval
+    def __init__(self, function: Callable, timeout: int = 300):
         self.function = function
-        self.args = args if args is not None else []
-        self.kwargs = kwargs if kwargs is not None else {}
-        self.finished = multiprocessing.Event()
         self.timeout = timeout
+        self.name = function.__name__
+        self._error_count = 0
+        self._last_success = time.time()
+        self.MAX_ERRORS = 3
+        self.ERROR_RESET_TIME = 300  # 5 minutes
 
-    def run_with_timeout(self, func, *args, **kwargs):
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(func, *args, **kwargs)
-            try:
-                return future.result(timeout=self.timeout)
-            except TimeoutError:
-                logger.error(
-                    f"[thread] {self.function.__name__} timed out"
-                    + f" after {self.timeout} seconds"
-                )
-                # Optionally, you might want to kill the thread here
-                # This is a bit tricky and might not always work as expected
-                return None
-
-    async def run_async_with_timeout(self, func, *args, **kwargs):
+    async def execute(self, *args, **kwargs) -> Any:
         try:
-            return await asyncio.wait_for(
-                func(*args, **kwargs), timeout=self.timeout
-            )
-        except asyncio.TimeoutError:
-            logger.error(
-                f"[thread] {self.function.__name__} timed out"
-                + f" after {self.timeout} seconds"
-            )
+            if inspect.iscoroutinefunction(self.function):
+                result = await self._run_async(*args, **kwargs)
+            else:
+                result = await self._run_sync(*args, **kwargs)
+
+            self._handle_success()
+            return result
+
+        except Exception as e:
+            self._handle_error(e)
             return None
 
-    def run(self):
-        configure_logging()
+    async def _run_async(self, *args, **kwargs) -> Any:
+        try:
+            return await asyncio.wait_for(
+                self.function(*args, **kwargs), timeout=self.timeout
+            )
+        except asyncio.TimeoutError:
+            raise TimeoutError(
+                f"Task {self.name} timed out after {self.timeout}s"
+            )
 
-        logger.info(f"[thread] {self.function.__name__} started")
+    async def _run_sync(self, *args, **kwargs) -> Any:
+        def wrapper():
+            return self.function(*args, **kwargs)
+
+        loop = asyncio.get_running_loop()
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            try:
+                return await loop.run_in_executor(executor, wrapper)
+            except Exception as e:
+                raise type(e)(f"Task {self.name} failed: {str(e)}")
+
+    def _handle_success(self):
+        self._error_count = 0
+        self._last_success = time.time()
+
+    def _handle_error(self, error: Exception):
+        current_time = time.time()
+        if current_time - self._last_success > self.ERROR_RESET_TIME:
+            self._error_count = 0
+
+        self._error_count += 1
+
+        if self._error_count >= self.MAX_ERRORS:
+            logger.error(
+                f"Task {self.name} failed {self.MAX_ERRORS} times in succession. Latest error: {error}"
+            )
+        else:
+            logger.warning(f"Task {self.name} failed: {error}")
+
+
+class BackgroundTimer(Timer):
+    """Thread-based timer with improved error handling"""
+
+    def __init__(
+        self,
+        interval: float,
+        function: Callable,
+        args: Optional[List] = None,
+        kwargs: Optional[Dict] = None,
+        timeout: int = 300,
+    ):
+        super().__init__(interval, function, args or [], kwargs or {})
+        self.wrapper = TaskWrapper(function, timeout)
+        self._health_check = True
+        self.daemon = (
+            True  # Allow the program to exit even if the timer is running
+        )
+
+    def __str__(self) -> str:
+        return self.wrapper.name
+
+    def run(self):
+        """Main thread loop with error handling"""
+        configure_logging()
+        logger.info(f"[thread] {self} started")
+
+        # Initial run
+        self._run_cycle()
+
+        # Subsequent runs
+        while not self.finished.wait(self.interval):
+            self._run_cycle()
+
+    def _run_cycle(self):
+        """Single execution cycle with error handling"""
+        try:
+            # Create and run a new event loop for this thread
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+            loop.run_until_complete(
+                self.wrapper.execute(*self.args, **self.kwargs)
+            )
+            self._health_check = True
+
+        except Exception as e:
+            logger.error(f"Error in {self}: {str(e)}")
+            logger.debug(traceback.format_exc())
+            self._health_check = False
+        finally:
+            loop.close()
+
+    def is_healthy(self) -> bool:
+        """Check if the thread is healthy"""
+        return self._health_check
+
+
+class MultiprocessTimer(multiprocessing.Process):
+    """Process-based timer with improved error handling and recovery"""
+
+    def __init__(
+        self,
+        interval: float,
+        function: Callable,
+        args: Optional[List] = None,
+        kwargs: Optional[Dict] = None,
+        timeout: int = 300,
+        max_retries: int = 3,
+        retry_delay: float = 5.0,
+    ):
+        super().__init__()
+        self.interval = interval
+        self.wrapper = TaskWrapper(function, timeout)
+        self.args = args or []
+        self.kwargs = kwargs or {}
+        self.finished = multiprocessing.Event()
+        self.max_retries = max_retries
+        self.retry_delay = retry_delay
+        self._health_check = multiprocessing.Value("i", 1)
+
+    def __str__(self) -> str:
+        return self.wrapper.name
+
+    def run(self):
+        """Main process loop with error handling and health monitoring"""
+        self._configure_process()
+        logger.info(f"[process] {self} started")
 
         while not self.finished.is_set():
             try:
-                if inspect.iscoroutinefunction(self.function):
-                    asyncio.run(
-                        self.run_async_with_timeout(
-                            self.function, *self.args, **self.kwargs
-                        )
-                    )
-                else:
-                    self.run_with_timeout(
-                        self.function, *self.args, **self.kwargs
-                    )
-                self.finished.wait(self.interval)
-            except EOFError:
-                logger.error(
-                    f"EOFError occurred in {self.function.__name__}. Attempting to recover..."
-                )
-                time.sleep(5)
-            except Exception:
-                logger.error(traceback.format_exc())
+                asyncio.run(self._run_cycle())
+            except Exception as e:
+                self._handle_fatal_error(e)
+
+    async def _run_cycle(self):
+        """Single execution cycle with timeout and error handling"""
+        try:
+            await self.wrapper.execute(*self.args, **self.kwargs)
+            self._health_check.value = 1
+
+            # Wait for the next interval or until cancelled
+            await asyncio.sleep(self.interval)
+
+        except (EOFError, BrokenPipeError, ConnectionError) as e:
+            logger.warning(f"Communication error in {self}: {str(e)}")
+            await self._handle_communication_error()
+
+        except Exception as e:
+            logger.error(f"Unexpected error in {self}: {str(e)}")
+            logger.debug(traceback.format_exc())
+            await asyncio.sleep(self.retry_delay)
+
+    async def _handle_communication_error(self):
+        """Handle multiprocessing communication errors"""
+        self._health_check.value = 0
+        retry_count = 0
+
+        while retry_count < self.max_retries:
+            try:
+                # Attempt to re-establish communication
+                if self.finished.is_set():
+                    return
+
+                await asyncio.sleep(self.retry_delay * (retry_count + 1))
+                retry_count += 1
+
+            except Exception as e:
+                logger.error(f"Failed to recover {self}: {str(e)}")
+                if retry_count >= self.max_retries - 1:
+                    raise
+
+    def _handle_fatal_error(self, error: Exception):
+        """Handle errors that require process termination"""
+        logger.critical(f"Fatal error in {self}: {str(error)}")
+        logger.debug(traceback.format_exc())
+        self.cancel()
+
+    def _configure_process(self):
+        """Configure process-specific settings"""
+        try:
+            multiprocessing.current_process().name = f"BGTimer-{self}"
+            configure_logging()
+        except Exception as e:
+            logger.error(f"Failed to configure {self}: {str(e)}")
 
     def cancel(self):
-        logger.info(f"[thread] cancel {self.function.__name__}")
+        """Safely cancel the background timer"""
+        logger.info(f"[process] cancelling {self}")
         self.finished.set()
+
+    def is_healthy(self) -> bool:
+        """Check if the process is healthy"""
+        return bool(self._health_check.value)
 
 
 def get_coldkey_for_hotkey(self, hotkey):

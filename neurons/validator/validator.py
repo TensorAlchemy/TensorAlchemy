@@ -33,7 +33,7 @@ from neurons.utils.common import log_dependencies
 from neurons.utils.defaults import get_defaults
 from neurons.utils import (
     BackgroundTimer,
-    MultiprocessBackgroundTimer,
+    MultiprocessTimer,
     background_loop,
 )
 from neurons.utils.log import configure_logging
@@ -305,9 +305,9 @@ class StableValidator:
         self.model_type = ModelType.CUSTOM
 
         self.background_loop: BackgroundTimer = None
-        self.set_weights_process: MultiprocessBackgroundTimer = None
-        self.upload_images_process: MultiprocessBackgroundTimer = None
-        self.upload_scores_process: MultiprocessBackgroundTimer = None
+        self.set_weights_process: MultiprocessTimer = None
+        self.upload_images_process: MultiprocessTimer = None
+        self.upload_scores_process: MultiprocessTimer = None
 
         saas_show_dashboard_url()
 
@@ -324,26 +324,48 @@ class StableValidator:
         else:
             logger.error(f"{thread} had segfault, restarted")
 
-    def stop_processes(self) -> None:
-        processes: List[str] = [
-            "background_loop",
-            "upload_images_process",
-            "upload_scores_process",
-            "set_weights_process",
+    def graceful_shutdown(self) -> None:
+        """Gracefully shutdown background processes and logging"""
+        logger.info("Initiating graceful shutdown...")
+
+        # Signal threads to stop
+        self.should_quit.set()
+
+        # Remove all loguru handlers except stderr
+        logger.remove()
+        logger.add(sys.stderr, level="ERROR")
+
+        # Stop processes with timeout
+        processes = [
+            self.background_loop,
+            self.upload_images_process,
+            self.upload_scores_process,
+            self.set_weights_process,
         ]
 
-        for process_name in processes:
-            process: Process = getattr(self, process_name)
-            if process.is_alive():
-                process.terminate()
+        for process in processes:
+            if process and process.is_alive():
+                try:
+                    process.cancel()
+                    process.join(timeout=5)
+                except:
+                    pass
 
-        for process_name in processes:
-            process: Process = getattr(self, process_name)
-            process.join()
+        logger.info("Shutdown complete")
 
     def update_check(self) -> None:
-        if self.step % 4 == 0:
-            safely_check_for_updates()
+        if self.step % 4 != 0:
+            return
+
+        if safely_check_for_updates():
+            if self.config.alchemy.auto_update:
+                logger.info("Update detected, initiating shutdown...")
+                self.should_quit.set()
+            else:
+                logger.warning(
+                    "New version available but auto-update is disabled. "
+                    "Please update manually."
+                )
 
     def start_threads(self, is_startup: bool = False) -> None:
         logger.info(f"[start_threads] is_startup={is_startup}")
@@ -357,21 +379,21 @@ class StableValidator:
             ),
             (
                 "upload_images_process",
-                MultiprocessBackgroundTimer,
+                MultiprocessTimer,
                 0.5,
                 upload_images_loop,
                 [self.should_quit, self.batches_upload_queue],
             ),
             (
                 "upload_scores_process",
-                MultiprocessBackgroundTimer,
+                MultiprocessTimer,
                 1.0,
                 upload_scores_loop,
                 [self.should_quit, self.scores_upload_queue],
             ),
             (
                 "set_weights_process",
-                MultiprocessBackgroundTimer,
+                MultiprocessTimer,
                 1.0,
                 set_weights_loop,
                 [self.should_quit, self.set_weights_queue],
@@ -659,28 +681,30 @@ class StableValidator:
         logger.info("Starting validator loop.")
         self.step = 0
 
-        while not self.should_quit.is_set():
-            try:
-                logger.info(
-                    f"Started new validator run ({validator_run_id.get()})."
-                )
+        try:
+            while not self.should_quit.is_set():
+                try:
+                    logger.info(
+                        f"Started new validator run ({validator_run_id.get()})."
+                    )
 
-                if await self.pre_step():
-                    if await self.mid_step():
-                        await self.post_step()
+                    if await self.pre_step():
+                        if await self.mid_step():
+                            await self.post_step()
 
-                self.step += 1
+                    self.step += 1
 
-            except KeyboardInterrupt:
-                logger.success(
-                    "Keyboard interrupt detected. Exiting validator."
-                )
-                break
-            except Exception:
-                logger.error(traceback.format_exc())
-                await asyncio.sleep(5)
+                except KeyboardInterrupt:
+                    logger.success(
+                        "Keyboard interrupt detected. Exiting validator."
+                    )
+                    break
+                except Exception:
+                    logger.error(traceback.format_exc())
+                    await asyncio.sleep(5)
 
-        self.stop_processes()
+        finally:
+            self.graceful_shutdown()
 
     async def pre_step(self):
         try:

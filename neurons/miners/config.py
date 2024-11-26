@@ -47,6 +47,12 @@ def get_miner_config() -> bittensor.config:
         default="stabilityai/stable-diffusion-xl-refiner-1.0",
     )
     argp.add_argument(
+        "--alchemy.auto_update",
+        action="store_true",
+        default=False,
+        help="Enable automatic updates when new versions are detected",
+    )
+    argp.add_argument(
         "--miner.alchemy_model",
         type=str,
         default="stabilityai/stable-diffusion-xl-base-1.0",
@@ -57,7 +63,9 @@ def get_miner_config() -> bittensor.config:
         default="stabilityai/stable-diffusion-xl-refiner-1.0",
     )
     argp.add_argument(
-        "--alchemy.disable_loki_logging", action="store_true", default=False
+        "--alchemy.disable_loki_logging",
+        action="store_true",
+        default=False,
     )
 
     argp.add_argument(

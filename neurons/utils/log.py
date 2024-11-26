@@ -1,7 +1,6 @@
 import os
 import sys
 import json
-import torch
 import logging
 from multiprocessing import Queue
 from typing import Any
@@ -87,7 +86,7 @@ def sh(message: str):
     return f"{message: <12}"
 
 
-def summarize_rewards(reward_tensor: torch.Tensor) -> str:
+def summarize_rewards(reward_tensor: "torch.Tensor") -> str:
     non_zero = reward_tensor[reward_tensor != 0]
     if len(non_zero) == 0:
         return "All zeros"

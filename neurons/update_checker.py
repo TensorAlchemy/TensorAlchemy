@@ -45,6 +45,7 @@ def get_remote_commit_hash(repo_url, branch):
 
 
 def show_update_warning_message(local_commit, remote_commit):
+    local_branch = get_current_branch()
     msg = f"""
     Your TensorAlchemy is OUTDATED
 
@@ -54,7 +55,7 @@ def show_update_warning_message(local_commit, remote_commit):
     Remote hash: {remote_commit}
 
     Please update:
-    1) git fetch && git reset --hard origin/main
+    1) git fetch && git reset --hard origin/{local_branch}
     2) Restart your validator
     """.strip()
     log_banner(
@@ -63,16 +64,15 @@ def show_update_warning_message(local_commit, remote_commit):
     )
 
 
-def check_for_updates() -> None:
+def check_for_updates() -> bool:
     repo_url: str = "TensorAlchemy/TensorAlchemy"
-
     current_branch = get_current_branch()
-
     local_commit = get_local_commit_hash(current_branch)
     remote_commit = get_remote_commit_hash(repo_url, current_branch)
 
     if local_commit and remote_commit and local_commit != remote_commit:
         show_update_warning_message(local_commit, remote_commit)
+        return True
 
     elif local_commit == remote_commit:
         logger.info(
@@ -81,9 +81,12 @@ def check_for_updates() -> None:
     else:
         logger.info("Unable to determine the update status.")
 
+    return False
 
-def safely_check_for_updates():
+
+def safely_check_for_updates() -> bool:
     try:
-        check_for_updates()
+        return check_for_updates()
     except Exception as e:
         logger.error(f"Failed to check for updates {e}")
+        return False
