@@ -1,24 +1,20 @@
-# Deep Learning & AI Frameworks
-torch==2.5.1
-torchvision==0.20.1
-transformers==4.46.3
-xformers==0.0.28.post3
-accelerate==1.1.1
-
-# AI Model & Vision Libraries
-diffusers==0.31.0
-image-reward==1.5
-openai==1.55.0
-imagehash==4.3.1
-clip==0.2.0
-
 # Bittensor Related
 bittensor==8.3.1
 bittensor-cli==8.3.1
 bittensor-wallet==2.1.1
 
-# Data Processing & Machine Learning
-numpy==2.0.2
+# Core Deep Learning & AI Frameworks
+transformers==4.46.3
+xformers==0.0.28.post3
+torch==2.5.1
+torchvision==0.20.1
+accelerate==1.1.1
+
+# AI Model & Vision Libraries
+diffusers==0.31.0
+openai==1.55.1
+clip==0.2.0
+image-reward==1.5
 
 # Logging & Monitoring
 loguru==0.7.2
@@ -27,6 +23,5 @@ python-logging-loki==0.3.1
 # Development & Testing
 pytest==8.3.3
 
-# Utilities
+# Web Dependencies
 tenacity==9.0.0
-google-cloud-storage==2.16.0

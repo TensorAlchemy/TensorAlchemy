@@ -24,6 +24,12 @@ def add_args(parser: argparse.ArgumentParser) -> None:
     # NOTE: Items here are used only for adding to config
     #       they will be overridden by downloaded JSON
     parser.add_argument(
+        "--alchemy.auto_update",
+        action="store_true",
+        default=False,
+        help="Enable automatic updates when new versions are detected",
+    )
+    parser.add_argument(
         "--alchemy.delta_factor",
         type=float,
         default=0.5,

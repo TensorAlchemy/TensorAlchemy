@@ -10,6 +10,7 @@ from loguru import logger
 from neurons.common.saas.utils import saas_show_dashboard_url
 from neurons.constants import VPERMIT_TAO
 from neurons.protocol import ImageGeneration, IsAlive, ModelType
+from neurons.update_checker import safely_check_for_updates
 
 from neurons.config import get_config, get_wallet, get_metagraph, get_subtensor
 from neurons.utils import BackgroundTimer, background_loop
@@ -404,11 +405,27 @@ class BaseMiner(ABC):
     def priority_image_generation(self, synapse: ImageGeneration) -> float:
         return self._base_priority(synapse)
 
+    def update_check(self) -> None:
+        if self.step % 4 != 0:
+            return
+
+        if safely_check_for_updates():
+            if get_config().alchemy.auto_update:
+                logger.info("Update detected, initiating shutdown...")
+                self.should_quit.set()
+            else:
+                logger.warning(
+                    "New version available but auto-update is disabled. "
+                    "Please update manually."
+                )
+
     def loop(self) -> None:
         logger.info("Starting miner loop.", color="green")
         step: int = 0
         while not self.should_quit.is_set():
             try:
+                self.update_check()
+
                 # Check the miner is still registered
                 is_registered: bool = self.check_still_registered()
 
