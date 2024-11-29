@@ -457,7 +457,7 @@ class StableValidator:
                 negative_prompt=None,
                 prompt=prompt,
                 seed=-1,
-                steps=50,
+                steps=30,
                 width=1024,
                 height=1024,
             )
