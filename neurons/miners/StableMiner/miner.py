@@ -32,7 +32,7 @@ class StableMiner(BaseMiner):
                 # Forward function
                 self.generate_image,
                 # Blacklist function
-                self._base_blacklist,
+                self.blacklist,
                 # Priority function
                 None,  # Using default priority
             ),
@@ -45,6 +45,9 @@ class StableMiner(BaseMiner):
                 None,
             ),
         ]
+
+    def blacklist(self, synapse: ImageGeneration) -> Tuple[bool, str]:
+        return self._base_blacklist(synapse)
 
     def initialize_implementation(self) -> None:
         """Initialize SDXL model"""
