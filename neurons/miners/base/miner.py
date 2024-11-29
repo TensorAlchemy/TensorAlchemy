@@ -28,10 +28,14 @@ class BaseMiner(ABC):
     Individual miners should inherit from this and implement specific synapse handling.
     """
 
+    state: MinerState
+
     def __init__(self) -> None:
         # Core state management
         self.should_quit: Event = Manager().Event()
-        self.state = MinerState()
+
+        if not self.state:
+            self.state = MinerState()
 
         # Initialize logging
         if get_config().logging.debug:
@@ -48,7 +52,7 @@ class BaseMiner(ABC):
         self.initialize_implementation()
 
         # Start axon server
-        self.start_axon()
+        self.start()
 
         # Start main loop
         self.loop()
@@ -150,8 +154,9 @@ class BaseMiner(ABC):
         """Check if miner is registered on network"""
         self.state.metrics.miner_index = self.get_miner_index()
         if self.state.metrics.miner_index is not None:
+            hotkey: str = get_wallet().hotkey.ss58_address
             logger.info(
-                f"Miner {get_wallet().hotkey} registered with uid "
+                f"Miner {hotkey} registered with uid "
                 f"{get_metagraph().uids[self.state.metrics.miner_index]}"
             )
             return True
@@ -159,9 +164,10 @@ class BaseMiner(ABC):
 
     def handle_unregistered_miner(self) -> None:
         """Handle unregistered miner state"""
+        hotkey: str = get_wallet().hotkey.ss58_address
+
         logger.warning(
-            f"Miner {get_wallet().hotkey} not registered. "
-            "Sleeping for 120 seconds..."
+            f"Miner {hotkey} not registered. " "Sleeping for 120 seconds..."
         )
         time.sleep(120)
         get_metagraph().sync(subtensor=get_subtensor())
