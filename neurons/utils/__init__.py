@@ -237,7 +237,7 @@ class MultiprocessTimer(multiprocessing.Process):
         return bool(self._health_check.value)
 
 
-def get_coldkey_for_hotkey(self, hotkey):
+def get_coldkey_for_hotkey(self, hotkey: str) -> Optional[str]:
     """
     Look up the coldkey of the caller.
     """
@@ -245,6 +245,17 @@ def get_coldkey_for_hotkey(self, hotkey):
         index = self.metagraph.hotkeys.index(hotkey)
         return self.metagraph.coldkeys[index]
     return None
+
+
+def get_stake_for_hotkey(self, hotkey: str) -> float:
+    """
+    Look up the coldkey of the caller.
+    """
+    if hotkey in self.metagraph.hotkeys:
+        index = self.metagraph.hotkeys.index(hotkey)
+        return self.metagraph.S[index]
+
+    return 0.0
 
 
 background_steps: int = 0

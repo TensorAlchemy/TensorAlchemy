@@ -14,11 +14,12 @@ os.environ["USE_TORCH"] = "1"
 
 
 def setup_paths():
-    file_path: str = str(
-        pathlib.Path(__file__).parent.parent.parent.parent.resolve(),
-    )
-    if file_path not in sys.path:
-        sys.path.append(file_path)
+    file_path = pathlib.Path(__file__).parents[4].resolve()
+    if file_path.exists():
+        if str(file_path) not in sys.path:
+            sys.path.append(str(file_path))
+    else:
+        raise FileNotFoundError(f"Path does not exist: {file_path}")
 
 
 def main():
