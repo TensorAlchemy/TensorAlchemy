@@ -1,7 +1,5 @@
 # Bittensor Related
-bittensor==8.3.1
-bittensor-cli==8.3.1
-bittensor-wallet==2.1.1
+bittensor==8.4.2
 
 # Core Deep Learning & AI Frameworks
 transformers==4.46.3

@@ -192,11 +192,6 @@ update_repository() {
     log_info "Git status after update:"
     git status
 
-    log_info "Installing dependencies..."
-    if ! pip install -e . --no-cache-dir; then
-        log_error "Failed to install updated dependencies"
-        return 1
-    fi
     return 0
 }
 
@@ -287,6 +282,12 @@ main() {
         update_repository || exit 1
     else
         log_info "Auto-update is disabled, skipping updates"
+    fi
+
+    log_info "Installing dependencies..."
+    if ! pip install -e . --no-cache-dir; then
+        log_error "Failed to install updated dependencies"
+        return 1
     fi
 
     # Run the process once and handle its exit
