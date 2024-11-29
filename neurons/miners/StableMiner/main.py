@@ -3,8 +3,8 @@ import pathlib
 import sys
 import warnings
 from loguru import logger
-from neurons.miners.StableMiner.miner import StableMiner
 from neurons.utils.log import configure_logging
+from neurons.miners.StableMiner.miner import StableMiner
 
 # Suppress the eth_utils network warnings
 warnings.simplefilter("ignore")
@@ -22,7 +22,7 @@ def setup_paths():
         if file_path.exists():
             if str(file_path) not in sys.path:
                 sys.path.append(str(file_path))
-                logger.info(f"Added path to sys.path: {file_path}")
+                logger.success(f"Added path to sys.path: {file_path}")
         else:
             raise FileNotFoundError(f"Path does not exist: {file_path}")
 
@@ -38,15 +38,15 @@ def main():
 
         logger.info("Setting up paths...")
         setup_paths()
-        logger.info("Paths setup complete")
+        logger.success("Paths setup complete")
 
         logger.info("Configuring logging...")
         configure_logging()
-        logger.info("Logging configured")
+        logger.success("Logging configured")
 
         logger.info("Initializing Stable Miner...")
         miner = StableMiner()
-        logger.info("Stable Miner initialized successfully")
+        logger.success("Stable Miner initialized successfully")
 
         # Keep the process running
         logger.info("Entering main loop...")

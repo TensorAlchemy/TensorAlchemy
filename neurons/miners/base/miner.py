@@ -56,8 +56,8 @@ class BaseMiner(ABC):
     def initialize_components(self) -> None:
         """Initialize core miner components"""
         self.initialize_subtensor()
-        self.initialize_metagraph()
         self.initialize_wallet()
+        self.initialize_metagraph()
         self.loop_until_registered()
         self.start_background_loop()
 
@@ -92,7 +92,7 @@ class BaseMiner(ABC):
         self.background_timer.daemon = True
         self.background_timer.start()
 
-    def start_axon(self) -> None:
+    def start(self) -> None:
         """Start the axon server with implementation specific forward functions"""
         logger.info(f"Serving axon on port {get_config().axon.port}.")
         self.create_axon()

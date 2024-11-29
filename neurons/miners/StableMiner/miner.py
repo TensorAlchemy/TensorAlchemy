@@ -21,6 +21,29 @@ class StableMiner(BaseMiner):
         self.stable_state = StableMinerState()
         super().__init__()
 
+    def get_forward_functions(
+        self,
+    ) -> List[Tuple[callable, callable, callable]]:
+        """Return list of forward function tuples for axon"""
+        return [
+            (
+                # Forward function
+                self.generate_image,
+                # Blacklist function
+                self._base_blacklist,
+                # Priority function
+                None,  # Using default priority
+            ),
+            (
+                # IsAlive check function
+                lambda synapse: synapse,
+                # No blacklist for IsAlive
+                None,
+                # Priority function
+                None,
+            ),
+        ]
+
     def initialize_implementation(self) -> None:
         """Initialize SDXL model"""
         try:

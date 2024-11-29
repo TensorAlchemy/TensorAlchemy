@@ -4,10 +4,12 @@ Client management utilities for the Alchemy project.
 
 import os
 from typing import Optional
-from openai import AsyncOpenAI
+
 import bittensor as bt
 from loguru import logger
-from .parser import get_config
+from openai import AsyncOpenAI
+
+from neurons.config.parser import get_config
 
 
 wallet: Optional[bt.wallet] = None
@@ -154,6 +156,7 @@ def get_metagraph(nocache: bool = False, **kwargs) -> bt.metagraph:
         config = get_config()
         netuid: int = config.netuid or 26
         network: str = get_subtensor().chain_endpoint or "finney"
+
         logger.info(f"Creating connection to metagraph: {netuid=}: {network=}")
 
         metagraph = bt.metagraph(

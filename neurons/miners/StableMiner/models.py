@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Dict, Optional
 import torch
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from diffusers import StableDiffusionXLPipeline
 
 
@@ -22,15 +22,15 @@ class StableModelConfig(BaseModel):
     width: int = Field(default=1024)
     height: int = Field(default=1024)
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class StableMinerState(BaseModel):
     """State for the stable diffusion miner"""
 
-    model_config: StableModelConfig = Field(default_factory=StableModelConfig)
+    stable_config: StableModelConfig = Field(
+        default_factory=StableModelConfig
+    )  # Renamed from model_config
     nsfw_count: int = Field(default=0)
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
