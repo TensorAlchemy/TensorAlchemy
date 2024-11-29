@@ -11,9 +11,20 @@
 
 set -eu
 
-# Get the directory where the script is located
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-cd "$SCRIPT_DIR"
+# Ensure we're in the correct directory before doing anything else
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
+
+# Verify the directory exists and change to it
+if [ ! -d "$SCRIPT_DIR" ]; then
+    echo "Error: Script directory not found: $SCRIPT_DIR" >&2
+    exit 1
+fi
+
+cd "$SCRIPT_DIR" || {
+    echo "Error: Failed to change to script directory: $SCRIPT_DIR" >&2
+    exit 1
+}
 
 # Configuration
 PYTHON_CMD="python3"
@@ -21,7 +32,20 @@ VALIDATOR_PATH="neurons/validator/main.py"
 MINER_PATH="neurons/miners/StableMiner/main.py"
 UPDATE_EXIT_CODE=42
 WIDTH=80
-REPO_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+# Verify required paths exist
+if [ ! -f "$VALIDATOR_PATH" ]; then
+    echo "Error: Validator script not found at: $VALIDATOR_PATH" >&2
+    exit 1
+fi
+
+if [ ! -f "$MINER_PATH" ]; then
+    echo "Error: Miner script not found at: $MINER_PATH" >&2
+    exit 1
+fi
+
+# Get current git branch
+REPO_BRANCH=$(git rev-parse --abbrev-ref HEAD || echo "unknown")
 
 # Check if terminal supports colors
 if [ -t 1 ] && command -v tput >/dev/null && [ "$(tput colors)" -ge 8 ]; then
@@ -100,10 +124,6 @@ check_git_updates() {
 
 update_repository() {
     log_info "Forcing repository update..."
-
-    # Make sure we're in the script directory
-    cd "$SCRIPT_DIR"
-    log_info "Working directory: $(pwd)"
 
     # Debug: Show current git status
     log_info "Git status before update:"
