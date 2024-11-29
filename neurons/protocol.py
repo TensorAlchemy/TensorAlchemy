@@ -2,6 +2,7 @@ from enum import Enum
 from typing import Optional, List, Union, Any
 
 import bittensor as bt
+from bittensor import Synapse
 import numpy as np
 import torch
 from pydantic import BaseModel, Field, ConfigDict, field_validator
@@ -56,7 +57,7 @@ def deserialize_incoming_image(inbound_image: Any):
     return inbound_image
 
 
-class IsAlive(bt.Synapse):
+class IsAlive(Synapse):
     computed_body_hash: str = Field("")
     answer: Optional[str] = None
     completion: str = Field(
@@ -70,7 +71,7 @@ class IsAlive(bt.Synapse):
 SupportedImageTypes = Union[str, np.ndarray, torch.tensor, bt.Tensor]
 
 
-class ImageGeneration(bt.Synapse):
+class ImageGeneration(Synapse):
     """
     A simple dummy protocol representation which uses bt.Synapse
     as its base.
