@@ -2,7 +2,6 @@ import os
 import sys
 import pathlib
 import subprocess
-from typing import List
 
 from loguru import logger
 

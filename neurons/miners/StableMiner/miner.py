@@ -1,18 +1,17 @@
 import torch
 import time
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Optional, Tuple
 from loguru import logger
 from PIL import Image
-import torchvision.transforms as transforms
 from diffusers import AutoPipelineForInpainting, DEISMultistepScheduler
 
 from neurons.protocol import ImageGeneration, IsAlive
 from neurons.utils.nsfw import clean_nsfw_from_prompt
 from neurons.utils.image import image_to_base64
-from neurons.config import get_config
+from neurons.config import get_config, get_device
 
 from neurons.miners.base.miner import BaseMiner
-from neurons.miners.StableMiner.models import TaskType, MinerState
+from neurons.miners.StableMiner.models import MinerState
 
 
 class StableMiner(BaseMiner):
@@ -82,7 +81,7 @@ class StableMiner(BaseMiner):
         if seed is None:
             seed = int(time.time())
 
-        generator = torch.Generator(device=self.device).manual_seed(seed)
+        generator = torch.Generator(device=get_device()).manual_seed(seed)
 
         with torch.inference_mode():
             self.state.config.model(
