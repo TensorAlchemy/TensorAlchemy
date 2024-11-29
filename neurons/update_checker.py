@@ -49,8 +49,7 @@ def show_update_warning_message(local_commit, remote_commit):
     msg = f"""
     Your TensorAlchemy is OUTDATED
 
-    Your local TensorAlchemy is not up-to-date with
-    the TensorAlchemy repository.
+    Your local TensorAlchemy is not up-to-date
     Your hash:   {local_commit}
     Remote hash: {remote_commit}
 
