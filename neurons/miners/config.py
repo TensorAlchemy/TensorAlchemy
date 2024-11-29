@@ -28,23 +28,9 @@ def get_miner_config() -> bittensor.config:
         default="cuda:0",
     )
     argp.add_argument(
-        "--miner.optimize",
-        action="store_true",
-    )
-    argp.add_argument(
         "--miner.seed",
         type=int,
         default=random.randint(0, 100_000_000_000),
-    )
-    argp.add_argument(
-        "--miner.custom_model",
-        type=str,
-        default="stabilityai/stable-diffusion-xl-base-1.0",
-    )
-    argp.add_argument(
-        "--miner.custom_refiner",
-        type=str,
-        default="stabilityai/stable-diffusion-xl-refiner-1.0",
     )
     argp.add_argument(
         "--alchemy.auto_update",
@@ -55,22 +41,12 @@ def get_miner_config() -> bittensor.config:
     argp.add_argument(
         "--miner.alchemy_model",
         type=str,
-        default="stabilityai/stable-diffusion-xl-base-1.0",
-    )
-    argp.add_argument(
-        "--miner.alchemy_refiner",
-        type=str,
-        default="stabilityai/stable-diffusion-xl-refiner-1.0",
+        default="Lykon/dreamshaper-8-inpainting",
     )
     argp.add_argument(
         "--alchemy.disable_loki_logging",
         action="store_true",
         default=False,
-    )
-
-    argp.add_argument(
-        "--refiner.enable",
-        action="store_true",
     )
 
     bt.axon.add_args(argp)
