@@ -111,30 +111,27 @@ class StableMiner(BaseMiner):
             return []
 
     def _prepare_generation_args(
-        self, request: Dict[str, Any]
+        self,
+        request: ImageGeneration,
     ) -> Dict[str, Any]:
         """Prepare arguments for model inference"""
         args = {
-            "prompt": [clean_nsfw_from_prompt(request["prompt"])],
-            "width": request.get("width", self.state.config.width),
-            "height": request.get("height", self.state.config.height),
-            "num_images_per_prompt": request.get("num_images_per_prompt", 1),
-            "guidance_scale": request.get(
-                "guidance_scale", self.state.config.guidance_scale
-            ),
-            "num_inference_steps": request.get(
-                "steps", self.state.config.num_inference_steps
-            ),
-            "generator": self._create_generator(request.get("seed", None)),
+            "prompt": [clean_nsfw_from_prompt(request.prompt)],
+            "width": request.width or self.state.config.width,
+            "height": request.height or self.state.config.height,
+            "num_images_per_prompt": request.num_images_per_prompt,
+            "guidance_scale": request.guidance_scale,
+            "num_inference_steps": request.steps,
+            "generator": self._create_generator(request.seed),
             "denoising_end": 0.8,
             "output_type": "latent",
         }
 
-        if request.get("negative_prompt"):
-            args["negative_prompt"] = [request["negative_prompt"]]
+        if request.negative_prompt:
+            args["negative_prompt"] = [request.negative_prompt]
 
-        if request.get("generation_type") == TaskType.IMAGE_TO_IMAGE:
-            args["image"] = self._prepare_input_image(request["prompt_image"])
+        if request.generation_type == TaskType.IMAGE_TO_IMAGE:
+            args["image"] = self._prepare_input_image(request.prompt_image)
 
         return args
 

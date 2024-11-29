@@ -177,7 +177,7 @@ class BaseMiner(ABC):
     async def _base_blacklist(self, synapse: bt.Synapse) -> Tuple[bool, str]:
         """Base blacklist implementation that can be used by child classes"""
         vpermit_tao_limit: float = (VPERMIT_TAO,)
-        rate_limit: float = (1.0,)
+        rate_limit: float = 1.0
 
         try:
             synapse_type: str = type(synapse).__name__
