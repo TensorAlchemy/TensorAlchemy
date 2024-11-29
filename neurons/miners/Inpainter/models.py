@@ -14,7 +14,7 @@ class TaskType(str, Enum):
 
 
 class ModelConfig(BaseModel):
-    """Configuration for Stable Diffusion pipeline"""
+    """Configuration for Inpaint Diffusion pipeline"""
 
     # Core model components
     model: Optional[AutoPipelineForInpainting] = None

@@ -11,10 +11,10 @@ from neurons.utils.image import image_to_base64
 from neurons.config import get_config, get_device
 
 from neurons.miners.base.miner import BaseMiner
-from neurons.miners.StableMiner.models import MinerState
+from neurons.miners.InpaintMiner.models import MinerState
 
 
-class StableMiner(BaseMiner):
+class InpaintMiner(BaseMiner):
     def __init__(self, **kwargs) -> None:
         self.state = MinerState()
 
