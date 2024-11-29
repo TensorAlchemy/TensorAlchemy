@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Optional
 from pydantic import BaseModel, Field, ConfigDict
-from diffusers import StableDiffusionXLPipeline
+from diffusers import AutoPipelineForInpainting
 
 from neurons.miners.base.models import MinerState as BaseMinerState
 
@@ -17,8 +17,7 @@ class ModelConfig(BaseModel):
     """Configuration for Stable Diffusion pipeline"""
 
     # Core model components
-    model: Optional[StableDiffusionXLPipeline] = None
-    refiner: Optional[StableDiffusionXLPipeline] = None
+    model: Optional[AutoPipelineForInpainting] = None
 
     # Generation parameters
     guidance_scale: float = Field(default=7.5)

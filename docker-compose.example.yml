@@ -24,8 +24,7 @@ services:
         --logging.debug \
         --logging.trace \
         --miner.device cuda:0 \
-        --miner.model stabilityai/stable-diffusion-xl-base-1.0 \
-        --refiner.enable false"]
+        --miner.model Lykon/dreamshaper-8-inpainting"]
     networks:
       - stableminer_network
 

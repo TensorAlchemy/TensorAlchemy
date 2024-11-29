@@ -1,8 +1,9 @@
 import torch
 from typing import List, Dict, Any, Optional, Tuple
 from loguru import logger
-from diffusers import StableDiffusionXLPipeline
+from PIL import Image
 import torchvision.transforms as transforms
+from diffusers import AutoPipelineForInpainting, DEISMultistepScheduler
 
 from neurons.protocol import ImageGeneration, IsAlive
 from neurons.utils.nsfw import clean_nsfw_from_prompt
@@ -44,46 +45,43 @@ class StableMiner(BaseMiner):
         )
 
     def initialize_implementation(self) -> None:
-        """Initialize SDXL model and optional refiner"""
+        """Initialize SDXL model"""
         try:
             config = get_config().miner
             self.state.config.model = self._load_pipeline(config.alchemy_model)
-
-            if get_config().refiner.enable:
-                self.state.config.refiner = self._load_pipeline(
-                    config.alchemy_refiner
-                )
-
-            if config.optimize:
-                self._optimize_models()
 
         except Exception as e:
             logger.error(f"Failed to initialize models: {e}")
             raise
 
-    def _load_pipeline(self, model_path: str) -> StableDiffusionXLPipeline:
+    def _load_pipeline(self, model_path: str) -> AutoPipelineForInpainting:
         """Load a SDXL pipeline with standard settings"""
-        return StableDiffusionXLPipeline.from_pretrained(
+        pipe = AutoPipelineForInpainting.from_pretrained(
             model_path,
             torch_dtype=torch.float16,
             variant="fp16",
             use_safetensors=True,
         ).to(get_config().miner.device)
 
-    def _optimize_models(self) -> None:
-        """Compile models for better performance"""
-        for pipeline in [self.state.config.model, self.state.config.refiner]:
-            if pipeline:
-                pipeline.unet = torch.compile(
-                    pipeline.unet, mode="reduce-overhead", fullgraph=True
-                )
-                self._warm_up_pipeline(pipeline)
+        pipe.scheduler = DEISMultistepScheduler.from_config(
+            pipe.scheduler.config
+        )
 
-    def _warm_up_pipeline(self, pipeline: StableDiffusionXLPipeline) -> None:
+        self._warm_up_pipeline(pipe)
+
+        return pipe
+
+    def _warm_up_pipeline(self, pipeline: AutoPipelineForInpainting) -> None:
         """Run a quick inference pass to warm up the model"""
+
+        init_image = Image.new("RGB", (CELL_SIZE, CELL_SIZE), (0, 0, 0))
+        mask = Image.new("RGB", (CELL_SIZE, CELL_SIZE), (255, 255, 255))
+
         with torch.no_grad():
             pipeline(
                 prompt="warmup",
+                image=init_image,
+                mask=mask,
                 num_inference_steps=1,
                 width=512,
                 height=512,
@@ -97,7 +95,7 @@ class StableMiner(BaseMiner):
             for attempt in range(3):
                 try:
                     model_args = self._prepare_generation_args(request)
-                    images = self._generate_with_refinement(model_args)
+                    images = self.state.config.model(**model_args).images
                     break
                 except Exception as e:
                     logger.error(
@@ -147,18 +145,3 @@ class StableMiner(BaseMiner):
     def _prepare_input_image(self, image_data: bytes) -> Any:
         """Convert input image data for img2img"""
         return transforms.ToPILImage()(image_data)
-
-    def _generate_with_refinement(self, args: Dict[str, Any]) -> List[Any]:
-        """Generate image with optional refinement pass"""
-        images = self.state.config.model(**args).images
-
-        if self.state.config.refiner and get_config().refiner.enable:
-            refiner_args = {
-                "denoising_start": args["denoising_end"],
-                "prompt": args["prompt"],
-                "num_inference_steps": int(args["num_inference_steps"] * 0.2),
-                "image": images,
-            }
-            images = self.state.config.refiner(**refiner_args).images
-
-        return images
