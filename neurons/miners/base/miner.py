@@ -185,13 +185,11 @@ class BaseMiner(ABC):
         """Check if miner is still registered"""
         return self.get_miner_index() is not None
 
-    async def _base_blacklist(
-        self,
-        synapse: bt.Synapse,
-        vpermit_tao_limit: float = VPERMIT_TAO,
-        rate_limit: float = 1.0,
-    ) -> Tuple[bool, str]:
+    async def _base_blacklist(self, synapse: bt.Synapse) -> Tuple[bool, str]:
         """Base blacklist implementation that can be used by child classes"""
+        vpermit_tao_limit: float = (VPERMIT_TAO,)
+        rate_limit: float = (1.0,)
+
         try:
             synapse_type: str = type(synapse).__name__
             caller_hotkey: str = synapse.dendrite.hotkey
