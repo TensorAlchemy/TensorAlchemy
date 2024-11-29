@@ -104,7 +104,7 @@ class BaseMiner(ABC):
 
     def create_axon(self) -> None:
         try:
-            axon = bt.axon(
+            self.axon = bt.axon(
                 wallet=get_wallet(),
                 ip=bt.utils.networking.get_external_ip(),
                 external_ip=get_config().axon.get("external_ip")
@@ -113,7 +113,7 @@ class BaseMiner(ABC):
             )
 
             self.create_attachments()
-            self.axon = axon.start()
+            self.axon.start()
             logger.info(f"Axon created: {self.axon}")
         except Exception as e:
             logger.error(f"Failed to create axon: {e}")

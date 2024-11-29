@@ -27,12 +27,22 @@ class StableMiner(BaseMiner):
     def create_attachments(self) -> None:
         """Return list of forward function tuples for axon"""
 
-        # IsAlive
-        self.axon.attach(forward_fn=lambda synapse: synapse)
+        async def isalive(synapse: IsAlive) -> IsAlive:
+            return synapse
 
+        async def forward(synapse: ImageGeneration) -> ImageGeneration:
+            return await self.generate_image(synapse)
+
+        async def blacklist(synapse: ImageGeneration) -> Tuple[bool, str]:
+            return await self._base_blacklist(synapse)
+
+        # IsAlive synapse
+        self.axon.attach(forward_fn=isalive)
+
+        # Generate synapse
         self.axon.attach(
-            forward_fn=lambda synapse: self.generate_image(synapse),
-            blacklist_fn=lambda synapse: self._base_blacklist(synapse),
+            forward_fn=forward,
+            blacklist_fn=blacklist,
         )
 
     def initialize_implementation(self) -> None:
