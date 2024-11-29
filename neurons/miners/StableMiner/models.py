@@ -4,13 +4,15 @@ import torch
 from pydantic import BaseModel, Field, ConfigDict
 from diffusers import StableDiffusionXLPipeline
 
+from neurons.miners.base.models import MinerState as BaseMinerState
+
 
 class TaskType(str, Enum):
     TEXT_TO_IMAGE = "TEXT_TO_IMAGE"
     IMAGE_TO_IMAGE = "IMAGE_TO_IMAGE"
 
 
-class StableModelConfig(BaseModel):
+class ModelConfig(BaseModel):
     """Configuration for a Stable Diffusion model"""
 
     model: Optional[StableDiffusionXLPipeline] = None
@@ -25,12 +27,10 @@ class StableModelConfig(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
-class StableMinerState(BaseModel):
+class MinerState(BaseMinerState):
     """State for the stable diffusion miner"""
 
-    stable_config: StableModelConfig = Field(
-        default_factory=StableModelConfig
-    )  # Renamed from model_config
     nsfw_count: int = Field(default=0)
+    config: ModelConfig = ModelConfig()
 
     model_config = ConfigDict(arbitrary_types_allowed=True)

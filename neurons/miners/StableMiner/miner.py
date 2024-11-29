@@ -1,24 +1,26 @@
 import torch
 import asyncio
+import traceback
 from typing import List, Dict, Any, Tuple
-from loguru import logger
 
 import bittensor as bt
+from loguru import logger
 from diffusers import StableDiffusionXLPipeline
 from diffusers.callbacks import SDXLCFGCutoffCallback
 import torchvision.transforms as transforms
 
 from neurons.protocol import ImageGeneration, IsAlive
-from neurons.miners.base.miner import BaseMiner
-from neurons.miners.StableMiner.models import TaskType, StableMinerState
 from neurons.utils.nsfw import clean_nsfw_from_prompt
 from neurons.utils.image import image_to_base64
 from neurons.config import get_config
 
+from neurons.miners.base.miner import BaseMiner
+from neurons.miners.StableMiner.models import TaskType, MinerState, ModelConfig
+
 
 class StableMiner(BaseMiner):
     def __init__(self) -> None:
-        self.stable_state = StableMinerState()
+        self.state = MinerState()
         super().__init__()
 
     def get_forward_functions(
@@ -46,22 +48,25 @@ class StableMiner(BaseMiner):
 
     def initialize_implementation(self) -> None:
         """Initialize SDXL model"""
+        # Defensive check for config
+        if not hasattr(self.state, "config"):
+            logger.warning("Config not found, creating new ModelConfig")
+            self.state.config = ModelConfig()
+
         try:
             logger.info("Loading SDXL model...")
-            self.stable_state.model_config.model = (
-                StableDiffusionXLPipeline.from_pretrained(
-                    get_config().miner.model_name,
-                    torch_dtype=torch.float16,
-                    variant="fp16",
-                    use_safetensors=True,
-                ).to(get_config().miner.device)
-            )
+            self.state.config.model = StableDiffusionXLPipeline.from_pretrained(
+                get_config().miner.alchemy_model,
+                torch_dtype=torch.float16,
+                variant="fp16",
+                use_safetensors=True,
+            ).to(get_config().miner.device)
 
             if get_config().refiner.enable:
                 logger.info("Loading SDXL refiner...")
-                self.stable_state.model_config.refiner = (
+                self.state.config.refiner = (
                     StableDiffusionXLPipeline.from_pretrained(
-                        get_config().refiner.model_name,
+                        get_config().miner.alchemy_refiner,
                         torch_dtype=torch.float16,
                         variant="fp16",
                         use_safetensors=True,
@@ -72,32 +77,36 @@ class StableMiner(BaseMiner):
             if get_config().miner.optimize:
                 self._optimize_models()
 
-        except Exception as e:
-            logger.error(f"Failed to initialize models: {e}")
+        except Exception:
+            logger.error(
+                #
+                "Failed to initialize models: "
+                + traceback.format_exc()
+            )
             raise
 
     def _optimize_models(self) -> None:
         """Compile and optimize loaded models"""
         try:
             # Optimize base model
-            if self.stable_state.model_config.model:
+            if self.state.config.model:
                 logger.info("Optimizing base model")
-                self.stable_state.model_config.model.unet = torch.compile(
-                    self.stable_state.model_config.model.unet,
+                self.state.config.model.unet = torch.compile(
+                    self.state.config.model.unet,
                     mode="reduce-overhead",
                     fullgraph=True,
                 )
-                self._warm_up_model(self.stable_state.model_config.model)
+                self._warm_up_model(self.state.config.model)
 
             # Optimize refiner if present
-            if self.stable_state.model_config.refiner:
+            if self.state.config.refiner:
                 logger.info("Optimizing refiner")
-                self.stable_state.model_config.refiner.unet = torch.compile(
-                    self.stable_state.model_config.refiner.unet,
+                self.state.config.refiner.unet = torch.compile(
+                    self.state.config.refiner.unet,
                     mode="reduce-overhead",
                     fullgraph=True,
                 )
-                self._warm_up_model(self.stable_state.model_config.refiner)
+                self._warm_up_model(self.state.config.refiner)
 
         except Exception as e:
             logger.error(f"Failed to optimize models: {e}")
@@ -160,12 +169,9 @@ class StableMiner(BaseMiner):
         model_args: Dict[str, Any],
     ) -> List[Any]:
         """Generate images with optional refinement step"""
-        if (
-            self.stable_state.model_config.refiner
-            and get_config().refiner.enable
-        ):
+        if self.state.config.refiner and get_config().refiner.enable:
             # First pass with base model
-            images = self.stable_state.model_config.model(**model_args).images
+            images = self.state.config.model(**model_args).images
 
             # Setup refiner args
             refiner_args = {
@@ -178,9 +184,7 @@ class StableMiner(BaseMiner):
             }
 
             # Refine images
-            images = self.stable_state.model_config.refiner(
-                **refiner_args
-            ).images
+            images = self.state.config.refiner(**refiner_args).images
         else:
             # Single pass without refiner
             args = {
@@ -188,7 +192,7 @@ class StableMiner(BaseMiner):
                 for k, v in model_args.items()
                 if k not in ["denoising_end", "output_type"]
             }
-            images = self.stable_state.model_config.model(**args).images
+            images = self.state.config.model(**args).images
 
         return images
 
@@ -199,15 +203,15 @@ class StableMiner(BaseMiner):
         """Setup model arguments from synapse request"""
         args = {
             "prompt": [clean_nsfw_from_prompt(synapse.prompt)],
-            "width": synapse.width or self.stable_state.model_config.width,
-            "height": synapse.height or self.stable_state.model_config.height,
+            "width": synapse.width or self.state.config.width,
+            "height": synapse.height or self.state.config.height,
             "num_images_per_prompt": synapse.num_images_per_prompt,
             "guidance_scale": synapse.guidance_scale
-            or self.stable_state.model_config.guidance_scale,
+            or self.state.config.guidance_scale,
             "num_inference_steps": getattr(
                 synapse,
                 "steps",
-                self.stable_state.model_config.num_inference_steps,
+                self.state.config.num_inference_steps,
             ),
             "denoising_end": 0.8,
             "output_type": "latent",
