@@ -11,13 +11,12 @@ from neurons.utils.image import image_to_base64
 from neurons.config import get_config, get_device
 
 from neurons.miners.base.miner import BaseMiner
-from neurons.miners.InpaintMiner.models import MinerState
 
 
 class InpaintMiner(BaseMiner):
-    def __init__(self, **kwargs) -> None:
-        self.state = MinerState()
+    model: AutoPipelineForInpainting = None
 
+    def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
 
     def create_attachments(self) -> None:
@@ -48,18 +47,17 @@ class InpaintMiner(BaseMiner):
         """Initialize SDXL model"""
         try:
             config = get_config().miner
-            pipe = AutoPipelineForInpainting.from_pretrained(
+            self.model = AutoPipelineForInpainting.from_pretrained(
                 config.alchemy_model,
                 torch_dtype=torch.float16,
                 variant="fp16",
                 use_safetensors=True,
             ).to(get_config().miner.device)
 
-            pipe.scheduler = DEISMultistepScheduler.from_config(
-                pipe.scheduler.config
+            self.model.scheduler = DEISMultistepScheduler.from_config(
+                self.model.scheduler.config
             )
 
-            self.state.config.model = pipe
             self.generate("Warming up the pipes")
 
         except Exception as e:
@@ -84,7 +82,7 @@ class InpaintMiner(BaseMiner):
         generator = torch.Generator(device=get_device()).manual_seed(seed)
 
         with torch.inference_mode():
-            return self.state.config.model(
+            return self.model(
                 prompt=prompt,
                 image=init_image,
                 mask_image=mask,
