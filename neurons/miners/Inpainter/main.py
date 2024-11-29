@@ -5,7 +5,7 @@ import warnings
 from loguru import logger
 
 from neurons.utils.log import configure_logging
-from neurons.miners.StableMiner.miner import StableMiner
+from neurons.miners.InpaintMiner.miner import InpaintMiner
 
 # Suppress warnings and use torch style
 warnings.simplefilter("ignore")
@@ -33,8 +33,8 @@ def main():
     try:
         setup_environment()
 
-        logger.info("Initializing Stable Miner...")
-        miner = StableMiner()
+        logger.info("Initializing Inpaint Miner...")
+        miner = InpaintMiner()
 
         logger.info("Starting miner service...")
         while True:

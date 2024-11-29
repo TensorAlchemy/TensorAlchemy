@@ -3,7 +3,7 @@ from datetime import datetime
 from loguru import logger
 
 from neurons.utils.log import sh
-from neurons.miners.StableMiner.utils import (
+from neurons.miners.InpaintMiner.utils import (
     get_caller_stake,
     get_coldkey_for_hotkey,
 )
