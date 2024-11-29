@@ -2,7 +2,7 @@ from typing import Type, Optional
 
 import torch
 
-from neurons.miners.StableMiner.schema import TaskConfig
+from neurons.miners.StableMiner.models import TaskConfig
 
 
 class ModelLoader:

@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 ###########################################
 # TensorAlchemy Runner
@@ -143,12 +143,12 @@ update_repository() {
 run_process() {
     case "$1" in
         validator)
-            log_info "Launching validator with args: ${*#* } --alchemy.auto_update"
-            "$PYTHON_CMD" "$VALIDATOR_PATH" "${@#* }" "--alchemy.auto_update"
+            log_info "Launching validator with args: ${@:2} --alchemy.auto_update"
+            "$PYTHON_CMD" "$VALIDATOR_PATH" "${@:2}" "--alchemy.auto_update"
             ;;
         miner)
-            log_info "Launching miner with args: ${*#* } --alchemy.auto_update"
-            "$PYTHON_CMD" "$MINER_PATH" "${@#* }" "--alchemy.auto_update"
+            log_info "Launching miner with args: ${@:2} --alchemy.auto_update"
+            "$PYTHON_CMD" "$MINER_PATH" "${@:2}" "--alchemy.auto_update"
             ;;
         *)
             log_error "Invalid process type: $1"
