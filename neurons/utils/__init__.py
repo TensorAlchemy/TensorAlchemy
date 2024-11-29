@@ -5,11 +5,12 @@ import asyncio
 import traceback
 import multiprocessing
 from multiprocessing import Event
-from typing import Any, Callable, Optional, Dict, List, Union
+from typing import Any, Callable, Optional, Dict, List
 
 from threading import Timer
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 
+import bittensor as bt
 from loguru import logger
 from neurons.utils.log import configure_logging
 from neurons.config.lists import get_warninglist
@@ -237,23 +238,27 @@ class MultiprocessTimer(multiprocessing.Process):
         return bool(self._health_check.value)
 
 
-def get_coldkey_for_hotkey(self, hotkey: str) -> Optional[str]:
+def get_coldkey_for_hotkey(hotkey: str) -> Optional[str]:
     """
     Look up the coldkey of the caller.
     """
-    if hotkey in self.metagraph.hotkeys:
-        index = self.metagraph.hotkeys.index(hotkey)
-        return self.metagraph.coldkeys[index]
+    metagraph: bt.metagraph = get_metagraph()
+
+    if hotkey in metagraph.hotkeys:
+        index = metagraph.hotkeys.index(hotkey)
+        return metagraph.coldkeys[index]
     return None
 
 
-def get_stake_for_hotkey(self, hotkey: str) -> float:
+def get_stake_for_hotkey(hotkey: str) -> float:
     """
     Look up the coldkey of the caller.
     """
-    if hotkey in self.metagraph.hotkeys:
-        index = self.metagraph.hotkeys.index(hotkey)
-        return self.metagraph.S[index]
+    metagraph: bt.metagraph = get_metagraph()
+
+    if hotkey in metagraph.hotkeys:
+        index = metagraph.hotkeys.index(hotkey)
+        return metagraph.S[index]
 
     return 0.0
 

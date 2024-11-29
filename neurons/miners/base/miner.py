@@ -30,7 +30,7 @@ class BaseMiner(ABC):
 
     state: MinerState
 
-    def __init__(self) -> None:
+    def __init__(self, **kwargs) -> None:
         # Core state management
         self.should_quit: Event = Manager().Event()
 
@@ -195,7 +195,7 @@ class BaseMiner(ABC):
                 return True, "Hotkey is blacklisted"
 
             # Check coldkey blacklist
-            coldkey = await get_coldkey_for_hotkey(caller_hotkey)
+            coldkey = get_coldkey_for_hotkey(caller_hotkey)
             if coldkey in coldkey_blacklist:
                 return True, "Coldkey is blacklisted"
 

@@ -1,6 +1,5 @@
 from enum import Enum
-from typing import Dict, Optional
-import torch
+from typing import Optional
 from pydantic import BaseModel, Field, ConfigDict
 from diffusers import StableDiffusionXLPipeline
 
@@ -8,17 +7,20 @@ from neurons.miners.base.models import MinerState as BaseMinerState
 
 
 class TaskType(str, Enum):
+    """Enum defining supported generation tasks"""
+
     TEXT_TO_IMAGE = "TEXT_TO_IMAGE"
     IMAGE_TO_IMAGE = "IMAGE_TO_IMAGE"
 
 
 class ModelConfig(BaseModel):
-    """Configuration for a Stable Diffusion model"""
+    """Configuration for Stable Diffusion pipeline"""
 
+    # Core model components
     model: Optional[StableDiffusionXLPipeline] = None
     refiner: Optional[StableDiffusionXLPipeline] = None
 
-    # Default generation params
+    # Generation parameters
     guidance_scale: float = Field(default=7.5)
     num_inference_steps: int = Field(default=20)
     width: int = Field(default=1024)
@@ -28,7 +30,7 @@ class ModelConfig(BaseModel):
 
 
 class MinerState(BaseMinerState):
-    """State for the stable diffusion miner"""
+    """Global miner state tracking"""
 
     nsfw_count: int = Field(default=0)
     config: ModelConfig = ModelConfig()

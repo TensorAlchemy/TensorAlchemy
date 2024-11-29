@@ -1,67 +1,54 @@
 import os
-import pathlib
 import sys
+import pathlib
 import warnings
 from loguru import logger
+
 from neurons.utils.log import configure_logging
 from neurons.miners.StableMiner.miner import StableMiner
 
-# Suppress the eth_utils network warnings
+# Suppress warnings and use torch style
 warnings.simplefilter("ignore")
-
-# Use the older torch style for now
 os.environ["USE_TORCH"] = "1"
 
 
-def setup_paths():
+def setup_environment():
+    """Setup paths and logging"""
     try:
-        logger.info("Setting up paths...")
-        file_path = pathlib.Path(__file__).parents[4].resolve()
-        logger.info(f"Resolved file path: {file_path}")
+        # Add project root to path
+        root_path = pathlib.Path(__file__).parents[4].resolve()
+        if root_path.exists() and str(root_path) not in sys.path:
+            sys.path.append(str(root_path))
 
-        if file_path.exists():
-            if str(file_path) not in sys.path:
-                sys.path.append(str(file_path))
-                logger.success(f"Added path to sys.path: {file_path}")
-        else:
-            raise FileNotFoundError(f"Path does not exist: {file_path}")
+        # Configure logging
+        configure_logging()
 
-        logger.info("Path setup completed successfully")
     except Exception as e:
-        logger.error(f"Error in setup_paths: {str(e)}")
+        logger.error(f"Environment setup failed: {e}")
         raise
 
 
 def main():
+    """Main entry point"""
     try:
-        logger.info("Starting main initialization...")
-
-        logger.info("Setting up paths...")
-        setup_paths()
-        logger.success("Paths setup complete")
-
-        logger.info("Configuring logging...")
-        configure_logging()
-        logger.success("Logging configured")
+        setup_environment()
 
         logger.info("Initializing Stable Miner...")
         miner = StableMiner()
-        logger.success("Stable Miner initialized successfully")
 
-        # Keep the process running
-        logger.info("Entering main loop...")
+        logger.info("Starting miner service...")
         while True:
             try:
                 miner.start()
             except KeyboardInterrupt:
-                logger.info("Received keyboard interrupt, shutting down...")
+                logger.info("Shutting down...")
                 break
             except Exception as e:
-                logger.error(f"Error in main loop: {str(e)}")
+                logger.error(f"Runtime error: {e}")
                 raise
 
     except Exception as e:
-        logger.error(f"Fatal error in main: {str(e)}")
+        logger.error(f"Fatal error: {e}")
         raise
 
 
