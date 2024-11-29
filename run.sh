@@ -102,7 +102,30 @@ print_banner() {
     printf "${COLOR_BLUE}+%s+${COLOR_NC}\n" "$_border"
 }
 
+run_process() {
+    case "$1" in
+        validator)
+            log_info "Launching validator with args: ${@:2} --alchemy.auto_update"
+            "$PYTHON_CMD" "$VALIDATOR_PATH" "${@:2}" "--alchemy.auto_update"
+            ;;
+        miner)
+            log_info "Launching miner with args: ${@:2} --alchemy.auto_update"
+            "$PYTHON_CMD" "$MINER_PATH" "${@:2}" "--alchemy.auto_update"
+            ;;
+        *)
+            log_error "Invalid process type: $1"
+            return 1
+            ;;
+    esac
+}
+
 check_git_updates() {
+    # First verify we're in a git repository
+    if ! git rev-parse --git-dir > /dev/null 2>&1; then
+        log_error "Not in a git repository. Directory: $(pwd)"
+        return 1
+    fi
+
     log_info "Checking for updates..."
 
     # Fetch the latest changes
@@ -123,6 +146,12 @@ check_git_updates() {
 }
 
 update_repository() {
+    # First verify we're in a git repository
+    if ! git rev-parse --git-dir > /dev/null 2>&1; then
+        log_error "Not in a git repository. Directory: $(pwd)"
+        return 1
+    fi
+
     log_info "Forcing repository update..."
 
     # Debug: Show current git status
@@ -160,25 +189,9 @@ update_repository() {
     return 0
 }
 
-run_process() {
-    case "$1" in
-        validator)
-            log_info "Launching validator with args: ${@:2} --alchemy.auto_update"
-            "$PYTHON_CMD" "$VALIDATOR_PATH" "${@:2}" "--alchemy.auto_update"
-            ;;
-        miner)
-            log_info "Launching miner with args: ${@:2} --alchemy.auto_update"
-            "$PYTHON_CMD" "$MINER_PATH" "${@:2}" "--alchemy.auto_update"
-            ;;
-        *)
-            log_error "Invalid process type: $1"
-            return 1
-            ;;
-    esac
-}
-
 handle_exit_code() {
     _exit_code="$1"
+    _process_type="$2"  # Added process type parameter
 
     case $_exit_code in
         0)
@@ -190,7 +203,13 @@ handle_exit_code() {
             return 2
             ;;
         *)
-            log_error "Process failed with exit code ${_exit_code}"
+            log_error "Process $_process_type failed with exit code ${_exit_code}"
+            # If it's a Python error, wait a moment before retrying
+            if [ $_exit_code -eq 1 ]; then
+                log_warn "Python process crashed - waiting 5 seconds before retrying..."
+                sleep 5
+                return 2  # Signal to retry
+            fi
             return 1
             ;;
     esac
@@ -222,8 +241,9 @@ main() {
         run_process "$@"
         _exit_code=$?
 
-        handle_exit_code "$_exit_code"
+        handle_exit_code "$_exit_code" "$_process_type"
         _should_continue=$?
+        echo $(pwd)
 
         if [ $_should_continue -eq 2 ]; then
             # Force update before continuing
