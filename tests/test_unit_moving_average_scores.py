@@ -2,7 +2,6 @@ import pytest
 from unittest.mock import patch, MagicMock
 import torch
 from loguru import logger
-from functools import wraps
 from typing import Dict
 
 from neurons.validator.forward import (

@@ -70,7 +70,7 @@ async def test_exact_duplicates(duplicate_filter, mock_metagraph):
         "scoring.models.base.get_metagraph",
         return_value=mock_metagraph,
     ):
-        image = create_complex_image()
+        create_complex_image()
         images1 = [TEST_IMAGES["DUP_A"]]
         images2 = [TEST_IMAGES["DUP_B"]]
         images3 = [

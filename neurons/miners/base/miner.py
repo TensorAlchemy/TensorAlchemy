@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple
 from multiprocessing import Manager, Event
 import sys
 import time
@@ -68,14 +68,12 @@ class BaseMiner(ABC):
     @abstractmethod
     def initialize_implementation(self) -> None:
         """Initialize implementation specific components"""
-        pass
 
     @abstractmethod
     def create_attachments(
         self,
     ) -> None:
         """Create all attachments to synapse callbacks"""
-        pass
 
     def initialize_subtensor(self) -> None:
         get_subtensor()
