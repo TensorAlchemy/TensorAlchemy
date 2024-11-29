@@ -84,7 +84,7 @@ class StableMiner(BaseMiner):
         generator = torch.Generator(device=get_device()).manual_seed(seed)
 
         with torch.inference_mode():
-            self.state.config.model(
+            return self.state.config.model(
                 prompt=prompt,
                 image=init_image,
                 mask_image=mask,
