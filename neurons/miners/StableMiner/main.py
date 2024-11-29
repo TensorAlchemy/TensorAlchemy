@@ -3,7 +3,7 @@ import pathlib
 import sys
 import warnings
 from loguru import logger
-from neurons.miners.StableMiner.stable_miner import StableMiner
+from neurons.miners.StableMiner.miner import StableMiner
 from neurons.utils.log import configure_logging
 
 # Suppress the eth_utils network warnings

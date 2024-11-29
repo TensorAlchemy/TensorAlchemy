@@ -6,7 +6,7 @@
 # This script manages the TensorAlchemy validator and miner processes,
 # handling updates, process management, and graceful shutdowns.
 #
-# Usage: ./run.sh [validator|miner] [additional args...]
+# Usage: ./run.sh [validator|miner] [--auto-update true|false] [additional args...]
 ###########################################
 
 set -eu
@@ -32,6 +32,7 @@ VALIDATOR_PATH="neurons/validator/main.py"
 MINER_PATH="neurons/miners/StableMiner/main.py"
 UPDATE_EXIT_CODE=42
 WIDTH=80
+AUTO_UPDATE=true
 
 # Verify required paths exist
 if [ ! -f "$VALIDATOR_PATH" ]; then
@@ -105,12 +106,22 @@ print_banner() {
 run_process() {
     case "$1" in
         validator)
-            log_info "Launching validator with args: ${@:2} --alchemy.auto_update"
-            "$PYTHON_CMD" "$VALIDATOR_PATH" "${@:2}" "--alchemy.auto_update"
+            if [ "$AUTO_UPDATE" = true ]; then
+                log_info "Launching validator with args: ${@:2} --alchemy.auto_update"
+                "$PYTHON_CMD" "$VALIDATOR_PATH" "${@:2}" "--alchemy.auto_update"
+            else
+                log_info "Launching validator with args: ${@:2}"
+                "$PYTHON_CMD" "$VALIDATOR_PATH" "${@:2}"
+            fi
             ;;
         miner)
-            log_info "Launching miner with args: ${@:2} --alchemy.auto_update"
-            "$PYTHON_CMD" "$MINER_PATH" "${@:2}" "--alchemy.auto_update"
+            if [ "$AUTO_UPDATE" = true ]; then
+                log_info "Launching miner with args: ${@:2} --alchemy.auto_update"
+                "$PYTHON_CMD" "$MINER_PATH" "${@:2}" "--alchemy.auto_update"
+            else
+                log_info "Launching miner with args: ${@:2}"
+                "$PYTHON_CMD" "$MINER_PATH" "${@:2}"
+            fi
             ;;
         *)
             log_error "Invalid process type: $1"
@@ -191,7 +202,7 @@ update_repository() {
 
 handle_exit_code() {
     _exit_code="$1"
-    _process_type="$2"  # Added process type parameter
+    _process_type="$2"
 
     case $_exit_code in
         0)
@@ -199,59 +210,107 @@ handle_exit_code() {
             return 0
             ;;
         "$UPDATE_EXIT_CODE")
-            log_info "Update detected during runtime - restarting"
-            return 2
+            if [ "$AUTO_UPDATE" = true ]; then
+                log_info "Update detected during runtime - restarting"
+                return 2
+            else
+                log_info "Update detected but auto-update is disabled - exiting"
+                return 0
+            fi
             ;;
         *)
             log_error "Process $_process_type failed with exit code ${_exit_code}"
-            # If it's a Python error, wait a moment before retrying
-            if [ $_exit_code -eq 1 ]; then
-                log_warn "Python process crashed - waiting 5 seconds before retrying..."
-                sleep 5
-                return 2  # Signal to retry
-            fi
             return 1
             ;;
     esac
 }
 
+parse_args() {
+    local args=("$@")
+    local i=0
+    _process_type=""
+
+    while [ $i -lt ${#args[@]} ]; do
+        case "${args[$i]}" in
+            --auto-update)
+                if [ $((i + 1)) -lt ${#args[@]} ]; then
+                    if [ "${args[$((i + 1))]}" = "false" ] || [ "${args[$((i + 1))]}}" = "0" ]; then
+                        AUTO_UPDATE=false
+                        log_info "Auto-update disabled via command line"
+                    elif [ "${args[$((i + 1))]}}" = "true" ] || [ "${args[$((i + 1))]}}" = "1" ]; then
+                        AUTO_UPDATE=true
+                        log_info "Auto-update enabled via command line"
+                    else
+                        log_error "Invalid value for --auto-update: ${args[$((i + 1))]} (must be true/false or 1/0)"
+                        exit 1
+                    fi
+                    i=$((i + 2))
+                else
+                    log_error "--auto-update requires a value"
+                    exit 1
+                fi
+                ;;
+            validator|miner)
+                _process_type="${args[$i]}"
+                i=$((i + 1))
+                ;;
+            *)
+                i=$((i + 1))
+                ;;
+        esac
+    done
+
+    # Debug output
+    log_info "Parsed arguments - Process type: $_process_type, Auto-update: $AUTO_UPDATE"
+    return 0
+}
+
 main() {
     if [ $# -lt 1 ]; then
-        print_banner "Usage: ./run.sh [validator|miner] [additional args...]"
+        print_banner "Usage: ./run.sh [validator|miner] [--auto-update true|false] [additional args...]"
         exit 1
     fi
 
-    case "$1" in
-        validator|miner)
-            _process_type="$1"
-            ;;
-        *)
-            print_banner "Error: First argument must be 'validator' or 'miner'"
-            exit 1
-            ;;
-    esac
+    # First parse auto-update and process type
+    parse_args "$@"
 
-    log_info "Starting TensorAlchemy $_process_type"
+    if [ -z "${_process_type:-}" ]; then
+        print_banner "Error: First argument must be 'validator' or 'miner'"
+        exit 1
+    fi
 
-    # Always force update before running
-    update_repository || exit 1
+    log_info "Starting TensorAlchemy $_process_type (auto-update: $AUTO_UPDATE)"
 
-    while true; do
-        log_info "Running $_process_type process..."
-        run_process "$@"
-        _exit_code=$?
+    # Only update if auto-update is true
+    if [ "$AUTO_UPDATE" = true ]; then
+        log_info "Auto-update is enabled, performing initial update"
+        update_repository || exit 1
+    else
+        log_info "Auto-update is disabled, skipping updates"
+    fi
 
-        handle_exit_code "$_exit_code" "$_process_type"
-        _should_continue=$?
-        echo $(pwd)
+    # Run the process once and handle its exit
+    log_info "Running $_process_type process..."
+    run_process "$@"
+    _exit_code=$?
 
-        if [ $_should_continue -eq 2 ]; then
-            # Force update before continuing
-            update_repository || exit 1
-        else
-            break
-        fi
-    done
+    handle_exit_code "$_exit_code" "$_process_type"
+    _should_continue=$?
+
+    # Exit codes:
+    # 0 = normal completion
+    # 1 = error
+    # 2 = update needed
+    if [ $_should_continue -eq 1 ]; then
+        log_error "Process failed with error, exiting"
+        exit 1
+    elif [ $_should_continue -eq 2 ] && [ "$AUTO_UPDATE" = true ]; then
+        log_info "Update requested and auto-update is enabled"
+        update_repository && main "$@"  # Restart from beginning if update succeeds
+    fi
+
+    # Normal exit
+    exit 0
 }
 
 main "$@"
