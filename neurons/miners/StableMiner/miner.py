@@ -89,7 +89,7 @@ class StableMiner(BaseMiner):
                 image=init_image,
                 mask_image=mask,
                 generator=generator,
-                num_inference_steps=1,
+                num_inference_steps=steps,
                 negative_prompt=negative_prompt,
             )
 
