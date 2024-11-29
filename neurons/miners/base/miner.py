@@ -71,10 +71,10 @@ class BaseMiner(ABC):
         pass
 
     @abstractmethod
-    def get_forward_functions(
+    def create_attachments(
         self,
-    ) -> List[Tuple[callable, callable, callable]]:
-        """Return list of (forward_fn, blacklist_fn, priority_fn) tuples for axon"""
+    ) -> None:
+        """Create all attachments to synapse callbacks"""
         pass
 
     def initialize_subtensor(self) -> None:
@@ -112,18 +112,7 @@ class BaseMiner(ABC):
                 config=get_config(),
             )
 
-            # Attach implementation specific forward functions
-            for (
-                forward_fn,
-                blacklist_fn,
-                priority_fn,
-            ) in self.get_forward_functions():
-                axon.attach(
-                    forward_fn=forward_fn,
-                    blacklist_fn=blacklist_fn,
-                    priority_fn=priority_fn,
-                )
-
+            self.create_attachments()
             self.axon = axon.start()
             logger.info(f"Axon created: {self.axon}")
         except Exception as e:

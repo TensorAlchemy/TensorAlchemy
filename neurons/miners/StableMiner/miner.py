@@ -21,33 +21,19 @@ from neurons.miners.StableMiner.models import TaskType, MinerState, ModelConfig
 class StableMiner(BaseMiner):
     def __init__(self) -> None:
         self.state = MinerState()
+        # Add this before axon.attach in create_axon
         super().__init__()
 
-    def get_forward_functions(
-        self,
-    ) -> List[Tuple[callable, callable, callable]]:
+    def create_attachments(self) -> None:
         """Return list of forward function tuples for axon"""
-        return [
-            (
-                # Forward function
-                self.generate_image,
-                # Blacklist function
-                self.blacklist,
-                # Priority function
-                None,  # Using default priority
-            ),
-            (
-                # IsAlive check function
-                lambda synapse: synapse,
-                # No blacklist for IsAlive
-                None,
-                # Priority function
-                None,
-            ),
-        ]
 
-    def blacklist(self, synapse: ImageGeneration) -> Tuple[bool, str]:
-        return self._base_blacklist(synapse)
+        # IsAlive
+        self.axon.attach(forward_fn=lambda synapse: synapse)
+
+        self.axon.attach(
+            forward_fn=lambda synapse: self.generate_image(synapse),
+            blacklist_fn=lambda synapse: self._base_blacklist(synapse),
+        )
 
     def initialize_implementation(self) -> None:
         """Initialize SDXL model"""
