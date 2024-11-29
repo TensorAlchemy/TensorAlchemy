@@ -1,4 +1,5 @@
 import torch
+import time
 from typing import List, Dict, Any, Optional, Tuple
 from loguru import logger
 from PIL import Image
@@ -48,54 +49,63 @@ class StableMiner(BaseMiner):
         """Initialize SDXL model"""
         try:
             config = get_config().miner
-            self.state.config.model = self._load_pipeline(config.alchemy_model)
+            pipe = AutoPipelineForInpainting.from_pretrained(
+                config.alchemy_model,
+                torch_dtype=torch.float16,
+                variant="fp16",
+                use_safetensors=True,
+            ).to(get_config().miner.device)
+
+            pipe.scheduler = DEISMultistepScheduler.from_config(
+                pipe.scheduler.config
+            )
+
+            self.state.config.model = pipe
+            self.generate("Warming up the pipes")
 
         except Exception as e:
             logger.error(f"Failed to initialize models: {e}")
             raise
 
-    def _load_pipeline(self, model_path: str) -> AutoPipelineForInpainting:
-        """Load a SDXL pipeline with standard settings"""
-        pipe = AutoPipelineForInpainting.from_pretrained(
-            model_path,
-            torch_dtype=torch.float16,
-            variant="fp16",
-            use_safetensors=True,
-        ).to(get_config().miner.device)
-
-        pipe.scheduler = DEISMultistepScheduler.from_config(
-            pipe.scheduler.config
-        )
-
-        self._warm_up_pipeline(pipe)
-
-        return pipe
-
-    def _warm_up_pipeline(self, pipeline: AutoPipelineForInpainting) -> None:
+    def generate(
+        self,
+        prompt: str,
+        negative_prompt: str = "",
+        steps: int = 1,
+        seed: Optional[int] = None,
+    ) -> None:
         """Run a quick inference pass to warm up the model"""
 
-        init_image = Image.new("RGB", (CELL_SIZE, CELL_SIZE), (0, 0, 0))
-        mask = Image.new("RGB", (CELL_SIZE, CELL_SIZE), (255, 255, 255))
+        init_image = Image.new("RGB", (1024, 1024), (0, 0, 0))
+        mask = Image.new("RGB", (1024, 1024), (255, 255, 255))
 
-        with torch.no_grad():
-            pipeline(
-                prompt="warmup",
+        if seed is None:
+            seed = int(time.time())
+
+        generator = torch.Generator(device=self.device).manual_seed(seed)
+
+        with torch.inference_mode():
+            self.state.config.model(
+                prompt=prompt,
                 image=init_image,
-                mask=mask,
+                mask_image=mask,
+                generator=generator,
                 num_inference_steps=1,
-                width=512,
-                height=512,
-                num_images_per_prompt=1,
+                negative_prompt=negative_prompt,
             )
 
-    async def generate_image(self, request: Dict[str, Any]) -> List[str]:
+    async def generate_image(self, request: ImageGeneration) -> List[str]:
         """Main image generation entrypoint"""
         try:
             images = []
             for attempt in range(3):
                 try:
-                    model_args = self._prepare_generation_args(request)
-                    images = self.state.config.model(**model_args).images
+                    images = self.generate(
+                        prompt=clean_nsfw_from_prompt(request.prompt),
+                        negative_prompt=request.negative_prompt,
+                        steps=request.steps,
+                        seed=request.seed,
+                    ).images
                     break
                 except Exception as e:
                     logger.error(
@@ -107,41 +117,3 @@ class StableMiner(BaseMiner):
         except Exception as e:
             logger.error(f"Error in image generation: {e}")
             return []
-
-    def _prepare_generation_args(
-        self,
-        request: ImageGeneration,
-    ) -> Dict[str, Any]:
-        """Prepare arguments for model inference"""
-        args = {
-            "prompt": [clean_nsfw_from_prompt(request.prompt)],
-            "width": request.width or self.state.config.width,
-            "height": request.height or self.state.config.height,
-            "num_images_per_prompt": request.num_images_per_prompt,
-            "guidance_scale": request.guidance_scale,
-            "num_inference_steps": request.steps,
-            "generator": self._create_generator(request.seed),
-            "denoising_end": 0.8,
-            "output_type": "latent",
-        }
-
-        if request.negative_prompt:
-            args["negative_prompt"] = [request.negative_prompt]
-
-        if request.generation_type == TaskType.IMAGE_TO_IMAGE:
-            args["image"] = self._prepare_input_image(request.prompt_image)
-
-        return args
-
-    def _create_generator(
-        self, seed: Optional[int] = None
-    ) -> List[torch.Generator]:
-        """Create deterministic generator if seed provided"""
-        generator = torch.Generator(device=get_config().miner.device)
-        if seed is not None:
-            generator.manual_seed(seed)
-        return [generator]
-
-    def _prepare_input_image(self, image_data: bytes) -> Any:
-        """Convert input image data for img2img"""
-        return transforms.ToPILImage()(image_data)
