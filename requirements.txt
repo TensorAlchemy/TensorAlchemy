@@ -1,5 +1,5 @@
 # Bittensor Related
-bittensor==8.4.2
+bittensor==8.5.0
 
 # Core Deep Learning & AI Frameworks
 transformers==4.46.3
