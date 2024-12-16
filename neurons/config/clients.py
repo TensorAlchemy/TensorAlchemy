@@ -182,9 +182,3 @@ def get_backend_client(nocache: bool = False) -> "TensorAlchemyBackendClient":
         backend_client = TensorAlchemyBackendClient()
 
     return backend_client
-
-
-# TODO: Remove
-c = get_config()
-s = get_subtensor()
-m = get_metagraph()

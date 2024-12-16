@@ -20,6 +20,7 @@ python-logging-loki==0.3.1
 
 # Development & Testing
 pytest==8.3.3
+pytest-asyncio==0.25.0
 
 # Web Dependencies
 tenacity==9.0.0
