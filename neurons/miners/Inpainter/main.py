@@ -4,7 +4,7 @@ import sys
 import warnings
 
 from loguru import logger
-from neurons.miners.InpaintMiner.miner import InpaintMiner
+from neurons.miners.Inpainter.miner import InpaintMiner
 from neurons.utils.log import configure_logging
 
 # Suppress warnings and use torch style
