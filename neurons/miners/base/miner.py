@@ -32,13 +32,13 @@ class BaseMiner(ABC):
     """
 
     state: MinerState
+    should_quit: Event
 
     def __init__(self, **kwargs) -> None:
         # Core state management
-        self.should_quit: Event = Manager().Event()
+        self.should_quit = Manager().Event()
 
-        if not self.state:
-            self.state = MinerState()
+        self.state = MinerState()
 
         # Initialize logging
         if get_config().logging.debug:
@@ -187,7 +187,9 @@ class BaseMiner(ABC):
 
     async def _base_blacklist(self, synapse: bt.Synapse) -> Tuple[bool, str]:
         """Base blacklist implementation that can be used by child classes"""
-        logger.debug(f"Running blacklist checks for synapse type {type(synapse).__name__}...")
+        logger.debug(
+            f"Running blacklist checks for synapse type {type(synapse).__name__}..."
+        )
         vpermit_tao_limit: float = VPERMIT_TAO
         rate_limit: float = 1.0
 
@@ -233,7 +235,9 @@ class BaseMiner(ABC):
         self, synapse_type: str, caller_hotkey: str, rate_limit: float
     ) -> bool:
         """Check if caller has exceeded rate limit"""
-        logger.debug(f"Checking rate limits for hotkey {caller_hotkey} on {synapse_type}...")
+        logger.debug(
+            f"Checking rate limits for hotkey {caller_hotkey} on {synapse_type}..."
+        )
         if synapse_type not in ["IsAlive"]:
             if caller_hotkey in self.state.request_stats:
                 now = time.perf_counter()

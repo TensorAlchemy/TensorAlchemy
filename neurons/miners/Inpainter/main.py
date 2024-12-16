@@ -9,7 +9,7 @@ from neurons.utils.log import configure_logging
 
 # Suppress warnings and use torch style
 warnings.simplefilter("ignore")
-os.environ["USE_TORCH"] = "1"
+os.environ["USE_TORCH"] = "0"
 
 
 def setup_environment():
