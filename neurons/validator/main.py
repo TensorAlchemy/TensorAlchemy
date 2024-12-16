@@ -11,7 +11,7 @@ import warnings
 warnings.simplefilter("ignore")
 
 # Use the older torch style for now
-os.environ["USE_TORCH"] = "0"
+
 
 if __name__ == "__main__":
     # Add the base repository to the path so the validator can access it

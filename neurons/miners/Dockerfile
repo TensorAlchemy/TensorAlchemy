@@ -3,7 +3,7 @@ FROM python:3.10-slim
 # Environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV USE_TORCH=1
+
 ENV AXON_PORT=8101
 
 RUN apt update && \
