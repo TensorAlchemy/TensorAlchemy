@@ -29,7 +29,7 @@ cd "$SCRIPT_DIR" || {
 # Configuration
 PYTHON_CMD="python3"
 VALIDATOR_PATH="neurons/validator/main.py"
-MINER_PATH="neurons/miners/StableMiner/main.py"
+MINER_PATH="neurons/miners/Inpainter/main.py"
 UPDATE_EXIT_CODE=42
 WIDTH=80
 AUTO_UPDATE=true
