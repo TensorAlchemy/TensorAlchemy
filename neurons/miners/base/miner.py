@@ -22,6 +22,7 @@ from neurons.utils import (
 from neurons.utils.log import sh
 
 import bittensor as bt
+from bittensor.utils.networking import get_external_ip
 
 
 class BaseMiner(ABC):
@@ -61,6 +62,7 @@ class BaseMiner(ABC):
 
     def initialize_components(self) -> None:
         """Initialize core miner components"""
+        logger.info("Beginning core component initialization...")
         self.initialize_subtensor()
         self.initialize_wallet()
         self.initialize_metagraph()
@@ -79,15 +81,19 @@ class BaseMiner(ABC):
 
     def initialize_subtensor(self) -> None:
         get_subtensor()
+        logger.info("Initializing subtensor connection...")
 
     def initialize_metagraph(self) -> None:
         get_metagraph()
+        logger.info("Initializing and syncing metagraph...")
 
     def initialize_wallet(self) -> None:
         get_wallet()
+        logger.info("Initializing wallet connection...")
 
     def start_background_loop(self) -> None:
         """Start background monitoring loop"""
+        logger.info("Starting background monitoring loop...")
         self.background_timer: BackgroundTimer = BackgroundTimer(
             300,
             background_loop,
@@ -104,11 +110,15 @@ class BaseMiner(ABC):
 
     def create_axon(self) -> None:
         try:
+            logger.info("Creating axon server configuration...")
+            axon_config: Optional[bt.AxonInfo] = get_config().axon
+
+            assert axon_config is not None, "Axon configuration was not defined"
+
             self.axon = bt.axon(
                 wallet=get_wallet(),
-                ip=bt.utils.networking.get_external_ip(),
-                external_ip=get_config().axon.get("external_ip")
-                or bt.utils.networking.get_external_ip(),
+                ip=get_external_ip(),
+                external_ip=axon_config.get("external_ip") or get_external_ip(),
                 config=get_config(),
             )
 
@@ -141,6 +151,7 @@ class BaseMiner(ABC):
 
     def is_miner_registered(self) -> bool:
         """Check if miner is registered on network"""
+        logger.info("Checking miner registration status...")
         self.state.metrics.miner_index = self.get_miner_index()
         if self.state.metrics.miner_index is not None:
             hotkey: str = get_wallet().hotkey.ss58_address
@@ -176,6 +187,7 @@ class BaseMiner(ABC):
 
     async def _base_blacklist(self, synapse: bt.Synapse) -> Tuple[bool, str]:
         """Base blacklist implementation that can be used by child classes"""
+        logger.debug(f"Running blacklist checks for synapse type {type(synapse).__name__}...")
         vpermit_tao_limit: float = VPERMIT_TAO
         rate_limit: float = 1.0
 
@@ -221,6 +233,7 @@ class BaseMiner(ABC):
         self, synapse_type: str, caller_hotkey: str, rate_limit: float
     ) -> bool:
         """Check if caller has exceeded rate limit"""
+        logger.debug(f"Checking rate limits for hotkey {caller_hotkey} on {synapse_type}...")
         if synapse_type not in ["IsAlive"]:
             if caller_hotkey in self.state.request_stats:
                 now = time.perf_counter()
@@ -262,10 +275,13 @@ class BaseMiner(ABC):
     def loop(self) -> None:
         """Main miner loop"""
         logger.info("Starting miner loop.")
+        step = 0
 
         while not self.should_quit.is_set():
             try:
                 # Check for updates
+                step += 1
+                logger.debug(f"Main loop step {step}")
                 self.update_check()
 
                 # Check registration

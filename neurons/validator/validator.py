@@ -58,6 +58,7 @@ from neurons.validator.weights import (
 )
 
 import bittensor as bt
+from bittensor.utils.networking import get_external_ip
 
 # Set the start method for multiprocessing
 set_start_method("spawn", force=True)
@@ -644,8 +645,8 @@ class StableValidator:
         try:
             self.axon = bt.axon(
                 wallet=self.wallet,
-                ip=bt.utils.networking.get_external_ip(),
-                external_ip=bt.utils.networking.get_external_ip(),
+                ip=get_external_ip(),
+                external_ip=get_external_ip(),
                 config=self.config,
             )
 
