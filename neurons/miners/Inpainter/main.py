@@ -1,11 +1,11 @@
 import os
-import sys
 import pathlib
+import sys
 import warnings
-from loguru import logger
 
-from neurons.utils.log import configure_logging
+from loguru import logger
 from neurons.miners.InpaintMiner.miner import InpaintMiner
+from neurons.utils.log import configure_logging
 
 # Suppress warnings and use torch style
 warnings.simplefilter("ignore")

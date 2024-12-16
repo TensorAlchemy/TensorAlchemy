@@ -1,8 +1,8 @@
 import traceback
 from ssl import SSLEOFError
-from loguru import logger
-from typing import Callable, Any
+from typing import Any, Callable
 
+from loguru import logger
 from neurons.config import get_subtensor
 from neurons.validator.utils.cache import ttl_cache
 

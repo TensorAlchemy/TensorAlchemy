@@ -1,16 +1,15 @@
-import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
 from functools import wraps
-
-import torch
-import bittensor as bt
-from loguru import logger
+from unittest.mock import AsyncMock, MagicMock, patch
 
 # Import the actual get_metagraph function
 import neurons.config as validator_config
+import pytest
+import torch
+from loguru import logger
 from neurons.utils.image import image_tensor_to_base64
-
 from tests.fixtures import TEST_IMAGES
+
+import bittensor as bt
 
 
 def mock_metagraph():
@@ -78,20 +77,12 @@ def patch_all_dependencies(func):
 @patch_all_dependencies
 async def test_apply_human_voting_weight(*args):
     # Import here to ensure patches are applied first
-    from neurons.config import get_metagraph, get_device
-    from scoring.pipeline import (
-        apply_function,
-        apply_functions,
-    )
-    from scoring.models.types import PackedRewardModel
+    from neurons.config import get_device, get_metagraph
     from scoring.models.empty import EmptyScoreRewardModel
-    from scoring.models.types import RewardModelType
-    from scoring.models.rewards.human import (
-        HumanValidationRewardModel,
-    )
-    from scoring.types import (
-        ScoringResults,
-    )
+    from scoring.models.rewards.human import HumanValidationRewardModel
+    from scoring.models.types import PackedRewardModel, RewardModelType
+    from scoring.pipeline import apply_function, apply_functions
+    from scoring.types import ScoringResults
 
     # Verify that get_metagraph() is properly mocked
     assert get_metagraph().n == 5, f"Expected 5, got {get_metagraph().n}"

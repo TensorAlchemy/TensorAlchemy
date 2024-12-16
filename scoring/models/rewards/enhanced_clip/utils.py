@@ -1,29 +1,22 @@
 import json
-from typing import (
-    List,
-    Dict,
-    Union,
-    TypedDict,
-    Callable,
-    Awaitable,
-)
+from typing import Awaitable, Callable, Dict, List, TypedDict, Union
 
 import httpx
 from loguru import logger
-from openai import AsyncOpenAI
-from openai.types.chat import (
-    ChatCompletionToolParam,
-    ChatCompletionUserMessageParam,
-    ChatCompletionSystemMessageParam,
-)
-from openai.types.shared_params import FunctionDefinition
 
 # Configuration functions
 from neurons.config import (
-    get_openai_client,
-    get_corcel_api_key,
     MissingApiKeyError,
+    get_corcel_api_key,
+    get_openai_client,
 )
+from openai import AsyncOpenAI
+from openai.types.chat import (
+    ChatCompletionSystemMessageParam,
+    ChatCompletionToolParam,
+    ChatCompletionUserMessageParam,
+)
+from openai.types.shared_params import FunctionDefinition
 
 
 # Type definitions

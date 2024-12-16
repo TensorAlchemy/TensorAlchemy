@@ -1,7 +1,7 @@
+import argparse
 import logging
 import os
 import random
-import argparse
 
 import bittensor
 import bittensor as bt

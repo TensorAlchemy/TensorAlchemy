@@ -1,16 +1,12 @@
-import json
 import asyncio
+import json
 import traceback
 from typing import Dict
 
-from loguru import logger
 from google.cloud import storage
-
-from neurons.constants import (
-    IA_BUCKET_NAME,
-    IA_TEST_BUCKET_NAME,
-)
+from loguru import logger
 from neurons.config import get_config
+from neurons.constants import IA_BUCKET_NAME, IA_TEST_BUCKET_NAME
 
 
 def get_bucket_name() -> str:

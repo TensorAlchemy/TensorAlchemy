@@ -1,7 +1,6 @@
 from enum import Enum
 
 
-
 class TaskType(str, Enum):
     """Enum defining supported generation tasks"""
 

@@ -1,10 +1,10 @@
-import pytest
-from unittest.mock import MagicMock, AsyncMock
-import torch
 import asyncio
+from unittest.mock import AsyncMock, MagicMock
 
-from neurons.validator.weights import set_weights
+import pytest
+import torch
 from neurons.validator.backend.exceptions import PostWeightsError
+from neurons.validator.weights import set_weights
 
 
 @pytest.fixture
@@ -80,9 +80,9 @@ async def test_set_weights_success(mock_dependencies):
 async def test_set_weights_backend_error(mock_dependencies):
     hotkeys = ["hotkey1", "hotkey2", "hotkey3", "hotkey4", "hotkey5"]
     moving_average_scores = torch.tensor([0.5, 1.0, 0.7, 0.3, 0.9])
-    mock_dependencies[
-        "backend_client"
-    ].post_weights.side_effect = PostWeightsError("Backend error")
+    mock_dependencies["backend_client"].post_weights.side_effect = (
+        PostWeightsError("Backend error")
+    )
 
     await set_weights(hotkeys, moving_average_scores)
 

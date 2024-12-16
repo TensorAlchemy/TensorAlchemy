@@ -1,23 +1,23 @@
 import queue
 import traceback
-from typing import Dict, List, Optional
 from multiprocessing import Event, Queue
+from typing import Dict, List, Optional
 
 import torch
-import bittensor as bt
 from loguru import logger
-from pydantic import BaseModel, ConfigDict
-
 from neurons.config import (
+    get_backend_client,
     get_config,
-    get_wallet,
     get_metagraph,
     get_subtensor,
-    get_backend_client,
+    get_wallet,
 )
-from neurons.validator.utils import ttl_get_block
 from neurons.validator.backend.exceptions import PostWeightsError
+from neurons.validator.utils import ttl_get_block
 from neurons.validator.utils.version import get_validator_spec_version
+from pydantic import BaseModel, ConfigDict
+
+import bittensor as bt
 
 
 class WeightSettingError(Exception):

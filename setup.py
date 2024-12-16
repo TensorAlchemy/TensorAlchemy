@@ -17,12 +17,13 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-import re
-import os
 import codecs
-from os import path
+import os
+import re
 from io import open
-from setuptools import setup, find_packages
+from os import path
+
+from setuptools import find_packages, setup
 
 
 def read_requirements(path):

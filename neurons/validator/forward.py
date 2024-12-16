@@ -1,46 +1,33 @@
-import json
 import asyncio
+import json
 import time
-from typing import AsyncIterator, List, Optional, Tuple, Dict
-
 from datetime import datetime
+from typing import AsyncIterator, Dict, List, Optional, Tuple
 
-import bittensor as bt
 import torch
 import torchvision.transforms as T
-from bittensor import AxonInfo
 from loguru import logger
-
-from neurons.protocol import ImageGeneration, ImageGenerationTaskModel
-
-from neurons.utils.defaults import Stats
-from neurons.utils.log import image_to_str
-from neurons.utils.image import (
-    synapse_to_base64,
+from neurons.config import (
+    get_backend_client,
+    get_config,
+    get_device,
+    get_metagraph,
+    get_wallet,
 )
-
+from neurons.protocol import ImageGeneration, ImageGenerationTaskModel
+from neurons.utils.defaults import Stats
+from neurons.utils.image import synapse_to_base64
+from neurons.utils.log import image_to_str
+from neurons.validator.averages import update_moving_averages
 from neurons.validator.event import EventSchema
 from neurons.validator.schemas import Batch, ScoresUploadRequest
 from neurons.validator.utils import ttl_get_block
-from neurons.validator.averages import (
-    update_moving_averages,
-)
 from scoring.models.types import RewardModelType
-from neurons.config import (
-    get_config,
-    get_device,
-    get_wallet,
-    get_metagraph,
-    get_backend_client,
-)
-from scoring.types import (
-    ScoringResult,
-    ScoringResults,
-)
-from scoring.pipeline import (
-    get_scoring_results,
-    apply_masking_functions,
-)
+from scoring.pipeline import apply_masking_functions, get_scoring_results
+from scoring.types import ScoringResult, ScoringResults
+
+import bittensor as bt
+from bittensor import AxonInfo
 
 transform = T.Compose([T.PILToTensor()])
 

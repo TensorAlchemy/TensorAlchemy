@@ -1,20 +1,20 @@
+import asyncio
+import inspect
+import multiprocessing
 import sys
 import time
-import inspect
-import asyncio
 import traceback
-import multiprocessing
-from multiprocessing import Event
-from typing import Any, Callable, Optional, Dict, List
-
-from threading import Timer
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
+from multiprocessing import Event
+from threading import Timer
+from typing import Any, Callable, Dict, List, Optional
+
+from loguru import logger
+from neurons.config import get_metagraph, get_subtensor, get_wallet
+from neurons.config.lists import get_warninglist
+from neurons.utils.log import configure_logging
 
 import bittensor as bt
-from loguru import logger
-from neurons.utils.log import configure_logging
-from neurons.config.lists import get_warninglist
-from neurons.config import get_metagraph, get_subtensor, get_wallet
 
 
 class TaskWrapper:

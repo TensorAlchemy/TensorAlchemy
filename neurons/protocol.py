@@ -1,11 +1,12 @@
 from enum import Enum
-from typing import Optional, List, Union, Any
+from typing import Any, List, Optional, Union
+
+import numpy as np
+import torch
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 import bittensor as bt
 from bittensor import Synapse
-import numpy as np
-import torch
-from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 
 class ModelType(str, Enum):
@@ -42,7 +43,7 @@ def denormalize_image_model(
 
 def deserialize_incoming_image(inbound_image: Any):
     """Inbound image type is different across different miner versions."""
-    from neurons.utils.image import tensor_to_image, image_to_base64
+    from neurons.utils.image import image_to_base64, tensor_to_image
 
     if isinstance(inbound_image, str):
         # Newest miners already send image as base64 string

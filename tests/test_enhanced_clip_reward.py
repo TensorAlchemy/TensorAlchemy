@@ -1,15 +1,12 @@
-import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 import torch
 from loguru import logger
-
-from scoring.models.rewards.enhanced_clip import (
-    EnhancedClipRewardModel,
-)
+from scoring.models.rewards.enhanced_clip import EnhancedClipRewardModel
 
 # Import the mock functions and fixtures
-from tests.fixtures import mock_get_metagraph, TEST_IMAGES, generate_synapse
+from tests.fixtures import TEST_IMAGES, generate_synapse, mock_get_metagraph
 
 # Define the mock configurations
 mock_configs = {
@@ -18,9 +15,7 @@ mock_configs = {
         "get_openai_client": MagicMock(),
         "get_corcel_api_key": MagicMock(return_value="mock_api_key"),
     },
-    "scoring.models.base": {
-        "get_metagraph": mock_get_metagraph
-    },
+    "scoring.models.base": {"get_metagraph": mock_get_metagraph},
     "scoring.models.rewards.enhanced_clip.utils": {
         "openai_breakdown": AsyncMock(),
     },
@@ -71,9 +66,9 @@ def mock_openai_response_elephant():
 @pytest.fixture
 @apply_patches
 def patched_model(mock_openai_response):
-    mock_configs[
-        "scoring.models.rewards.enhanced_clip.utils"
-    ]["openai_breakdown"].return_value = mock_openai_response
+    mock_configs["scoring.models.rewards.enhanced_clip.utils"][
+        "openai_breakdown"
+    ].return_value = mock_openai_response
     model = EnhancedClipRewardModel()
     model.device = "cpu"
     return model
@@ -116,9 +111,9 @@ class TestEnhancedClipRewardModel:
         # Get the appropriate mock response
         mock_openai_response = request.getfixturevalue(mock_response_fixture)
 
-        mock_configs[
-            "scoring.models.rewards.enhanced_clip.utils"
-        ]["openai_breakdown"].return_value = mock_openai_response
+        mock_configs["scoring.models.rewards.enhanced_clip.utils"][
+            "openai_breakdown"
+        ].return_value = mock_openai_response
 
         right_synapse = generate_synapse(
             "hotkey_0",

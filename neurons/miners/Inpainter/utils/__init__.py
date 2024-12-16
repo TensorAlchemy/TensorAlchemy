@@ -2,11 +2,11 @@ import copy
 import time
 from typing import Dict, Optional
 
-import bittensor as bt
-from loguru import logger
-
 from diffusers import DiffusionPipeline
+from loguru import logger
 from neurons.config import get_metagraph
+
+import bittensor as bt
 
 
 def get_caller_stake(synapse: bt.Synapse) -> Optional[float]:

@@ -1,8 +1,8 @@
-import pytest
 from unittest.mock import MagicMock, patch
 
+import pytest
 from neurons.miners.base.miner import BaseMiner
-from neurons.protocol import IsAlive, ImageGeneration, ModelType
+from neurons.protocol import ImageGeneration, IsAlive, ModelType
 
 
 class MockBaseMiner(BaseMiner):

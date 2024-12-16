@@ -3,33 +3,28 @@ import time
 from base64 import b64encode
 from typing import Dict, List
 
-import bittensor as bt
 import httpx
 import torch
 from httpx import Response
 from loguru import logger
-from tenacity import (
-    retry,
-    stop_after_delay,
-    wait_fixed,
-    retry_if_result,
-)
-
+from neurons.config import AlchemyHost, get_config
 from neurons.config.utils import is_testnet
-from neurons.constants import DEVELOP_URL, TESTNET_URL, MAINNET_URL
+from neurons.constants import DEVELOP_URL, MAINNET_URL, TESTNET_URL
 from neurons.exceptions import StakeBelowThreshold
-from neurons.protocol import denormalize_image_model, ImageGenerationTaskModel
+from neurons.protocol import ImageGenerationTaskModel, denormalize_image_model
 from neurons.validator.backend.exceptions import (
-    GetVotesError,
     GetTaskError,
+    GetVotesError,
     PostMovingAveragesError,
     PostWeightsError,
     UpdateTaskError,
     UploadScoresError,
 )
-from neurons.config import get_config, AlchemyHost
 from neurons.validator.backend.models import TaskState
 from neurons.validator.schemas import Batch, ScoresUploadRequest
+from tenacity import retry, retry_if_result, stop_after_delay, wait_fixed
+
+import bittensor as bt
 
 
 class TensorAlchemyBackendClient:

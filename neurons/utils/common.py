@@ -1,10 +1,9 @@
 import os
-import sys
 import pathlib
 import subprocess
+import sys
 
 from loguru import logger
-
 
 project_root = str(pathlib.Path(__file__).parent.parent.parent.resolve())
 

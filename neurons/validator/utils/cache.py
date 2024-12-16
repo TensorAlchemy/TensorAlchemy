@@ -1,10 +1,7 @@
 import time
-
+from functools import lru_cache, update_wrapper
 from math import floor
 from typing import Any, Callable
-from functools import lru_cache, update_wrapper
-
-
 
 
 def _ttl_hash_gen(seconds: int):

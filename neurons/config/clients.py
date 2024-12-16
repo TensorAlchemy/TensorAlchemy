@@ -5,12 +5,11 @@ Client management utilities for the Alchemy project.
 import os
 from typing import Optional
 
-import bittensor as bt
 from loguru import logger
+from neurons.config.parser import get_config
 from openai import AsyncOpenAI
 
-from neurons.config.parser import get_config
-
+import bittensor as bt
 
 wallet: Optional[bt.wallet] = None
 dendrite: Optional[bt.dendrite] = None

@@ -1,25 +1,27 @@
-from abc import ABC, abstractmethod
-from typing import Optional, Tuple
-from multiprocessing import Manager, Event
 import sys
 import time
 import traceback
+from abc import ABC, abstractmethod
+from multiprocessing import Event, Manager
+from typing import Optional, Tuple
 
 import torch
-import bittensor as bt
 from loguru import logger
-
-from neurons.config.lists import get_blacklist
-from neurons.utils import get_coldkey_for_hotkey, get_stake_for_hotkey
-
 from neurons.common.saas.utils import saas_show_dashboard_url
+from neurons.config import get_config, get_metagraph, get_subtensor, get_wallet
+from neurons.config.lists import get_blacklist
 from neurons.constants import VPERMIT_TAO
-from neurons.update_checker import safely_check_for_updates
 from neurons.miners.base.models import MinerState, RequestStats
-
-from neurons.config import get_config, get_wallet, get_metagraph, get_subtensor
-from neurons.utils import BackgroundTimer, background_loop
+from neurons.update_checker import safely_check_for_updates
+from neurons.utils import (
+    BackgroundTimer,
+    background_loop,
+    get_coldkey_for_hotkey,
+    get_stake_for_hotkey,
+)
 from neurons.utils.log import sh
+
+import bittensor as bt
 
 
 class BaseMiner(ABC):

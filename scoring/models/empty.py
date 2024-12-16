@@ -1,6 +1,7 @@
-import bittensor as bt
 from scoring.models.base import BaseRewardModel
 from scoring.models.types import RewardModelType
+
+import bittensor as bt
 
 
 class EmptyScoreRewardModel(BaseRewardModel):

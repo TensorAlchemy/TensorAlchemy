@@ -1,15 +1,12 @@
 from typing import Dict, List
 
-from loguru import logger
-import bittensor as bt
 import torch
-
+from loguru import logger
+from neurons.config import get_backend_client
 from scoring.models.base import BaseRewardModel
 from scoring.models.types import RewardModelType
-from neurons.config import (
-    get_backend_client,
-)
 
+import bittensor as bt
 
 HumanVotingResults = Dict[str, Dict[str, float]]
 

@@ -1,16 +1,15 @@
-import torch
 import time
 from typing import List, Optional, Tuple
-from loguru import logger
-from PIL import Image
+
+import torch
 from diffusers import AutoPipelineForInpainting, DEISMultistepScheduler
-
-from neurons.protocol import ImageGeneration, IsAlive
-from neurons.utils.nsfw import clean_nsfw_from_prompt
-from neurons.utils.image import image_to_base64
+from loguru import logger
 from neurons.config import get_config, get_device
-
 from neurons.miners.base.miner import BaseMiner
+from neurons.protocol import ImageGeneration, IsAlive
+from neurons.utils.image import image_to_base64
+from neurons.utils.nsfw import clean_nsfw_from_prompt
+from PIL import Image
 
 
 class InpaintMiner(BaseMiner):

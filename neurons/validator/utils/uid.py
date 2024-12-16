@@ -2,22 +2,22 @@ import asyncio
 import random
 import time
 import traceback
-from typing import List, Tuple, Dict, Any
 from functools import wraps
+from typing import Any, Dict, List, Tuple
 
-import bittensor as bt
 import torch
 from loguru import logger
-
-from neurons.protocol import IsAlive
-from neurons.constants import N_NEURONS_TO_QUERY, VPERMIT_TAO, N_NEURONS
 from neurons.config import (
-    get_device,
+    get_blacklist,
     get_config,
     get_dendrite,
+    get_device,
     get_metagraph,
-    get_blacklist,
 )
+from neurons.constants import N_NEURONS, N_NEURONS_TO_QUERY, VPERMIT_TAO
+from neurons.protocol import IsAlive
+
+import bittensor as bt
 
 
 async def check_uid(uid: int) -> Tuple[bool, float]:

@@ -19,21 +19,21 @@ Date: July 30, 2024
 """
 
 import traceback
-from typing import List, Dict
+from typing import Dict, List
 
 import torch
-import bittensor as bt
 from loguru import logger
-from transformers import CLIPProcessor, CLIPModel
-
-from neurons.utils.image import synapse_to_image
 from neurons.config import get_device
+from neurons.utils.image import synapse_to_image
 from scoring.models.base import BaseRewardModel
-from scoring.models.types import RewardModelType
 from scoring.models.rewards.enhanced_clip.utils import (
-    break_down_prompt,
     PromptBreakdown,
+    break_down_prompt,
 )
+from scoring.models.types import RewardModelType
+from transformers import CLIPModel, CLIPProcessor
+
+import bittensor as bt
 
 
 class EnhancedClipRewardModel(BaseRewardModel):

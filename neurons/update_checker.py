@@ -2,7 +2,6 @@ import subprocess
 
 import httpx
 from loguru import logger
-
 from neurons.utils.log import log_banner
 
 

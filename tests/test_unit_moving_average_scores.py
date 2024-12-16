@@ -1,14 +1,12 @@
+from typing import Dict
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 import torch
 from loguru import logger
-from typing import Dict
-
-from neurons.validator.forward import (
-    update_moving_averages,
-)
-from scoring.types import ScoringResults
 from neurons.constants import MOVING_AVERAGE_ALPHA
+from neurons.validator.forward import update_moving_averages
+from scoring.types import ScoringResults
 from tests.fixtures import mock_get_config
 
 

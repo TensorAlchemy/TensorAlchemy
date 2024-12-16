@@ -1,8 +1,9 @@
 import asyncio
 import time
 from functools import wraps
-from loguru import logger
+
 import torch
+from loguru import logger
 
 
 def measure_time(func):

@@ -1,17 +1,17 @@
-import os
-import sys
 import json
 import logging
+import os
+import sys
+from logging.handlers import QueueHandler, QueueListener
 from multiprocessing import Queue
 from typing import Any
-from logging.handlers import QueueHandler, QueueListener
 
-import bittensor as bt
 import logging_loki
 from loguru import logger
+from neurons import constants
 from PIL.Image import Image as ImageType
 
-from neurons import constants
+import bittensor as bt
 
 
 def log_banner(message, width=80, max_url_width=None):
@@ -106,14 +106,14 @@ def get_subtensor_network_from_netuid(netuid: int) -> str:
 def configure_loki_logger():
     from neurons.config import get_config, validator_run_id
     from neurons.miners.Inpainter.utils.version import (
-        get_miner_version,
         get_miner_spec_version,
-    )
-    from neurons.validator.utils.version import (
-        get_validator_version,
-        get_validator_spec_version,
+        get_miner_version,
     )
     from neurons.utils.common import is_validator
+    from neurons.validator.utils.version import (
+        get_validator_spec_version,
+        get_validator_version,
+    )
 
     """Configure sending logs to loki server"""
 

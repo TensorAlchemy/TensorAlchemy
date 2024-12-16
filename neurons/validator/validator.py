@@ -1,73 +1,63 @@
 import asyncio
 import copy
+import inspect
 import os
+import queue
 import sys
 import time
 import traceback
 import uuid
-import queue
-import inspect
-
-from math import ceil
-from threading import Thread
 from datetime import datetime, timedelta
+from math import ceil
+from multiprocessing import Event, Manager, Process, Queue, set_start_method
+from threading import Thread
 from typing import List, Optional, Tuple, Union
-from multiprocessing import Event, Manager, Queue, Process, set_start_method
 
-
-import bittensor as bt
-import torch
 import numpy as np
+import torch
 from loguru import logger
-
 from neurons.common.saas.utils import saas_show_dashboard_url
-from neurons.exceptions import StakeBelowThreshold
-
-from neurons.update_checker import safely_check_for_updates
-from neurons.protocol import (
-    ModelType,
-    denormalize_image_model,
-    ImageGenerationTaskModel,
-)
-from neurons.utils.common import log_dependencies
-from neurons.utils.defaults import get_defaults
-from neurons.utils import (
-    BackgroundTimer,
-    MultiprocessTimer,
-    background_loop,
-)
-from neurons.utils.log import configure_logging
-from neurons.validator.schemas import (
-    Batch,
-    ScoresUploadRequest,
-)
 from neurons.config import (
-    get_device,
+    get_backend_client,
     get_config,
-    get_wallet,
+    get_device,
     get_metagraph,
     get_subtensor,
-    get_backend_client,
+    get_wallet,
     validator_run_id,
 )
-from neurons.validator.utils.state import save_ma_scores, load_ma_scores
-from neurons.validator.config import update_validator_settings
+from neurons.exceptions import StakeBelowThreshold
+from neurons.protocol import (
+    ImageGenerationTaskModel,
+    ModelType,
+    denormalize_image_model,
+)
+from neurons.update_checker import safely_check_for_updates
+from neurons.utils import BackgroundTimer, MultiprocessTimer, background_loop
+from neurons.utils.common import log_dependencies
+from neurons.utils.defaults import get_defaults
+from neurons.utils.log import configure_logging
 from neurons.validator.backend.client import TensorAlchemyBackendClient
 from neurons.validator.backend.models import TaskState
+from neurons.validator.config import update_validator_settings
 from neurons.validator.forward import run_step
+from neurons.validator.schemas import Batch, ScoresUploadRequest
 from neurons.validator.services.openai.service import get_openai_service
-from neurons.validator.utils.version import get_validator_version
 from neurons.validator.utils import (
+    generate_random_prompt_gpt,
+    is_hotkey_registered,
     select_uids,
     ttl_get_block,
-    is_hotkey_registered,
-    generate_random_prompt_gpt,
 )
+from neurons.validator.utils.state import load_ma_scores, save_ma_scores
+from neurons.validator.utils.version import get_validator_version
 from neurons.validator.weights import (
     SetWeightsTask,
     set_weights_loop,
     tensor_to_list,
 )
+
+import bittensor as bt
 
 # Set the start method for multiprocessing
 set_start_method("spawn", force=True)

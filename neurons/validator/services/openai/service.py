@@ -1,12 +1,11 @@
 from loguru import logger
+from neurons.config import get_openai_client
 from tenacity import (
     retry,
-    wait_fixed,
-    stop_after_attempt,
     retry_if_exception_type,
+    stop_after_attempt,
+    wait_fixed,
 )
-
-from neurons.config import get_openai_client
 
 
 class OpenAIRequestFailed(Exception):
