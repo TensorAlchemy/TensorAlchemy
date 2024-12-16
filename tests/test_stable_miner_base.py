@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 
-from neurons.miners.StableMiner.base import BaseMiner
+from neurons.miners.base.miner import BaseMiner
 from neurons.protocol import IsAlive, ImageGeneration, ModelType
 
 
@@ -58,16 +58,16 @@ class TestBaseMiner:
             "neurons.config.get_metagraph",
             return_value=mock_metagraph,
         ), patch(
-            "neurons.miners.StableMiner.base.get_config",
+            "neurons.miners.Inpainter.base.get_config",
             return_value=mock_config,
         ), patch(
-            "neurons.miners.StableMiner.base.get_wallet",
+            "neurons.miners.Inpainter.base.get_wallet",
             return_value=mock_wallet,
         ), patch(
-            "neurons.miners.StableMiner.base.get_subtensor",
+            "neurons.miners.Inpainter.base.get_subtensor",
             return_value=mock_subtensor,
         ), patch(
-            "neurons.miners.StableMiner.base.get_metagraph",
+            "neurons.miners.Inpainter.base.get_metagraph",
             return_value=mock_metagraph,
         ):
             yield {
@@ -84,10 +84,7 @@ class TestBaseMiner:
         ) as mock_axon, patch.object(
             BaseMiner, "loop_until_registered", return_value=None
         ), patch(
-            "neurons.miners.StableMiner.base.get_metagraph",
-            return_value=mock_components["metagraph"],
-        ), patch(
-            "neurons.miners.StableMiner.utils.get_metagraph",
+            "neurons.miners.Inpainter.base.get_metagraph",
             return_value=mock_components["metagraph"],
         ):
             mock_axon.return_value.attach.return_value.start.return_value = (
@@ -110,7 +107,7 @@ class TestBaseMiner:
         assert base_miner.is_whitelisted(caller_coldkey="whitelisted_coldkey")
         assert not base_miner.is_whitelisted(caller_hotkey="random_hotkey")
 
-    @patch("neurons.miners.StableMiner.base.get_coldkey_for_hotkey")
+    @patch("neurons.miners.Inpainter.base.get_coldkey_for_hotkey")
     def test_base_priority(self, mock_get_coldkey, base_miner, mock_components):
         mock_get_coldkey.return_value = "test_coldkey"
         base_miner.hotkey_whitelist = {"whitelisted_hotkey"}
@@ -126,8 +123,8 @@ class TestBaseMiner:
         priority = base_miner._base_priority(synapse)
         assert priority == 100.0
 
-    @patch("neurons.miners.StableMiner.base.get_coldkey_for_hotkey")
-    @patch("neurons.miners.StableMiner.base.get_caller_stake")
+    @patch("neurons.miners.Inpainter.base.get_coldkey_for_hotkey")
+    @patch("neurons.miners.Inpainter.base.get_caller_stake")
     def test_base_blacklist(
         self, mock_get_caller_stake, mock_get_coldkey, base_miner
     ):
@@ -165,8 +162,8 @@ class TestBaseMiner:
             mock_create_axon.assert_called_once()
             mock_register_axon.assert_called_once()
 
-    @patch("neurons.miners.StableMiner.base.get_wallet")
-    @patch("neurons.miners.StableMiner.base.get_config")
+    @patch("neurons.miners.Inpainter.base.get_wallet")
+    @patch("neurons.miners.Inpainter.base.get_config")
     def test_create_axon(self, mock_get_config, mock_get_wallet, base_miner):
         with patch("bittensor.axon") as mock_axon:
             mock_axon.return_value.attach.return_value.start.return_value = (
@@ -176,8 +173,8 @@ class TestBaseMiner:
             assert base_miner.axon is not None
             mock_axon.assert_called_once()
 
-    @patch("neurons.miners.StableMiner.base.get_subtensor")
-    @patch("neurons.miners.StableMiner.base.get_config")
+    @patch("neurons.miners.Inpainter.base.get_subtensor")
+    @patch("neurons.miners.Inpainter.base.get_config")
     def test_register_axon(
         self, mock_get_config, mock_get_subtensor, base_miner
     ):

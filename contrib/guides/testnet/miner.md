@@ -39,7 +39,7 @@ source ~/venvs/TensorAlchemy/bin/activate && cd ~/TensorAlchemy && pip install -
 
 ### STEP 5. LAUNCH MINER
 ```bash
-python ~/TensorAlchemy/neurons/miners/StableMiner/main.py --wallet.name NAME --wallet.hotkey HOTKEY --netuid 25 --subtensor.network test --axon.port 8101 --miner.device cuda:0
+python ~/TensorAlchemy/neurons/miners/Inpainter/main.py --wallet.name NAME --wallet.hotkey HOTKEY --netuid 25 --subtensor.network test --axon.port 8101 --miner.device cuda:0
 ```
 
 ### NOTES

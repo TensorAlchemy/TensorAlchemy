@@ -20,4 +20,4 @@ COPY . /app/
 
 RUN echo "import warnings; warnings.simplefilter('ignore')" > /usr/local/lib/python3.10/site-packages/sitecustomize.py
 
-CMD ["python3.10", "/app/neurons/miners/StableMiner/main.py"]
+CMD ["python3.10", "/app/neurons/miners/Inpainter/main.py"]
