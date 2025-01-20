@@ -1,6 +1,7 @@
 from typing import Any, Dict, Optional
 
 from loguru import logger
+
 from neurons.constants import MINIMUM_COMPUTES_FOR_SUBMIT
 
 

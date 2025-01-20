@@ -1,11 +1,12 @@
+import traceback
 from typing import List, TypedDict
 
-import traceback
 from loguru import logger
+
 from neurons.config import MissingApiKeyError
 from neurons.config.clients import MissingResponseError
-from neurons.validator.utils.openai import create_completion_request
 from neurons.validator.utils.corcel import call_corcel
+from neurons.validator.utils.openai import create_completion_request
 
 
 class ElementDict(TypedDict):

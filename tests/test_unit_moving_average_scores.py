@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import torch
 from loguru import logger
+
 from neurons.constants import MOVING_AVERAGE_ALPHA
 from neurons.validator.forward import update_moving_averages
 from scoring.types import ScoringResults

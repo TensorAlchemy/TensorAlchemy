@@ -5,8 +5,11 @@ from abc import ABC, abstractmethod
 from multiprocessing import Event, Manager
 from typing import Optional, Tuple
 
+import bittensor as bt
 import torch
+from bittensor.utils.networking import get_external_ip
 from loguru import logger
+
 from neurons.common.saas.utils import saas_show_dashboard_url
 from neurons.config import get_config, get_metagraph, get_subtensor, get_wallet
 from neurons.config.lists import get_blacklist
@@ -20,9 +23,6 @@ from neurons.utils import (
     get_stake_for_hotkey,
 )
 from neurons.utils.log import sh
-
-import bittensor as bt
-from bittensor.utils.networking import get_external_ip
 
 
 class BaseMiner(ABC):

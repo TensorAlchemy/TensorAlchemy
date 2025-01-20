@@ -2,10 +2,13 @@ import math
 from io import BytesIO
 from unittest.mock import MagicMock, patch
 
+import bittensor as bt
 import pytest
 import requests
 import torch
 from loguru import logger
+from PIL import Image
+
 from neurons.constants import IS_CI_ENV
 from neurons.protocol import ImageGeneration, ModelType
 from neurons.utils.image import (
@@ -13,13 +16,10 @@ from neurons.utils.image import (
     image_tensor_to_base64,
     image_to_base64,
 )
-from PIL import Image
 from scoring.models.masks.blacklist import BlacklistFilter
 from scoring.models.masks.nsfw import NSFWRewardModel
 from scoring.models.rewards.image_reward import ImageRewardModel
 from tests.fixtures import TEST_IMAGES
-
-import bittensor as bt
 
 
 # Mock functions and classes

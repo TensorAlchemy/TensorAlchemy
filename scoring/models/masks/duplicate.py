@@ -1,16 +1,16 @@
 from typing import List
 
+import bittensor as bt
 import imagehash
 import numpy as np
 import torch
 from loguru import logger
+from PIL import Image
+
 from neurons.config import get_metagraph
 from neurons.utils.image import synapse_to_tensors
-from PIL import Image
 from scoring.models.base import BaseRewardModel
 from scoring.models.types import RewardModelType
-
-import bittensor as bt
 
 
 class DuplicateFilter(BaseRewardModel):

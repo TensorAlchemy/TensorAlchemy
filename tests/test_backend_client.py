@@ -1,7 +1,9 @@
 import unittest
 from unittest.mock import AsyncMock, patch
 
+import bittensor as bt
 import torch
+
 from neurons.protocol import ImageGenerationTaskModel
 from neurons.validator.backend.client import TensorAlchemyBackendClient
 from neurons.validator.backend.exceptions import (
@@ -13,8 +15,6 @@ from neurons.validator.backend.exceptions import (
 )
 from neurons.validator.backend.models import TaskState
 from neurons.validator.schemas import Batch
-
-import bittensor as bt
 
 
 class TestTensorAlchemyBackendClient(unittest.IsolatedAsyncioTestCase):

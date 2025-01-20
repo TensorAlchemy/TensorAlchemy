@@ -3,6 +3,7 @@ from typing import List
 
 import torch
 from pydantic import BaseModel
+
 from scoring.types import ScoringResults
 
 

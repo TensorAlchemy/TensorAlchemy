@@ -2,6 +2,7 @@ from typing import List, Optional
 
 import torch
 from pydantic import BaseModel, ConfigDict, Field
+
 from scoring.models.types import RewardModelType
 
 

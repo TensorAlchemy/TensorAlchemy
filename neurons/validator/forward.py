@@ -4,9 +4,12 @@ import time
 from datetime import datetime
 from typing import AsyncIterator, Dict, List, Optional, Tuple
 
+import bittensor as bt
 import torch
 import torchvision.transforms as T
+from bittensor import AxonInfo
 from loguru import logger
+
 from neurons.config import (
     get_backend_client,
     get_config,
@@ -25,9 +28,6 @@ from neurons.validator.utils import ttl_get_block
 from scoring.models.types import RewardModelType
 from scoring.pipeline import apply_masking_functions, get_scoring_results
 from scoring.types import ScoringResult, ScoringResults
-
-import bittensor as bt
-from bittensor import AxonInfo
 
 transform = T.Compose([T.PILToTensor()])
 

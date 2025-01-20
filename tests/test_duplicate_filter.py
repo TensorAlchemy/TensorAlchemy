@@ -1,15 +1,15 @@
 import random
 from unittest.mock import MagicMock, patch
 
+import bittensor as bt
 import numpy as np
 import pytest
 import torch
 from loguru import logger
 from PIL import Image, ImageEnhance
+
 from scoring.models.masks.duplicate import DuplicateFilter
 from tests.fixtures import TEST_IMAGES, create_complex_image
-
-import bittensor as bt
 
 
 @pytest.fixture

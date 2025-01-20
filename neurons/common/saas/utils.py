@@ -3,14 +3,14 @@ import json
 import time
 import urllib.parse
 
+import bittensor as bt
 from loguru import logger
+
 from neurons import constants
 from neurons.config import AlchemyHost, get_config, get_wallet
 from neurons.config.utils import is_testnet
 from neurons.utils.common import is_validator
 from neurons.utils.log import log_banner
-
-import bittensor as bt
 
 
 def get_dashboard_base_url():

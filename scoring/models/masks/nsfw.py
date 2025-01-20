@@ -1,12 +1,12 @@
+import bittensor as bt
 from loguru import logger
+from transformers import CLIPImageProcessor
+
 from neurons.config import get_device
 from neurons.utils.image import synapse_to_tensors
 from scoring.models.base import BaseRewardModel
 from scoring.models.safety import StableDiffusionSafetyChecker
 from scoring.models.types import RewardModelType
-from transformers import CLIPImageProcessor
-
-import bittensor as bt
 
 
 class NSFWRewardModel(BaseRewardModel):

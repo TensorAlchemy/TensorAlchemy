@@ -5,6 +5,7 @@ from typing import Dict
 
 from google.cloud import storage
 from loguru import logger
+
 from neurons.config import get_config
 from neurons.constants import IA_BUCKET_NAME, IA_TEST_BUCKET_NAME
 

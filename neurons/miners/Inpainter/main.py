@@ -1,10 +1,10 @@
-import os
+import logging
 import pathlib
 import sys
 import warnings
-import logging
 
 from loguru import logger
+
 from neurons.miners.Inpainter.miner import InpaintMiner
 from neurons.utils.log import configure_logging
 

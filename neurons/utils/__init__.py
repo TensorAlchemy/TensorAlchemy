@@ -9,12 +9,12 @@ from multiprocessing import Event
 from threading import Timer
 from typing import Any, Callable, Dict, List, Optional
 
+import bittensor as bt
 from loguru import logger
+
 from neurons.config.clients import get_metagraph, get_subtensor, get_wallet
 from neurons.config.lists import get_warninglist
 from neurons.utils.log import configure_logging
-
-import bittensor as bt
 
 
 class TaskWrapper:

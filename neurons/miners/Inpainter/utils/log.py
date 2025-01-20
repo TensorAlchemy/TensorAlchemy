@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from loguru import logger
+
 from neurons.miners.Inpainter.utils import (
     get_caller_stake,
     get_coldkey_for_hotkey,

@@ -1,12 +1,11 @@
 from enum import Enum
 from typing import Any, List, Optional, Union
 
+import bittensor as bt
 import numpy as np
 import torch
-from pydantic import BaseModel, ConfigDict, Field, field_validator
-
-import bittensor as bt
 from bittensor import Synapse
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ModelType(str, Enum):

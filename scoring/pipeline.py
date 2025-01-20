@@ -1,15 +1,15 @@
 from typing import Callable, List
 
+import bittensor as bt
 import torch
 from loguru import logger
+
 from neurons.config import get_device, get_metagraph
 from neurons.protocol import ModelType
 from neurons.utils.log import summarize_rewards
 from scoring.models import get_masking_functions, get_reward_functions
 from scoring.models.types import PackedRewardModel
 from scoring.types import ScoringResult, ScoringResults, combine_uids
-
-import bittensor as bt
 
 ResultCombiner = Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
 

@@ -3,15 +3,15 @@ import traceback
 from io import BytesIO
 from typing import List
 
+import bittensor as bt
 import numpy as np
 import torch
 import torchvision.transforms as T
 from loguru import logger
-from neurons.protocol import SupportedImageTypes
 from PIL import Image
 from PIL.Image import Image as ImageType
 
-import bittensor as bt
+from neurons.protocol import SupportedImageTypes
 
 
 def synapse_to_bytesio(synapse: bt.Synapse, img_index: int = 0) -> BytesIO:

@@ -4,6 +4,7 @@ from typing import Optional
 
 import requests
 from loguru import logger
+
 from neurons.config import get_corcel_api_key
 from neurons.config.clients import MissingResponseError
 

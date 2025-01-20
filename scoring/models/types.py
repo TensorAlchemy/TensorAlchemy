@@ -1,11 +1,11 @@
 from enum import Enum
 from typing import Callable, Dict, List, Tuple
 
+import bittensor as bt
 import torch
 from pydantic import BaseModel, ConfigDict, Field
-from scoring.models.base import BaseRewardModel
 
-import bittensor as bt
+from scoring.models.base import BaseRewardModel
 
 
 class RewardModelType(str, Enum):

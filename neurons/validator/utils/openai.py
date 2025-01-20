@@ -1,13 +1,15 @@
 from typing import Optional
+
 from loguru import logger
-from neurons.config import get_openai_client
-from neurons.config.clients import MissingResponseError
 from tenacity import (
     retry,
     retry_if_exception_type,
     stop_after_attempt,
     wait_fixed,
 )
+
+from neurons.config import get_openai_client
+from neurons.config.clients import MissingResponseError
 
 
 class OpenAIRequestFailed(Exception):

@@ -2,11 +2,11 @@ import inspect
 from abc import abstractmethod
 from typing import TYPE_CHECKING, Callable, List
 
+import bittensor as bt
 import torch
 from loguru import logger
-from neurons.config import get_device, get_metagraph
 
-import bittensor as bt
+from neurons.config import get_device, get_metagraph
 
 if TYPE_CHECKING:
     from scoring.models.types import RewardModelType

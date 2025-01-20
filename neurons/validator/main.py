@@ -1,9 +1,8 @@
 import asyncio
-import os
+import logging
 import pathlib
 import sys
 import warnings
-import logging
 
 # Suppress the eth_utils network warnings
 # "does not have a valid ChainId."

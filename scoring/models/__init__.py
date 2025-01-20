@@ -1,13 +1,13 @@
 from typing import List
 
+import bittensor as bt
+
 from neurons.protocol import ModelType
 from scoring.models.types import (
     ModelStorage,
     PackedRewardModel,
     RewardModelType,
 )
-
-import bittensor as bt
 
 # Init Reward Models
 REWARD_MODELS: ModelStorage = None

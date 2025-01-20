@@ -1,14 +1,14 @@
 from typing import List
 
+import bittensor as bt
 import ImageReward as RM
 import torch
+from PIL.Image import Image as ImageType
+
 from neurons.config import get_device
 from neurons.utils.image import synapse_to_images
-from PIL.Image import Image as ImageType
 from scoring.models.base import BaseRewardModel
 from scoring.models.types import RewardModelType
-
-import bittensor as bt
 
 
 class ImageRewardModel(BaseRewardModel):

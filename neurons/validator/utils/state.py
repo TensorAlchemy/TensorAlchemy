@@ -4,6 +4,7 @@ from typing import List
 
 import torch
 from loguru import logger
+
 from neurons.config import get_config, get_device, get_metagraph
 
 

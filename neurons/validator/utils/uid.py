@@ -5,8 +5,10 @@ import traceback
 from functools import wraps
 from typing import Any, Dict, List, Tuple
 
+import bittensor as bt
 import torch
 from loguru import logger
+
 from neurons.config import (
     get_blacklist,
     get_config,
@@ -16,8 +18,6 @@ from neurons.config import (
 )
 from neurons.constants import N_NEURONS, N_NEURONS_TO_QUERY, VPERMIT_TAO
 from neurons.protocol import IsAlive
-
-import bittensor as bt
 
 
 async def check_uid(uid: int) -> Tuple[bool, float]:

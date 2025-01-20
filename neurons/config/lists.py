@@ -7,6 +7,7 @@ from multiprocessing import Manager
 from typing import Any, Dict, List, Set, Tuple
 
 from loguru import logger
+
 from neurons.constants import (
     IA_MINER_BLACKLIST,
     IA_MINER_WARNINGLIST,

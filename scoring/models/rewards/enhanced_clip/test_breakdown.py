@@ -1,6 +1,7 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
 from scoring.models.rewards.enhanced_clip.utils import (
     MissingApiKeyError,
     break_down_prompt,

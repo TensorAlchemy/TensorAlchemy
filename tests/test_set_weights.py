@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import torch
+
 from neurons.validator.backend.exceptions import PostWeightsError
 from neurons.validator.weights import set_weights
 

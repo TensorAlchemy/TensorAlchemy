@@ -1,12 +1,12 @@
 import random
 from unittest.mock import MagicMock
 
+import bittensor as bt
 import torch
-from neurons.protocol import ImageGeneration, ModelType
-from neurons.utils.image import image_tensor_to_base64, image_to_tensor
 from PIL import Image, ImageDraw
 
-import bittensor as bt
+from neurons.protocol import ImageGeneration, ModelType
+from neurons.utils.image import image_tensor_to_base64, image_to_tensor
 
 
 class MockMetagraph:

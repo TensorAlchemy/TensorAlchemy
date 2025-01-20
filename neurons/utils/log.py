@@ -6,12 +6,12 @@ from logging.handlers import QueueHandler, QueueListener
 from multiprocessing import Queue
 from typing import Any
 
+import bittensor as bt
 import logging_loki
 from loguru import logger
-from neurons import constants
 from PIL.Image import Image as ImageType
 
-import bittensor as bt
+from neurons import constants
 
 
 def log_banner(message, width=80, max_url_width=None):

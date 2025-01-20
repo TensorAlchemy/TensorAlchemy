@@ -9,14 +9,16 @@ import traceback
 import uuid
 from datetime import datetime, timedelta
 from math import ceil
-from threading import Event
 from multiprocessing import Manager, Process, Queue, set_start_method
-from threading import Thread
+from threading import Event, Thread
 from typing import List, Optional, Tuple, Union
 
+import bittensor as bt
 import numpy as np
 import torch
+from bittensor.utils.networking import get_external_ip
 from loguru import logger
+
 from neurons.common.saas.utils import saas_show_dashboard_url
 from neurons.config import (
     get_backend_client,
@@ -57,9 +59,6 @@ from neurons.validator.weights import (
     set_weights_loop,
     tensor_to_list,
 )
-
-import bittensor as bt
-from bittensor.utils.networking import get_external_ip
 
 # Set the start method for multiprocessing
 set_start_method("spawn", force=True)

@@ -1,15 +1,15 @@
 from functools import wraps
 from unittest.mock import AsyncMock, MagicMock, patch
 
-# Import the actual get_metagraph function
-import neurons.config as validator_config
+import bittensor as bt
 import pytest
 import torch
 from loguru import logger
+
+# Import the actual get_metagraph function
+import neurons.config as validator_config
 from neurons.utils.image import image_tensor_to_base64
 from tests.fixtures import TEST_IMAGES
-
-import bittensor as bt
 
 
 def mock_metagraph():

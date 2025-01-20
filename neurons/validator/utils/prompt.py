@@ -1,13 +1,13 @@
 import random
 import time
+import traceback
 from typing import Optional
 
 from loguru import logger
-import traceback
+
 from neurons.config import MissingApiKeyError
-from neurons.config import get_corcel_api_key
 from neurons.config.clients import MissingResponseError
-from neurons.validator.utils.corcel import call_corcel, corcel_parse_response
+from neurons.validator.utils.corcel import call_corcel
 from neurons.validator.utils.openai import create_completion_request
 
 

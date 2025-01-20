@@ -1,9 +1,6 @@
 import base64
-import os
 
 from neurons.protocol import ImageGeneration
-
-
 
 incoming_synapse_new_base64 = {
     "name": "ImageGeneration",

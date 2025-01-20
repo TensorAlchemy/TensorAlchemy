@@ -6,6 +6,7 @@ from typing import Optional
 
 import torch
 from loguru import logger
+
 from neurons.constants import is_test
 
 

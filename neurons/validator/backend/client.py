@@ -3,10 +3,13 @@ import time
 from base64 import b64encode
 from typing import Dict, List
 
+import bittensor as bt
 import httpx
 import torch
 from httpx import Response
 from loguru import logger
+from tenacity import retry, retry_if_result, stop_after_delay, wait_fixed
+
 from neurons.config import AlchemyHost, get_config
 from neurons.config.utils import is_testnet
 from neurons.constants import DEVELOP_URL, MAINNET_URL, TESTNET_URL
@@ -22,9 +25,6 @@ from neurons.validator.backend.exceptions import (
 )
 from neurons.validator.backend.models import TaskState
 from neurons.validator.schemas import Batch, ScoresUploadRequest
-from tenacity import retry, retry_if_result, stop_after_delay, wait_fixed
-
-import bittensor as bt
 
 
 class TensorAlchemyBackendClient:

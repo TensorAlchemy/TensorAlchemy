@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import torch
 from loguru import logger
+
 from scoring.models.rewards.enhanced_clip import EnhancedClipRewardModel
 
 # Import the mock functions and fixtures

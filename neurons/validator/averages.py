@@ -21,8 +21,10 @@ from collections import deque
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set, Tuple
 
+import bittensor as bt
 import torch
 from loguru import logger
+
 from neurons.config import (
     get_backend_client,
     get_blacklist,
@@ -33,8 +35,6 @@ from neurons.config import (
 from neurons.constants import MOVING_AVERAGE_ALPHA
 from neurons.validator.backend.exceptions import PostMovingAveragesError
 from scoring.types import ScoringResults
-
-import bittensor as bt
 
 
 @dataclass
