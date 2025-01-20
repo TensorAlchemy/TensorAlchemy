@@ -56,7 +56,7 @@ async def call_corcel(prompt: str) -> Optional[str]:
             "https://api.corcel.io/cortext/text",
             json=JSON,
             headers=HEADERS,
-            timeout=15,
+            timeout=5,
         )
 
         to_return: Optional[str] = response.json()[0]["choices"][0]["message"][
