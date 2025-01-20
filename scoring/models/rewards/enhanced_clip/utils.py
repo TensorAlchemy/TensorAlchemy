@@ -2,7 +2,7 @@ import json
 import traceback
 from typing import Awaitable, Callable, Dict, List, TypedDict, Union
 
-from httpx import HTTPStatusError
+from httpx import HTTPStatusError, ReadTimeout
 import httpx
 from loguru import logger
 
@@ -19,6 +19,8 @@ from openai.types.chat import (
     ChatCompletionUserMessageParam,
 )
 from openai.types.shared_params import FunctionDefinition
+# Constants
+API_TIMEOUT_SECONDS = 10.0
 
 
 # Type definitions
@@ -111,6 +113,7 @@ async def openai_breakdown(prompt: str) -> PromptBreakdown:
         },
         tools=[tool],
         messages=messages,
+        timeout=API_TIMEOUT_SECONDS,
     )
 
     return await process_api_response(response.model_dump())
@@ -139,11 +142,12 @@ async def corcel_breakdown(prompt: str) -> PromptBreakdown:
         },
     }
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=API_TIMEOUT_SECONDS) as client:
         response = await client.post(
             "https://api.corcel.io/cortext/text",
             headers=headers,
             json=payload,
+            timeout=API_TIMEOUT_SECONDS,
         )
         response.raise_for_status()  # This will raise an HTTPStatusError for 4xx/5xx responses
         result = response.json()
@@ -167,12 +171,17 @@ async def break_down_prompt(
             logger.debug(f"Skipping {service_name} due to missing API key")
             continue
 
-        except HTTPStatusError as e:
-            logger.warning(
-                f"{service_name} API returned error {e.response.status_code}: {e.response.text}"
-            )
-            last_error = e
-            continue
+except HTTPStatusError as e:
+    logger.warning(
+        f"{service_name} API returned error {e.response.status_code}: {e.response.text}"
+    )
+    last_error = e
+    continue
+    
+except ReadTimeout as e:
+    logger.warning(f"{service_name} API request timed out after {API_TIMEOUT_SECONDS} seconds")
+    last_error = e
+    continue
 
         except Exception as e:
 
