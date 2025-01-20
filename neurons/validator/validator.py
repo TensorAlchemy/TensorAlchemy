@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from math import ceil
 from multiprocessing import Manager, Process, Queue, set_start_method
 from threading import Event, Thread
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Sequence, Tuple, Union
 
 import bittensor as bt
 import numpy as np
@@ -64,9 +64,318 @@ from neurons.validator.weights import (
 set_start_method("spawn", force=True)
 
 # Define a type alias for our thread-like objects
-ThreadLike = Union[Thread, Process]
+ThreadLike = MultiprocessTimer | BackgroundTimer | None
 
 upload_images_loop_suspension_end_time = None
+
+
+def wait_for_registration(
+    metagraph: bt.metagraph,
+    wallet: bt.Wallet,
+    subtensor: bt.subtensor,
+) -> None:
+    """Wait until wallet is registered in the metagraph"""
+    while True:
+        try:
+            index = metagraph.hotkeys.index(wallet.hotkey.ss58_address)
+            logger.info(
+                f"Validator {wallet.hotkey} is registered with uid: {metagraph.uids[index]}"
+            )
+            return
+        except ValueError:
+            logger.warning(
+                f"Validator {wallet.hotkey} is not registered. Sleeping for 120 seconds..."
+            )
+            time.sleep(120)
+            metagraph.sync(subtensor=subtensor)
+
+
+def validate_registration(netuid: int, hotkey_ss58: str) -> None:
+    """Validate that a hotkey is registered, exit if not"""
+    if not is_hotkey_registered(netuid=netuid, hotkey_ss58=hotkey_ss58):
+        logger.error(
+            f"Wallet: {hotkey_ss58} is not registered on netuid {netuid}. "
+            "Please register the hotkey before trying again"
+        )
+        sys.exit(1)
+
+
+def should_sync_metagraph(
+    last_update: int,
+    epoch_length: int,
+) -> bool:
+    """Check if enough epoch blocks have elapsed since last checkpoint"""
+    return (ttl_get_block() - last_update) > epoch_length
+
+
+def evaluate_weight_setting(
+    moving_average_scores: torch.Tensor,
+    current_block: int,
+    prev_block: int,
+    epoch_length: int,
+) -> bool:
+    """Determine if weights should be set based on scores and timing"""
+    # Check if all scores are 0s or 1s
+    ma_scores_sum = sum(moving_average_scores)
+    if ma_scores_sum == len(moving_average_scores) or ma_scores_sum == 0:
+        logger.info(
+            "All moving average scores are either 0s or 1s. Not setting weights."
+        )
+        return False
+
+    # Check block timing
+    blocks_elapsed = current_block % prev_block
+    logger.debug(
+        f"Current block: {current_block}, Blocks elapsed: {blocks_elapsed}"
+    )
+
+    should_set = blocks_elapsed >= epoch_length
+
+    if not should_set:
+        blocks_until_next_set = epoch_length - blocks_elapsed
+        seconds_until_next_set = blocks_until_next_set * 12
+        minutes_until_next_set = ceil(seconds_until_next_set / 60)
+        logger.info(
+            f"Next weight set in approximately {minutes_until_next_set} minutes "
+            f"({blocks_until_next_set} blocks)"
+        )
+
+    logger.info(f"Should set weights: {should_set}")
+    return should_set
+
+
+def serve_network_axon(
+    wallet: bt.Wallet,
+    config: bt.config,
+    subtensor: bt.subtensor,
+) -> bt.axon:
+    """Create and serve axon for network connections"""
+    logger.info("serving ip to chain...")
+    try:
+        axon = bt.axon(
+            wallet=wallet,
+            ip=get_external_ip(),
+            external_ip=get_external_ip(),
+            config=config,
+        )
+
+        try:
+            subtensor.serve_axon(netuid=config.netuid, axon=axon)
+            logger.info(
+                f"Running validator {axon} on network: {config.subtensor.chain_endpoint} "
+                f"with netuid: {config.netuid}"
+            )
+            return axon
+        except Exception as e:
+            logger.error(f"Failed to serve Axon with exception: {e}")
+            raise
+
+    except Exception as e:
+        logger.error(f"Failed to create Axon initialize with exception: {e}")
+        raise
+
+
+def start_background_thread(
+    thread_class: type,
+    interval: float,
+    target_func: callable,
+    args: list,
+    is_startup: bool = True,
+    make_daemon: bool = False,
+) -> ThreadLike:
+    """Create and start a background thread with given parameters"""
+    new_thread = thread_class(interval, target_func, args)
+    if make_daemon:
+        new_thread.daemon = True
+
+    new_thread.start()
+    if is_startup:
+        logger.info(f"Started {new_thread}")
+    else:
+        logger.error(f"{thread_class.__name__} had segfault, restarted")
+
+    return new_thread
+
+
+async def handle_task_rejection(
+    backend_client: TensorAlchemyBackendClient, task_id: str
+) -> None:
+    """Handle rejection of a task marked as NSFW"""
+    try:
+        logger.warning("Prompt was marked as NSFW and rejected:" + task_id)
+        await backend_client.update_task_state(task_id, TaskState.REJECTED)
+    except Exception as e:
+        logger.info(
+            f"Failed to post {task_id} to the {TaskState.REJECTED.value} endpoint: {e}"
+        )
+
+
+def create_synthetic_task(prompt: str) -> ImageGenerationTaskModel:
+    """Create a synthetic image generation task"""
+    return denormalize_image_model(
+        id=str(uuid.uuid4()),
+        image_count=1,
+        task_type="TEXT_TO_IMAGE",
+        guidance_scale=7.5,
+        negative_prompt=None,
+        prompt=prompt,
+        seed=-1,
+        steps=30,
+        width=1024,
+        height=1024,
+    )
+
+
+def get_thread_configs(
+    should_quit: Event, queues: dict
+) -> List[Tuple[str, type, float, callable, list]]:
+    """Get configuration for background threads"""
+    return [
+        (
+            "background_loop",
+            BackgroundTimer,
+            60,
+            background_loop,
+            [should_quit],
+        ),
+        (
+            "upload_images_process",
+            MultiprocessTimer,
+            0.5,
+            upload_images_loop,
+            [should_quit, queues["batches"]],
+        ),
+        (
+            "upload_scores_process",
+            MultiprocessTimer,
+            1.0,
+            upload_scores_loop,
+            [should_quit, queues["scores"]],
+        ),
+        (
+            "set_weights_process",
+            MultiprocessTimer,
+            1.0,
+            set_weights_loop,
+            [should_quit, queues["weights"]],
+        ),
+    ]
+
+
+def initialize_queues(manager: Manager) -> dict:
+    """Initialize multiprocessing queues"""
+    return {
+        "weights": manager.Queue(maxsize=128),
+        "batches": manager.Queue(maxsize=2048),
+        "scores": manager.Queue(maxsize=2048),
+    }
+
+
+def convert_numpy_to_torch(
+    metagraph: bt.metagraph, device: torch.device
+) -> None:
+    """Convert numpy arrays in metagraph to torch tensors"""
+    for key in ["stake", "uids"]:
+        if isinstance(getattr(metagraph, key), np.ndarray):
+            setattr(
+                metagraph,
+                key,
+                torch.from_numpy(getattr(metagraph, key)).float().to(device),
+            )
+
+
+def queue_weight_setting_task(
+    active_queue: Queue,
+    moving_average_scores: torch.Tensor,
+) -> bool:
+    """Try to queue a weight setting task"""
+    try:
+        active_queue.put_nowait(
+            SetWeightsTask(
+                epoch=ttl_get_block(),
+                hotkeys=copy.deepcopy(get_metagraph().hotkeys),
+                weights=tensor_to_list(moving_average_scores),
+            )
+        )
+        logger.info(
+            f"Added weight setting task to queue (size={active_queue.qsize()})"
+        )
+        return True
+    except queue.Full:
+        logger.error("Cannot add weights setting task, queue is full!")
+        return False
+
+
+async def execute_post_step_methods(
+    methods: list,
+    moving_average_scores: torch.Tensor = None,
+):
+    """Execute a list of post-step methods safely"""
+    for method in methods:
+        name = method.__name__ if hasattr(method, "__name__") else str(method)
+
+        try:
+            logger.info(f"Running post step: {name}")
+            if inspect.iscoroutinefunction(method):
+                await method()
+            else:
+                (
+                    method()
+                    if not moving_average_scores
+                    else method(moving_average_scores)
+                )
+        except Exception:
+            logger.error(f"{name} failed: " + traceback.format_exc())
+
+
+def drain_queue(q: Queue) -> None:
+    """Safely drain a queue"""
+    try:
+        while not q.empty():
+            try:
+                q.get_nowait()
+            except:
+                break
+    except Exception as e:
+        logger.debug(f"Error draining queue: {e}")
+
+
+def shutdown_processes(processes: Sequence[ThreadLike]) -> None:
+    """Gracefully shutdown background processes"""
+    for process in processes:
+        if process and process.is_alive():
+            try:
+                process.cancel()
+                process.join(timeout=2)
+            except Exception as e:
+                logger.debug(f"Error stopping process {process}: {e}")
+
+
+def cleanup_queues(queues: List[Queue]) -> None:
+    """Drain and close multiprocessing queues"""
+    for q in queues:
+        try:
+            drain_queue(q)
+            q.close()
+            q.join_thread()
+        except Exception as e:
+            logger.debug(f"Error closing queue: {e}")
+
+
+def cleanup_logging_handlers() -> None:
+    """Remove all logging handlers and set up minimal stderr logging"""
+    try:
+        # Remove default handler (ID 0) and any other handlers
+        logger.remove()
+
+    except Exception as e:
+        logger.error(f"Error during logging cleanup: {e}")
+
+    # Set up minimal stderr logging
+    try:
+        logger.configure(handlers=[{"sink": sys.stderr, "level": "ERROR"}])
+    except Exception as e:
+        logger.error(f"Error configuring final stderr handler: {e}")
 
 
 def is_valid_current_directory() -> bool:
@@ -157,27 +466,7 @@ async def upload_scores_loop(
 
 class StableValidator:
     def loop_until_registered(self):
-        index = None
-        while True:
-            try:
-                index = self.metagraph.hotkeys.index(
-                    self.wallet.hotkey.ss58_address
-                )
-            except Exception:
-                pass
-
-            if index is not None:
-                logger.info(
-                    f"Validator {self.config.wallet.hotkey} is registered with uid: "
-                    + str(self.metagraph.uids[index]),
-                )
-                break
-            logger.warning(
-                f"Validator {self.config.wallet.hotkey} is not registered. "
-                + "Sleeping for 120 seconds...",
-            )
-            time.sleep(120)
-            self.metagraph.sync(subtensor=self.subtensor)
+        wait_for_registration(self.metagraph, self.wallet, self.subtensor)
 
     def __init__(self):
         # Init config
@@ -228,14 +517,8 @@ class StableValidator:
         self.uid = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
         logger.info("Loaded metagraph")
 
-        # Convert metagraph[x] to a PyTorch tensor if it's a NumPy array
-        for key in ["stake", "uids"]:
-            if isinstance(getattr(self.metagraph, key), np.ndarray):
-                setattr(
-                    self.metagraph,
-                    key,
-                    torch.from_numpy(getattr(self.metagraph, key)).float(),
-                )
+        # Convert metagraph arrays to torch tensors
+        convert_numpy_to_torch(self.metagraph, self.device)
 
         # Each validator gets a unique identity (UID)
         # in the network for differentiation.
@@ -283,20 +566,20 @@ class StableValidator:
         self.storage_client = None
         self.background_steps = 1
 
-        # Start the batch streaming background loop
+        # Initialize manager and queues
         manager = Manager()
-
         self.should_quit: Event = manager.Event()
-        self.set_weights_queue: Queue = manager.Queue(maxsize=128)
-        self.batches_upload_queue: Queue = manager.Queue(maxsize=2048)
-        self.scores_upload_queue: Queue = manager.Queue(maxsize=2048)
+        queues = initialize_queues(manager)
+        self.set_weights_queue = queues["weights"]
+        self.batches_upload_queue = queues["batches"]
+        self.scores_upload_queue = queues["scores"]
 
         self.model_type = ModelType.CUSTOM
 
-        self.background_loop: BackgroundTimer = None
-        self.set_weights_process: MultiprocessTimer = None
-        self.upload_images_process: MultiprocessTimer = None
-        self.upload_scores_process: MultiprocessTimer = None
+        self.background_loop: Optional[BackgroundTimer] = None
+        self.set_weights_process: Optional[MultiprocessTimer] = None
+        self.upload_images_process: Optional[MultiprocessTimer] = None
+        self.upload_scores_process: Optional[MultiprocessTimer] = None
 
         saas_show_dashboard_url()
 
@@ -304,14 +587,16 @@ class StableValidator:
         self.start_threads(True)
 
     def start_thread(self, thread: ThreadLike, is_startup: bool = True) -> None:
-        if thread.is_alive():
-            return
+        """Start thread if not already running"""
+        if not thread or not thread.is_alive():
+            thread.start()
 
-        thread.start()
-        if is_startup:
-            logger.info(f"Started {thread}")
-        else:
-            logger.error(f"{thread} had segfault, restarted")
+            if is_startup:
+                logger.info(f"Started {thread}")
+            else:
+                logger.warning(
+                    f"{thread.__class__.__name__} was not running, restarted"
+                )
 
     def graceful_shutdown(self) -> None:
         """Gracefully shutdown background processes and logging"""
@@ -320,25 +605,27 @@ class StableValidator:
         # Signal threads to stop
         self.should_quit.set()
 
-        # Remove all loguru handlers except stderr
-        logger.remove()
-        logger.add(sys.stderr, level="ERROR")
+        # Stop processes in order
+        shutdown_processes(
+            [
+                self.background_loop,
+                self.upload_images_process,
+                self.upload_scores_process,
+                self.set_weights_process,
+            ]
+        )
 
-        # Stop processes with timeout
-        processes = [
-            self.background_loop,
-            self.upload_images_process,
-            self.upload_scores_process,
-            self.set_weights_process,
-        ]
+        # Clean up queues
+        cleanup_queues(
+            [
+                self.set_weights_queue,
+                self.batches_upload_queue,
+                self.scores_upload_queue,
+            ]
+        )
 
-        for process in processes:
-            if process and process.is_alive():
-                try:
-                    process.cancel()
-                    process.join(timeout=5)
-                except:
-                    pass
+        # Clean up logging
+        cleanup_logging_handlers()
 
         logger.info("Shutdown complete")
 
@@ -358,36 +645,12 @@ class StableValidator:
 
     def start_threads(self, is_startup: bool = False) -> None:
         logger.info(f"[start_threads] is_startup={is_startup}")
-        thread_configs: List[Tuple[str, object, float, callable, list]] = [
-            (
-                "background_loop",
-                BackgroundTimer,
-                60,
-                background_loop,
-                [self.should_quit],
-            ),
-            (
-                "upload_images_process",
-                MultiprocessTimer,
-                0.5,
-                upload_images_loop,
-                [self.should_quit, self.batches_upload_queue],
-            ),
-            (
-                "upload_scores_process",
-                MultiprocessTimer,
-                1.0,
-                upload_scores_loop,
-                [self.should_quit, self.scores_upload_queue],
-            ),
-            (
-                "set_weights_process",
-                MultiprocessTimer,
-                1.0,
-                set_weights_loop,
-                [self.should_quit, self.set_weights_queue],
-            ),
-        ]
+        queues = {
+            "weights": self.set_weights_queue,
+            "batches": self.batches_upload_queue,
+            "scores": self.scores_upload_queue,
+        }
+        thread_configs = get_thread_configs(self.should_quit, queues)
 
         for (
             attr_name,
@@ -438,69 +701,28 @@ class StableValidator:
                 logger.error("failed to generate prompt for synthetic task")
                 return None
             # NOTE: Generate synthetic request
-            return denormalize_image_model(
-                id=str(uuid.uuid4()),
-                image_count=1,
-                task_type="TEXT_TO_IMAGE",
-                guidance_scale=7.5,
-                negative_prompt=None,
-                prompt=prompt,
-                seed=-1,
-                steps=30,
-                width=1024,
-                height=1024,
-            )
+            return create_synthetic_task(prompt)
 
         is_bad_prompt = await check_prompt_for_nsfw(task.prompt)
 
         if is_bad_prompt:
-            try:
-                logger.warning(
-                    #
-                    "Prompt was marked as NSFW and rejected:"
-                    + task.task_id
-                )
-                await self.backend_client.update_task_state(
-                    task.task_id,
-                    TaskState.REJECTED,
-                )
-            except Exception as e:
-                logger.info(
-                    f"Failed to post {task.task_id} to the"
-                    + f" {TaskState.REJECTED.value} endpoint: {e}"
-                )
+            await handle_task_rejection(self.backend_client, task.task_id)
             return None
 
         return task
 
     async def sync(self):
-        """
-        Wrapper for synchronizing the state of the network for the given miner or validator.
-        """
-        # Ensure miner or validator hotkey is still registered on the network.
+        """Synchronize network state for validator"""
         self.check_registered()
 
         if self.should_sync_metagraph():
             self.resync_metagraph()
 
         if self.should_set_weights():
-            try:
-                self.set_weights_queue.put_nowait(
-                    SetWeightsTask(
-                        epoch=ttl_get_block(),
-                        hotkeys=copy.deepcopy(get_metagraph().hotkeys),
-                        weights=tensor_to_list(self.moving_average_scores),
-                    )
-                )
-            except queue.Full:
-                logger.error("Cannot add weights setting task, queue is full!")
-
-            logger.info(
-                f"Added a weight setting task to the queue"
-                f" (current size={self.set_weights_queue.qsize()})"
-            )
-
-            self.prev_block = ttl_get_block()
+            if queue_weight_setting_task(
+                self.set_weights_queue, self.moving_average_scores
+            ):
+                self.prev_block = ttl_get_block()
 
     def get_validator_index(self):
         """
@@ -573,26 +795,16 @@ class StableValidator:
         self.moving_average_scores = new_moving_averages
 
     def check_registered(self):
-        # --- Check for registration.
-        if not is_hotkey_registered(
-            netuid=self.config.netuid,
-            hotkey_ss58=self.wallet.hotkey.ss58_address,
-        ):
-            logger.error(
-                f"Wallet: {self.wallet} is not registered on netuid"
-                + str(self.config.netuid)
-                + ". Please register the hotkey before trying again"
-            )
-            sys.exit(1)
+        validate_registration(
+            self.config.netuid,
+            self.wallet.hotkey.ss58_address,
+        )
 
     def should_sync_metagraph(self):
-        """
-        Check if enough epoch blocks have elapsed
-        since the last checkpoint to sync.
-        """
-        return (
-            ttl_get_block() - self.metagraph.last_update[self.uid]
-        ) > self.config.alchemy.epoch_length
+        return should_sync_metagraph(
+            self.metagraph.last_update[self.uid],
+            self.config.alchemy.epoch_length,
+        )
 
     def should_set_weights(self) -> bool:
         # Check if all moving_averages_scores are 0s or 1s
@@ -636,33 +848,9 @@ class StableValidator:
 
     def serve_axon(self):
         """Serve axon to enable external connections."""
-
-        logger.info("serving ip to chain...")
-        try:
-            self.axon = bt.axon(
-                wallet=self.wallet,
-                ip=get_external_ip(),
-                external_ip=get_external_ip(),
-                config=self.config,
-            )
-
-            try:
-                self.subtensor.serve_axon(
-                    netuid=self.config.netuid,
-                    axon=self.axon,
-                )
-                logger.info(
-                    f"Running validator {self.axon} "
-                    + f"on network: {self.config.subtensor.chain_endpoint} "
-                    + f"with netuid: {self.config.netuid}"
-                )
-            except Exception as e:
-                logger.error(f"Failed to serve Axon with exception: {e}")
-
-        except Exception as e:
-            logger.error(
-                f"Failed to create Axon initialize with exception: {e}"
-            )
+        self.axon = serve_network_axon(
+            wallet=self.wallet, config=self.config, subtensor=self.subtensor
+        )
 
     async def run(self):
         logger.info("Starting validator loop.")
@@ -732,21 +920,14 @@ class StableValidator:
             return False
 
     async def post_step(self):
-        for method in [
-            self.sync,
-            self.reload_settings,
-            self.start_threads,
-            self.update_check,
-            saas_show_dashboard_url,
-            lambda: save_ma_scores(self.moving_average_scores),
-        ]:
-            try:
-                logger.info(f"Running post step: {method.__name__}")
-                if inspect.iscoroutinefunction(method):
-                    await method()
-                else:
-                    method()
-            except Exception:
-                logger.error(
-                    f"{method.__name__} failed: " + traceback.format_exc()
-                )
+        """Execute post-step operations"""
+        await execute_post_step_methods(
+            [
+                self.sync,
+                self.reload_settings,
+                self.start_threads,
+                self.update_check,
+                saas_show_dashboard_url,
+                lambda: save_ma_scores(self.moving_average_scores),
+            ]
+        )

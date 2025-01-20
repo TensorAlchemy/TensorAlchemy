@@ -118,9 +118,9 @@ class BackgroundTimer(Timer):
 
     def _run_cycle(self):
         """Single execution cycle with error handling"""
+        # Create and run a new event loop for this thread
+        loop = asyncio.new_event_loop()
         try:
-            # Create and run a new event loop for this thread
-            loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
             loop.run_until_complete(
