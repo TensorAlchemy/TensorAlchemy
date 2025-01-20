@@ -3,12 +3,14 @@ import os
 import pathlib
 import sys
 import warnings
+import logging
 
 # Suppress the eth_utils network warnings
 # "does not have a valid ChainId."
 # NOTE: It's not our bug, it's upstream
 # TODO: Remove after updating bittensor
 warnings.simplefilter("ignore")
+logging.getLogger().setLevel(logging.WARNING)
 
 # Use the older torch style for now
 

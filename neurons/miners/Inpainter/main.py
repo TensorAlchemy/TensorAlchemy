@@ -2,6 +2,7 @@ import os
 import pathlib
 import sys
 import warnings
+import logging
 
 from loguru import logger
 from neurons.miners.Inpainter.miner import InpaintMiner
@@ -9,6 +10,7 @@ from neurons.utils.log import configure_logging
 
 # Suppress warnings and use torch style
 warnings.simplefilter("ignore")
+logging.getLogger().setLevel(logging.WARNING)
 
 
 def setup_environment():
