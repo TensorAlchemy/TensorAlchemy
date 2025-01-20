@@ -10,7 +10,7 @@ from neurons.validator.utils.image import (
 )
 from neurons.validator.utils.performance import get_device_name, measure_time
 from neurons.validator.utils.prompt import (
-    generate_random_prompt_gpt,
+    generate_random_prompt,
     generate_story_prompt,
     get_random_adjective,
     get_random_background,
@@ -25,7 +25,7 @@ __all__ = [
     "call_corcel",
     "corcel_parse_response",
     "cosine_distance",
-    "generate_random_prompt_gpt",
+    "generate_random_prompt",
     "generate_story_prompt",
     "select_uids",
     "get_active_uids",

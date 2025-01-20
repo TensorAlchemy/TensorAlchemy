@@ -44,7 +44,7 @@ from neurons.validator.config import update_validator_settings
 from neurons.validator.forward import run_step
 from neurons.validator.schemas import Batch, ScoresUploadRequest
 from neurons.validator.utils import (
-    generate_random_prompt_gpt,
+    generate_random_prompt,
     is_hotkey_registered,
     select_uids,
     ttl_get_block,
@@ -434,7 +434,7 @@ class StableValidator:
         # No organic task found
         if task is None:
             self.model_type = ModelType.CUSTOM
-            prompt = await generate_random_prompt_gpt()
+            prompt = await generate_random_prompt()
             if not prompt:
                 logger.error("failed to generate prompt for synthetic task")
                 return None

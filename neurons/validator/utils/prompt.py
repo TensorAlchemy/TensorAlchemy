@@ -3,6 +3,8 @@ import time
 from typing import Optional
 
 from loguru import logger
+import traceback
+from neurons.config import MissingApiKeyError
 from neurons.config import get_corcel_api_key
 from neurons.validator.utils.corcel import call_corcel, corcel_parse_response
 from neurons.validator.utils.openai import create_completion_request
@@ -854,40 +856,28 @@ def generate_story_prompt() -> str:
     return to_return
 
 
-async def generate_random_prompt_gpt(
+async def generate_random_prompt(
     model: str = "gpt-4",
     prompt: Optional[str] = None,
 ) -> Optional[str]:
-    """Generate a random prompt using GPT or Corcel"""
+    """Generate a random prompt using available services with fallback"""
     if not prompt:
         prompt = generate_story_prompt()
 
-    response = None
+    services = [
+        ("corcel", lambda p: corcel_parse_response(call_corcel(p))),
+        ("openai", lambda p: create_completion_request(model=model, prompt=p)),
+    ]
 
-    # Try Corcel first if available
-    if get_corcel_api_key():
+    for name, service in services:
         try:
-            response = call_corcel(prompt)
-            if response:
-                response = corcel_parse_response(response)
-                if response.startswith("{"):  # Invalid response
-                    response = None
-        except Exception as e:
-            logger.error(f"Corcel generation failed: {e}")
-            logger.info("Falling back to OpenAI...")
+            response = await service(prompt)
+            if response and not response.startswith("{"):
+                return response.replace('"', "").strip()
+        except MissingApiKeyError:
+            logger.debug(f"Skipping {name} due to missing API key")
+        except Exception:
+            logger.error(f"Error with {name}: {traceback.format_exc()}")
+            continue
 
-    # Fall back to OpenAI
-    if not response:
-        try:
-            response = await create_completion_request(
-                model=model, prompt=prompt
-            )
-        except Exception as e:
-            logger.error(f"OpenAI generation failed: {e}")
-            return None
-
-    # Clean up response if we got one
-    if response:
-        response = response.replace('"', "").strip()
-
-    return response
+    return None
