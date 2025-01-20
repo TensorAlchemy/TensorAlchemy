@@ -151,6 +151,7 @@ async def corcel_breakdown(prompt: str) -> PromptBreakdown:
             timeout=API_TIMEOUT_SECONDS,
         )
         response.raise_for_status()  # This will raise an HTTPStatusError for 4xx/5xx responses
+        print(response.content)
         result = response.json()
         return await process_api_response(result)
 
