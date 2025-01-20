@@ -19,6 +19,7 @@ from openai.types.chat import (
     ChatCompletionUserMessageParam,
 )
 from openai.types.shared_params import FunctionDefinition
+
 # Constants
 API_TIMEOUT_SECONDS = 10.0
 
@@ -171,17 +172,19 @@ async def break_down_prompt(
             logger.debug(f"Skipping {service_name} due to missing API key")
             continue
 
-except HTTPStatusError as e:
-    logger.warning(
-        f"{service_name} API returned error {e.response.status_code}: {e.response.text}"
-    )
-    last_error = e
-    continue
-    
-except ReadTimeout as e:
-    logger.warning(f"{service_name} API request timed out after {API_TIMEOUT_SECONDS} seconds")
-    last_error = e
-    continue
+        except HTTPStatusError as e:
+            logger.warning(
+                f"{service_name} API returned error {e.response.status_code}: {e.response.text}"
+            )
+            last_error = e
+            continue
+
+        except ReadTimeout as e:
+            logger.warning(
+                f"{service_name} API request timed out after {API_TIMEOUT_SECONDS} seconds"
+            )
+            last_error = e
+            continue
 
         except Exception as e:
 
