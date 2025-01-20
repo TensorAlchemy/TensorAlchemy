@@ -77,14 +77,15 @@ def wait_for_registration(
     """Wait until wallet is registered in the metagraph"""
     while True:
         try:
-            index = metagraph.hotkeys.index(wallet.hotkey.ss58_address)
+            hotkey_ss58 = wallet.hotkey.ss58_address
+            index = metagraph.hotkeys.index(hotkey_ss58)
             logger.info(
-                f"Validator {wallet.hotkey} is registered with uid: {metagraph.uids[index]}"
+                f"Validator {hotkey_ss58} is registered with uid: {metagraph.uids[index]}"
             )
             return
         except ValueError:
             logger.warning(
-                f"Validator {wallet.hotkey} is not registered. Sleeping for 120 seconds..."
+                f"Validator {wallet.hotkey.ss58_address} is not registered. Sleeping for 120 seconds..."
             )
             time.sleep(120)
             metagraph.sync(subtensor=subtensor)
