@@ -1,4 +1,5 @@
 import random
+from typing import Optional
 
 import requests
 from loguru import logger
@@ -21,7 +22,7 @@ def corcel_parse_response(text):
     return result
 
 
-def call_corcel(prompt):
+def call_corcel(prompt: str) -> Optional[str]:
     HEADERS = {
         "Content-Type": "application/json",
         "Authorization": f"{get_corcel_api_key()}",
@@ -47,7 +48,7 @@ def call_corcel(prompt):
 
     logger.info(f"Using args: {JSON}")
 
-    response = None
+    to_return: Optional[str] = None
 
     try:
         response = requests.post(
@@ -56,14 +57,11 @@ def call_corcel(prompt):
             headers=HEADERS,
             timeout=15,
         )
-        response = response.json()[0]["choices"][0]["message"]["content"]
+
+        to_return = response.json()[0]["choices"][0]["message"]["content"]
+        logger.info(f"Prompt generated with Corcel: {to_return}")
+
+        return to_return
+
     except requests.exceptions.ReadTimeout:
-        logger.info(
-            "Corcel request timed out after 15 seconds..."
-            + " falling back to OpenAI..."
-        )
-
-    if response:
-        logger.info(f"Prompt generated with Corcel: {response}")
-
-    return response
+        logger.info("Corcel request timed out after 15 seconds...")

@@ -19,9 +19,9 @@ class PromptBreakdown(TypedDict):
 def get_breakdown_prompt(prompt: str) -> str:
     return (
         "Break down the following image prompt into key elements. "
-        "Each element should be a single word that is concise and evaluatable.\n\n"
-        f"Prompt: {prompt}\n\n"
-        "Return elements one per line."
+        + "Each element should be a single word that is concise and evaluatable.\n\n"
+        + f"Prompt: {prompt}\n\n"
+        + "Return elements one per line."
     )
 
 
