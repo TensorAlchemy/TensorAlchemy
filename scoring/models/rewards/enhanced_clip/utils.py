@@ -1,4 +1,5 @@
 import json
+import traceback
 from typing import Awaitable, Callable, Dict, List, TypedDict, Union
 
 from httpx import HTTPStatusError
@@ -174,7 +175,11 @@ async def break_down_prompt(
             continue
 
         except Exception as e:
-            logger.error(f"Unexpected error with {service_name}: {str(e)}")
+
+            logger.error(
+                f"Unexpected error with {service_name}: "
+                + traceback.format_exc()
+            )
             last_error = e
             continue
 
