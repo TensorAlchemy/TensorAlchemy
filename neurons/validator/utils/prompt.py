@@ -4,11 +4,8 @@ from typing import Optional
 
 from loguru import logger
 from neurons.config import get_corcel_api_key
-from neurons.validator.services.openai.service import (
-    OpenAIRequestFailed,
-    get_openai_service,
-)
 from neurons.validator.utils.corcel import call_corcel, corcel_parse_response
+from neurons.validator.utils.openai import create_completion_request
 
 
 def get_random_creature():
@@ -860,33 +857,37 @@ def generate_story_prompt() -> str:
 async def generate_random_prompt_gpt(
     model: str = "gpt-4",
     prompt: Optional[str] = None,
-):
-    response = None
+) -> Optional[str]:
+    """Generate a random prompt using GPT or Corcel"""
     if not prompt:
         prompt = generate_story_prompt()
 
+    response = None
+
+    # Try Corcel first if available
     if get_corcel_api_key():
         try:
             response = call_corcel(prompt)
             if response:
                 response = corcel_parse_response(response)
-                if response.startswith("{"):
+                if response.startswith("{"):  # Invalid response
                     response = None
         except Exception as e:
-            logger.error(f"An unexpected error occurred calling corcel: {e}")
-            logger.error("Falling back to OpenAI if available...")
+            logger.error(f"Corcel generation failed: {e}")
+            logger.info("Falling back to OpenAI...")
 
+    # Fall back to OpenAI
     if not response:
         try:
-            response = await get_openai_service().create_completion_request(
-                model,
-                prompt,
+            response = await create_completion_request(
+                model=model, prompt=prompt
             )
-        except OpenAIRequestFailed as e:
-            logger.error(f"error during creation of completion prompt: {e}")
+        except Exception as e:
+            logger.error(f"OpenAI generation failed: {e}")
+            return None
 
+    # Clean up response if we got one
     if response:
-        response = response.replace('"', "")
-        response = response.strip()
+        response = response.replace('"', "").strip()
 
     return response

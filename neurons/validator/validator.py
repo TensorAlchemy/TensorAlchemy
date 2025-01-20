@@ -9,7 +9,8 @@ import traceback
 import uuid
 from datetime import datetime, timedelta
 from math import ceil
-from multiprocessing import Event, Manager, Process, Queue, set_start_method
+from threading import Event
+from multiprocessing import Manager, Process, Queue, set_start_method
 from threading import Thread
 from typing import List, Optional, Tuple, Union
 
@@ -42,13 +43,13 @@ from neurons.validator.backend.models import TaskState
 from neurons.validator.config import update_validator_settings
 from neurons.validator.forward import run_step
 from neurons.validator.schemas import Batch, ScoresUploadRequest
-from neurons.validator.services.openai.service import get_openai_service
 from neurons.validator.utils import (
     generate_random_prompt_gpt,
     is_hotkey_registered,
     select_uids,
     ttl_get_block,
 )
+from neurons.validator.utils.openai import check_prompt_for_nsfw
 from neurons.validator.utils.state import load_ma_scores, save_ma_scores
 from neurons.validator.utils.version import get_validator_version
 from neurons.validator.weights import (
@@ -194,10 +195,7 @@ class StableValidator:
         log_dependencies()
 
         # Init device.
-        self.device = get_device(torch.device(self.config.alchemy.device))
-
-        # Init external API services
-        self.openai_service = get_openai_service()
+        self.device = get_device(torch.device(get_device()))
 
         self.backend_client = TensorAlchemyBackendClient()
 
@@ -288,6 +286,7 @@ class StableValidator:
 
         # Start the batch streaming background loop
         manager = Manager()
+
         self.should_quit: Event = manager.Event()
         self.set_weights_queue: Queue = manager.Queue(maxsize=128)
         self.batches_upload_queue: Queue = manager.Queue(maxsize=2048)
@@ -453,9 +452,7 @@ class StableValidator:
                 height=1024,
             )
 
-        is_bad_prompt = await self.openai_service.check_prompt_for_nsfw(
-            task.prompt
-        )
+        is_bad_prompt = await check_prompt_for_nsfw(task.prompt)
 
         if is_bad_prompt:
             try:

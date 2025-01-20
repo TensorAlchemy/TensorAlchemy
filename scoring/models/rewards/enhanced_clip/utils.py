@@ -3,7 +3,7 @@ from typing import List, TypedDict
 import traceback
 from loguru import logger
 from neurons.config import MissingApiKeyError
-from neurons.validator.services.openai.service import get_openai_service
+from neurons.validator.utils.openai import create_completion_request
 from neurons.validator.utils.corcel import call_corcel
 
 
@@ -37,8 +37,7 @@ def parse_elements(response: str) -> PromptBreakdown:
 
 
 async def openai_breakdown(prompt: str) -> PromptBreakdown:
-    service = get_openai_service()
-    response = await service.create_completion_request(
+    response = await create_completion_request(
         model="gpt-4o-mini", prompt=get_breakdown_prompt(prompt)
     )
 

@@ -49,8 +49,6 @@ def call_corcel(prompt: str) -> Optional[str]:
 
     logger.info(f"Using args: {JSON}")
 
-    to_return: Optional[str] = None
-
     try:
         response = requests.post(
             "https://api.corcel.io/cortext/text",
@@ -59,7 +57,13 @@ def call_corcel(prompt: str) -> Optional[str]:
             timeout=15,
         )
 
-        to_return = response.json()[0]["choices"][0]["message"]["content"]
+        to_return: Optional[str] = response.json()[0]["choices"][0]["message"][
+            "content"
+        ]
+
+        if not to_return:
+            raise MissingResponseError("Corcel")
+
         logger.info(f"Prompt generated with Corcel: {to_return}")
 
         return to_return
