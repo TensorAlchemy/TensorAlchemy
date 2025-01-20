@@ -56,8 +56,7 @@ def call_corcel(prompt):
             headers=HEADERS,
             timeout=15,
         )
-        print(response.json())
-        response = response.json()[0]["choices"][0]["delta"]["content"]
+        response = response.json()[0]["choices"][0]["message"]["content"]
     except requests.exceptions.ReadTimeout as e:
         logger.info(
             "Corcel request timed out after 15 seconds..."
