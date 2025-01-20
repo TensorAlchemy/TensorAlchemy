@@ -144,7 +144,7 @@ async def corcel_breakdown(prompt: str) -> PromptBreakdown:
         "stream": False,  # Disable streaming to get a single JSON response
     }
 
-    async with httpx.AsyncClient(timeout=API_TIMEOUT_SECONDS) as client:
+    async with httpx.AsyncClient() as client:
         response = await client.post(
             "https://api.corcel.io/cortext/text",
             headers=headers,
