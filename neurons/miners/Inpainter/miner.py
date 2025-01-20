@@ -1,5 +1,6 @@
+import asyncio
 import time
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple
 
 import torch
 from diffusers import AutoPipelineForInpainting, DEISMultistepScheduler
@@ -102,7 +103,7 @@ class InpaintMiner(BaseMiner):
         seed: Optional[int] = None,
         negative_prompt: str = "",
         **_kwargs,
-    ) -> Image.Image:
+    ) -> ImageGeneration:
         """Inpaint an existing image using a mask."""
         if seed is None:
             seed = int(time.time())
@@ -120,20 +121,19 @@ class InpaintMiner(BaseMiner):
             )
             return result.images[0]
 
-    async def generate_image(self, request: ImageGeneration) -> List[str]:
-        """Main image generation entrypoint"""
+    async def generate_image(self, synapse: ImageGeneration) -> ImageGeneration:
+        """Main image generation entrypoint that maintains Synapse protocol"""
         try:
             result_image = None
             for attempt in range(3):
                 try:
-                    # Currently only supporting generate path
                     result_image = await self.generate(
-                        prompt=request.prompt,
-                        steps=request.steps,
-                        seed=request.seed,
-                        negative_prompt=request.negative_prompt,
-                        height=request.height,
-                        width=request.width,
+                        prompt=synapse.prompt,
+                        steps=synapse.steps,
+                        seed=synapse.seed,
+                        negative_prompt=synapse.negative_prompt,
+                        height=synapse.height,
+                        width=synapse.width,
                     )
                     break
                 except Exception as e:
@@ -141,8 +141,12 @@ class InpaintMiner(BaseMiner):
                         f"Generation attempt {attempt + 1} failed: {e}"
                     )
 
-            return [image_to_base64(result_image)] if result_image else []
+            if result_image:
+                synapse.images = [image_to_base64(result_image)]
+            else:
+                logger.info(f"Failed to generate any images after 3 attempts.")
 
         except Exception as e:
             logger.error(f"Error in image generation: {e}")
-            return []
+
+        return synapse

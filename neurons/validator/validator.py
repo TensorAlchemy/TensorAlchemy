@@ -9,9 +9,9 @@ import traceback
 import uuid
 from datetime import datetime, timedelta
 from math import ceil
-from multiprocessing import Manager, Process, Queue, set_start_method
-from threading import Event, Thread
-from typing import List, Optional, Sequence, Tuple, Union
+from multiprocessing import Manager, Queue, set_start_method
+from threading import Event
+from typing import List, Optional, Sequence, Tuple
 
 import bittensor as bt
 import numpy as np
