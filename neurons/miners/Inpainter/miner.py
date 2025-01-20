@@ -59,7 +59,8 @@ class InpaintMiner(BaseMiner):
                 self.model.scheduler.config
             )
 
-            asyncio.run(self.generate("Warming up the pipes"))
+            logger.info("Generate image to warm up model")
+            asyncio.run(self.generate("Warming up the pipes", steps=1))
 
         except Exception as e:
             logger.error(f"Failed to initialize models: {e}")
