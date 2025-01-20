@@ -1,3 +1,4 @@
+import asyncio
 import random
 from typing import Optional
 
@@ -23,7 +24,7 @@ def corcel_parse_response(text):
     return result
 
 
-def call_corcel(prompt: str) -> Optional[str]:
+async def call_corcel(prompt: str) -> Optional[str]:
     HEADERS = {
         "Content-Type": "application/json",
         "Authorization": f"{get_corcel_api_key()}",
@@ -50,7 +51,8 @@ def call_corcel(prompt: str) -> Optional[str]:
     logger.info(f"Using args: {JSON}")
 
     try:
-        response = requests.post(
+        response = await asyncio.to_thread(
+            requests.post,
             "https://api.corcel.io/cortext/text",
             json=JSON,
             headers=HEADERS,

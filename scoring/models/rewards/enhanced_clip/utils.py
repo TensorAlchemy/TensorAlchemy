@@ -49,7 +49,7 @@ async def openai_breakdown(prompt: str) -> PromptBreakdown:
 
 
 async def corcel_breakdown(prompt: str) -> PromptBreakdown:
-    response = call_corcel(get_breakdown_prompt(prompt))
+    response = await call_corcel(get_breakdown_prompt(prompt))
 
     if not response:
         raise ValueError("No response received from Corcel")
