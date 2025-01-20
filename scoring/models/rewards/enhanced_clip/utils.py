@@ -1,6 +1,7 @@
 import json
 from typing import Awaitable, Callable, Dict, List, TypedDict, Union
 
+from httpx import HTTPStatusError
 import httpx
 from loguru import logger
 
@@ -143,13 +144,9 @@ async def corcel_breakdown(prompt: str) -> PromptBreakdown:
             headers=headers,
             json=payload,
         )
-        if response.status_code == 200:
-            result = response.json()
-            return await process_api_response(result)
-        else:
-            raise Exception(
-                f"Corcel API request failed with status {response.status_code}"
-            )
+        response.raise_for_status()  # This will raise an HTTPStatusError for 4xx/5xx responses
+        result = response.json()
+        return await process_api_response(result)
 
 
 async def break_down_prompt(
@@ -160,15 +157,26 @@ async def break_down_prompt(
         "openai": openai_breakdown,
     }
 
-    for service_method in services.values():
+    last_error = None
+    for service_name, service_method in services.items():
         try:
             return await service_method(prompt)
 
         except MissingApiKeyError:
-            pass
-
-        except Exception as e:
-            logger.error(e)
+            logger.debug(f"Skipping {service_name} due to missing API key")
             continue
 
-    raise MissingApiKeyError("Both services had missing API keys")
+        except HTTPStatusError as e:
+            logger.warning(f"{service_name} API returned error {e.response.status_code}: {e.response.text}")
+            last_error = e
+            continue
+
+        except Exception as e:
+            logger.error(f"Unexpected error with {service_name}: {str(e)}")
+            last_error = e
+            continue
+
+    if isinstance(last_error, MissingApiKeyError):
+        raise MissingApiKeyError("All services had missing API keys")
+    else:
+        raise Exception(f"All services failed. Last error: {str(last_error)}")
