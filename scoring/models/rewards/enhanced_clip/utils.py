@@ -21,7 +21,7 @@ from openai.types.chat import (
 from openai.types.shared_params import FunctionDefinition
 
 # Constants
-API_TIMEOUT_SECONDS = 10.0
+API_TIMEOUT_SECONDS = 15.0
 
 
 # Type definitions
@@ -141,7 +141,7 @@ async def corcel_breakdown(prompt: str) -> PromptBreakdown:
             "type": "function",
             "function": {"name": tool["function"]["name"]},
         },
-        "stream": False  # Disable streaming to get a single JSON response
+        "stream": False,  # Disable streaming to get a single JSON response
     }
 
     async with httpx.AsyncClient(timeout=API_TIMEOUT_SECONDS) as client:
