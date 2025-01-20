@@ -3,6 +3,7 @@ from typing import List, TypedDict
 import traceback
 from loguru import logger
 from neurons.config import MissingApiKeyError
+from neurons.config.clients import MissingResponseError
 from neurons.validator.utils.openai import create_completion_request
 from neurons.validator.utils.corcel import call_corcel
 
@@ -68,6 +69,8 @@ async def break_down_prompt(prompt: str) -> PromptBreakdown:
             return await service(prompt)
         except MissingApiKeyError:
             logger.debug(f"Skipping {name} due to missing API key")
+        except MissingResponseError:
+            logger.debug(f"Skipping {name} due to no response")
         except Exception:
             logger.error(f"Error with {name}: " + traceback.format_exc())
 

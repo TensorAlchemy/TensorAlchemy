@@ -6,6 +6,7 @@ from loguru import logger
 import traceback
 from neurons.config import MissingApiKeyError
 from neurons.config import get_corcel_api_key
+from neurons.config.clients import MissingResponseError
 from neurons.validator.utils.corcel import call_corcel, corcel_parse_response
 from neurons.validator.utils.openai import create_completion_request
 
@@ -876,6 +877,8 @@ async def generate_random_prompt(
                 return response.replace('"', "").strip()
         except MissingApiKeyError:
             logger.debug(f"Skipping {name} due to missing API key")
+        except MissingResponseError:
+            logger.debug(f"Skipping {name} due to no response")
         except Exception:
             logger.error(f"Error with {name}: {traceback.format_exc()}")
             continue
