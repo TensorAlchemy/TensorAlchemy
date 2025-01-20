@@ -126,7 +126,7 @@ async def corcel_breakdown(prompt: str) -> PromptBreakdown:
     tool = get_prompt_breakdown_function()
 
     payload = {
-        "model": "corcel/text-davinci-003",
+        "model": "gpt-4o",
         "messages": [
             {"role": m["role"], "content": m["content"]} for m in messages
         ],
@@ -167,7 +167,9 @@ async def break_down_prompt(
             continue
 
         except HTTPStatusError as e:
-            logger.warning(f"{service_name} API returned error {e.response.status_code}: {e.response.text}")
+            logger.warning(
+                f"{service_name} API returned error {e.response.status_code}: {e.response.text}"
+            )
             last_error = e
             continue
 
