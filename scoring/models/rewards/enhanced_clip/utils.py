@@ -2,8 +2,8 @@ import json
 import traceback
 from typing import Awaitable, Callable, Dict, List, TypedDict, Union
 
-from httpx import HTTPStatusError, ReadTimeout
-import httpx
+from requests.exceptions import HTTPError, ReadTimeout
+import requests
 from loguru import logger
 
 # Configuration functions
@@ -144,17 +144,15 @@ async def corcel_breakdown(prompt: str) -> PromptBreakdown:
         "stream": False,  # Disable streaming to get a single JSON response
     }
 
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            "https://api.corcel.io/cortext/text",
-            headers=headers,
-            json=payload,
-            timeout=API_TIMEOUT_SECONDS,
-        )
-        response.raise_for_status()  # This will raise an HTTPStatusError for 4xx/5xx responses
-        print(response.content)
-        result = response.json()
-        return await process_api_response(result)
+    response = requests.post(
+        "https://api.corcel.io/cortext/text",
+        headers=headers,
+        json=payload,
+        timeout=API_TIMEOUT_SECONDS,
+    )
+    response.raise_for_status()  # This will raise an HTTPStatusError for 4xx/5xx responses
+    result = response.json()
+    return await process_api_response(result)
 
 
 async def break_down_prompt(
@@ -174,9 +172,9 @@ async def break_down_prompt(
             logger.debug(f"Skipping {service_name} due to missing API key")
             continue
 
-        except HTTPStatusError as e:
+        except HTTPError as e:
             logger.warning(
-                f"{service_name} API returned error {e.response.status_code}: {e.response.text}"
+                f"{service_name} API returned error {e.response.status_code}: {e.response.content.decode()}"
             )
             last_error = e
             continue
