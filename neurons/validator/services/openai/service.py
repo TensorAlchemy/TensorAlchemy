@@ -1,5 +1,6 @@
 from loguru import logger
 from neurons.config import get_openai_client
+from neurons.config.clients import MissingResponseError
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -47,13 +48,14 @@ class OpenAIService:
             raise OpenAIRequestFailed(str(e)) from e
 
         logger.info(f"OpenAI response object: {response}")
-        if len(response.choices) > 0:
-            response = response.choices[0].message.content
-        else:
-            return None
+        if len(response.choices) < 1:
+            raise MissingResponseError("OpenAI")
+
+        response: str = response.choices[0].message.content
 
         if response:
             logger.info(f"Prompt generated with OpenAI: {response}")
+
         return response
 
     @retry(

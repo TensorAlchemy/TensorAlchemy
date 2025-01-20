@@ -4,6 +4,7 @@ from typing import Optional
 import requests
 from loguru import logger
 from neurons.config import get_corcel_api_key
+from neurons.config.clients import MissingResponseError
 
 
 def corcel_parse_response(text):
@@ -65,3 +66,5 @@ def call_corcel(prompt: str) -> Optional[str]:
 
     except requests.exceptions.ReadTimeout:
         logger.info("Corcel request timed out after 15 seconds...")
+
+    raise MissingResponseError("Corcel")

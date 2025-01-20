@@ -23,6 +23,10 @@ class MissingApiKeyError(ValueError):
     pass
 
 
+class MissingResponseError(ValueError):
+    pass
+
+
 def get_corcel_api_key(required: bool = False) -> str:
     """
     Get the Corcel API key from environment variables.
