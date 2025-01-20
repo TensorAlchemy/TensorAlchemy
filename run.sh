@@ -107,19 +107,19 @@ run_process() {
     case "$1" in
         validator)
             if [ "$AUTO_UPDATE" = true ]; then
-                log_info "Launching validator with args: ${@:2} --alchemy.auto_update"
+                log_info "Launching validator with args: ${*:2} --alchemy.auto_update"
                 "$PYTHON_CMD" "$VALIDATOR_PATH" "${@:2}" "--alchemy.auto_update"
             else
-                log_info "Launching validator with args: ${@:2}"
-                "$PYTHON_CMD" "$VALIDATOR_PATH" "${@:2}"
+                log_info "Launching validator with args: ${*:2}"
+                "$PYTHON_CMD" "$VALIDATOR_PATH" "${@:2}" "--alchemy.auto_update"
             fi
             ;;
         miner)
             if [ "$AUTO_UPDATE" = true ]; then
-                log_info "Launching miner with args: ${@:2} --alchemy.auto_update"
+                log_info "Launching miner with args: ${*:2} --alchemy.auto_update"
                 "$PYTHON_CMD" "$MINER_PATH" "${@:2}" "--alchemy.auto_update"
             else
-                log_info "Launching miner with args: ${@:2}"
+                log_info "Launching miner with args: ${*:2}"
                 "$PYTHON_CMD" "$MINER_PATH" "${@:2}"
             fi
             ;;
