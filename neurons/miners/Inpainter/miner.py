@@ -35,6 +35,8 @@ class InpaintMiner(BaseMiner):
             logger.info("Received ImageGeneration blacklist")
             return await self._base_blacklist(synapse)
 
+        logger.info("Setting up miner Bittensor attachments...")
+
         # IsAlive synapse
         self.axon.attach(forward_fn=isalive)
 
