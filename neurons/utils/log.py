@@ -4,7 +4,7 @@ import os
 import sys
 from logging.handlers import QueueHandler, QueueListener
 from multiprocessing import Queue
-from typing import Any
+from typing import Any, Callable
 
 import bittensor as bt
 import logging_loki
@@ -200,7 +200,7 @@ def configure_loki_logger():
     logger.add(loki_handler)
 
 
-def create_bittensor_logging_wrapper(log_func):
+def create_bittensor_logging_wrapper(log_func: Callable):
     def bt_log(*args, **kwargs):
         msg = kwargs.get("msg", None)
         prefix = kwargs.get("prefix", None)
@@ -226,11 +226,20 @@ def create_bittensor_logging_wrapper(log_func):
 
 
 def patch_bt_logging():
+    from neurons.config import get_config
+
     bt.logging.info = create_bittensor_logging_wrapper(logger.info)
     bt.logging.warning = create_bittensor_logging_wrapper(logger.warning)
     bt.logging.error = create_bittensor_logging_wrapper(logger.error)
-    bt.logging.debug = create_bittensor_logging_wrapper(logger.debug)
-    bt.logging.trace = create_bittensor_logging_wrapper(logger.trace)
+
+    # Only enable debug/trace logging in debug mode
+    if get_config().DEBUG:
+        bt.logging.debug = create_bittensor_logging_wrapper(logger.debug)
+        bt.logging.trace = create_bittensor_logging_wrapper(logger.trace)
+    else:
+        # Disable debug/trace logging in production by making them no-ops
+        bt.logging.debug = lambda *_args, **_kwargs: None
+        bt.logging.trace = lambda *_args, **_kwargs: None
 
 
 def configure_logging():
@@ -239,10 +248,19 @@ def configure_logging():
         return
 
     logger.remove()
+    from neurons.config import get_config
+
+    # Set log level based on debug flag
+    log_level = "DEBUG" if get_config().DEBUG else "INFO"
+    from neurons.config import get_config
+
+    # Set log level based on debug flag
+    log_level = "DEBUG" if get_config().DEBUG else "INFO"
     logger.add(
         sys.stdout,
         colorize=True,
         format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {function}:{line} - {message}",
+        level=log_level,
     )
     loki_logger_enabled = "--alchemy.disable_loki_logging" not in sys.argv
     if loki_logger_enabled:
