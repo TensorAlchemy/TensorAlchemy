@@ -13,7 +13,8 @@ from loguru import logger
 from neurons.common.saas.utils import saas_show_dashboard_url
 from neurons.config import get_config, get_metagraph, get_subtensor, get_wallet
 from neurons.config.lists import get_blacklist
-from neurons.constants import VPERMIT_TAO
+from neurons.config.utils import is_testnet
+from neurons.constants import VPERMIT_TAO, VPERMIT_TAO_TESTNET
 from neurons.miners.base.models import MinerState, RequestStats
 from neurons.update_checker import safely_check_for_updates
 from neurons.utils import (
@@ -191,6 +192,9 @@ class BaseMiner(ABC):
             f"Running blacklist checks for synapse type {type(synapse).__name__}..."
         )
         vpermit_tao_limit: float = VPERMIT_TAO
+        if is_testnet():
+            vpermit_tao_limit = VPERMIT_TAO_TESTNET
+
         rate_limit: float = 1.0
 
         try:
