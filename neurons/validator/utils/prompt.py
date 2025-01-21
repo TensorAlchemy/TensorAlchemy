@@ -866,8 +866,8 @@ async def generate_random_prompt(
         prompt = generate_story_prompt()
 
     services = [
-        ("corcel", lambda p: call_corcel(p)),
         ("openai", lambda p: create_completion_request(model=model, prompt=p)),
+        ("corcel", lambda p: call_corcel(p)),
     ]
 
     for name, service in services:

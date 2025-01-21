@@ -63,7 +63,10 @@ async def corcel_breakdown(prompt: str) -> PromptBreakdown:
 
 async def break_down_prompt(prompt: str) -> PromptBreakdown:
     """Try to break down prompt using available services"""
-    services = [("corcel", corcel_breakdown), ("openai", openai_breakdown)]
+    services = [
+        ("openai", openai_breakdown),
+        ("corcel", corcel_breakdown),
+    ]
 
     for name, service in services:
         try:
