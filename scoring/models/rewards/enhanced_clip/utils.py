@@ -21,21 +21,28 @@ class PromptBreakdown(TypedDict):
 def get_breakdown_prompt(prompt: str) -> str:
     return (
         "Break down the following image prompt into key elements. "
-        + "Each element should be a single word that is concise and evaluatable.\n\n"
+        + "Each element should be a single word or short phrase that is concise and evaluatable.\n\n"
         + f"Prompt: {prompt}\n\n"
-        + "Return elements one per line."
+        + "Return elements as a comma-separated list."
     )
 
 
 def parse_elements(response: str) -> PromptBreakdown:
     """Parse response text into PromptBreakdown format"""
-    return PromptBreakdown(
-        elements=[
-            ElementDict(description=line.strip(), importance=1.0)
-            for line in response.split("\n")
-            if line.strip()
-        ]
-    )
+    # First split by newlines and join to handle any inconsistent formatting
+    cleaned_response = " ".join(response.split())
+    
+    # Split by commas and clean up each element
+    elements = [
+        ElementDict(description=element.strip(), importance=1.0)
+        for element in cleaned_response.split(",")
+        if element.strip()
+    ]
+    
+    if not elements:
+        raise ValueError("No elements found in response")
+        
+    return PromptBreakdown(elements=elements)
 
 
 async def openai_breakdown(prompt: str) -> PromptBreakdown:
