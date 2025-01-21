@@ -38,7 +38,6 @@ class InpaintMiner(BaseMiner):
 
         async def blacklist_isalive(synapse: IsAlive) -> Tuple[bool, str]:
             logger.info("Received ImageGeneration blacklist")
-            print(self.axon.blacklist_fns)
             return await self._base_blacklist(synapse)
 
         async def priority(synapse: ImageGeneration) -> float:
