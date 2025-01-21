@@ -229,10 +229,10 @@ parse_args() {
         case "${args[$i]}" in
             --auto-update)
                 if [ $((i + 1)) -lt ${#args[@]} ]; then
-                    if [ "${args[$((i + 1))]}" = "false" ] || [ "${args[$((i + 1))]}}" = "0" ]; then
+                    if [ "${args[$((i + 1))]}" = "false" ] || [ "${args[$((i + 1))]}" = "0" ]; then
                         AUTO_UPDATE=false
                         log_info "Auto-update disabled via command line"
-                    elif [ "${args[$((i + 1))]}}" = "true" ] || [ "${args[$((i + 1))]}}" = "1" ]; then
+                    elif [ "${args[$((i + 1))]}" = "true" ] || [ "${args[$((i + 1))]}" = "1" ]; then
                         AUTO_UPDATE=true
                         log_info "Auto-update enabled via command line"
                     else
