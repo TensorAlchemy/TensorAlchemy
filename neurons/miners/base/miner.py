@@ -12,7 +12,7 @@ from loguru import logger
 
 from neurons.common.saas.utils import saas_show_dashboard_url
 from neurons.config import get_config, get_metagraph, get_subtensor, get_wallet
-from neurons.config.lists import get_blacklist
+from neurons.config.lists import get_blacklist, get_whitelist
 from neurons.config.utils import is_testnet
 from neurons.constants import VPERMIT_TAO, VPERMIT_TAO_TESTNET
 from neurons.miners.base.models import MinerState, RequestStats
@@ -185,6 +185,44 @@ class BaseMiner(ABC):
     def check_still_registered(self) -> bool:
         """Check if miner is still registered"""
         return self.get_miner_index() is not None
+
+    async def _base_priority(self, synapse: bt.Synapse) -> float:
+        caller_hotkey: str = synapse.dendrite.hotkey
+
+        try:
+            priority: float = 0.0
+
+            # Get current blacklists
+            _hotkey_whitelist, coldkey_whitelist = await get_whitelist()
+
+            # Check coldkey blacklist
+            coldkey = get_coldkey_for_hotkey(caller_hotkey)
+            if coldkey in coldkey_whitelist:
+                priority = 25000.0
+                logger.info(
+                    "Setting the priority of whitelisted key"
+                    + f" {caller_hotkey} to {priority}"
+                )
+
+            try:
+                caller_uid: int = get_metagraph().hotkeys.index(
+                    synapse.dendrite.hotkey,
+                )
+                priority = max(priority, float(get_metagraph().S[caller_uid]))
+                logger.info(
+                    f"Prioritizing key {synapse.dendrite.hotkey}"
+                    + f" with value: {priority}."
+                )
+            except ValueError:
+                logger.warning(
+                    f"Hotkey {synapse.dendrite.hotkey}"
+                    + f" not found in metagraph"
+                )
+
+            return priority
+        except Exception as e:
+            logger.error(f"Error in _base_priority: {e}")
+            return 0.0
 
     async def _base_blacklist(self, synapse: bt.Synapse) -> Tuple[bool, str]:
         """Base blacklist implementation that can be used by child classes"""

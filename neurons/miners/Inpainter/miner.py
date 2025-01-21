@@ -33,17 +33,23 @@ class InpaintMiner(BaseMiner):
 
         async def blacklist(synapse: ImageGeneration) -> Tuple[bool, str]:
             logger.info("Received ImageGeneration blacklist")
+            print(self.axon.blacklist_fns)
             return await self._base_blacklist(synapse)
 
         logger.info("Setting up miner Bittensor attachments...")
 
         # IsAlive synapse
-        self.axon.attach(forward_fn=isalive)
+        self.axon.attach(
+            forward_fn=isalive,
+            priority_fn=self._base_priority,
+            blacklist_fn=self._base_blacklist,
+        )
 
         # Generate synapse
         self.axon.attach(
             forward_fn=forward,
             blacklist_fn=blacklist,
+            priority_fn=self._base_priority,
         )
 
     def initialize_implementation(self) -> None:
