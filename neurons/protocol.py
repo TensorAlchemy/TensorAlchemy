@@ -57,8 +57,7 @@ def deserialize_incoming_image(inbound_image: Any):
     return inbound_image
 
 
-class IsAlive(Synapse):
-    computed_body_hash: str = Field("")
+class IsAlive(bt.Synapse):
     answer: Optional[str] = None
     completion: str = Field(
         "",
@@ -71,25 +70,16 @@ class IsAlive(Synapse):
 SupportedImageTypes = Union[str, np.ndarray, torch.tensor, bt.Tensor]
 
 
-class ImageGeneration(Synapse):
+class ImageGeneration(bt.Synapse):
     """
-    A simple dummy protocol representation which uses bt.Synapse
-    as its base.
+    Protocol for image generation requests and responses between miners and validators.
+    Inherits from bt.Synapse to integrate with the bittensor network.
 
-    This protocol helps in handling dummy request and response
-    communication between the miner and the validator.
-
-    Attributes:
-    - dummy_input: An integer value representing the input request
-                   sent by the validator.
-
-    - dummy_output: An optional integer value which, when filled,
-                    represents the response from the miner.
+    This protocol facilitates image generation requests with configurable parameters
+    like prompts, dimensions, and generation settings, and returns base64 encoded images.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    computed_body_hash: str = Field("")
 
     # Each image is base64 encoded image data
     images: List[str] = []

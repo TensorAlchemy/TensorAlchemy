@@ -1,6 +1,7 @@
 import asyncio
 import time
 from typing import Callable, Optional, Type
+import inspect
 
 import torch
 from diffusers import AutoPipelineForInpainting, DEISMultistepScheduler
@@ -12,14 +13,6 @@ from neurons.miners.base.miner import BaseMiner
 from neurons.protocol import ImageGeneration, IsAlive
 from neurons.utils.image import image_to_base64
 from neurons.utils.nsfw import clean_nsfw_from_prompt
-
-
-def bind(synapse_type: Type, base_method: Callable):
-    async def wrapped(synapse):
-        logger.info(f"Received {synapse_type.__name__}")
-        return await base_method(synapse)
-
-    return wrapped
 
 
 class InpaintMiner(BaseMiner):

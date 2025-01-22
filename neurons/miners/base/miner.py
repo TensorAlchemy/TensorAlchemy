@@ -1,10 +1,12 @@
+import inspect
 import sys
 import time
 import traceback
 from abc import ABC, abstractmethod
 from threading import Event
 from multiprocessing import Manager
-from typing import Callable, Optional, Tuple, Type
+from typing import Any, Awaitable, Callable, Optional, Tuple, Type
+from functools import wraps
 
 import bittensor as bt
 import torch
@@ -71,35 +73,117 @@ class BaseMiner(ABC):
         self.loop_until_registered()
         self.start_background_loop()
 
-    @staticmethod
-    def bind(synapse_type: Type, base_method: Callable):
-        """Helper to bind base methods to specific synapse types with logging"""
+    def bind_method(
+        self,
+        synapse_type: Type[bt.Synapse],
+        method: Callable,
+        handler_type: str,
+    ) -> Callable:
+        """Modified bind method to preserve type information"""
 
-        async def wrapped(synapse):
-            logger.info(f"Received {synapse_type.__name__}")
-            return await base_method(synapse)
+        async def wrapper(
+            synapse: synapse_type,  # type: ignore
+        ) -> Any:
+            logger.debug(
+                f"Handling {synapse_type.__name__} with {handler_type}"
+            )
+            result = method(synapse)
+            if inspect.iscoroutine(result):
+                result = await result
+                return result
 
-        return wrapped
+        wrapper.__name__ = method.__name__
+        wrapper.__doc__ = method.__doc__
+        wrapper.__annotations__ = {
+            "synapse": synapse_type,
+            "return": method.__annotations__.get("return"),
+        }
+
+        return wrapper
+
+    def create_bound_methods(
+        self,
+        synapse_type: Type[bt.Synapse],
+        forward_fn: Optional[Callable] = None,
+    ) -> Tuple[Callable, Callable, Callable]:
+        """
+        Create properly typed bound methods for a synapse type
+
+        Args:
+            synapse_type: The synapse type to bind for
+            forward_fn: Optional custom forward function to bind
+        """
+        bound_forward = self.bind_method(
+            synapse_type,
+            forward_fn or self._base_forward,
+            "forward",
+        )
+
+        bound_priority = self.bind_method(
+            synapse_type,
+            self._base_priority,
+            "priority",
+        )
+
+        bound_blacklist = self.bind_method(
+            synapse_type,
+            self._base_blacklist,
+            "blacklist",
+        )
+
+        return bound_forward, bound_priority, bound_blacklist
 
     def attach_synapse(
         self,
-        synapse_type: Type,
-        forward_fn: Optional[Callable] = None,
-    ):
-        """Helper to attach common synapse handlers with defaults"""
+        synapse_type: Type[bt.Synapse],
+        forward_fn: Optional[
+            Callable[[bt.Synapse], bt.Synapse | Awaitable[bt.Synapse]]
+        ] = None,
+        priority_fn: Optional[Callable[[bt.Synapse], float]] = None,
+        blacklist_fn: Optional[Callable[[bt.Synapse], Tuple[bool, str]]] = None,
+    ) -> None:
+        """
+        Attach synapse handlers with optional overrides for any combination of handlers.
+        Supports both sync and async forward functions.
+        """
+
+        # Create wrapper to handle async forward functions
+        async def async_wrapper(synapse: bt.Synapse) -> bt.Synapse:
+            if forward_fn is None:
+                return await self._base_forward(synapse)
+
+            result: bt.Synapse | Awaitable[bt.Synapse] = forward_fn(synapse)
+            if inspect.iscoroutine(result):
+                result = await result
+
+            assert isinstance(
+                result, bt.Synapse
+            ), "Result of attachment could not be resolved"
+            resolved: bt.Synapse = result
+
+            return resolved
+
+        # Bind the provided functions or use defaults
+        bound_forward = self.bind_method(
+            synapse_type,
+            async_wrapper,
+            "forward",
+        )
+        bound_priority = self.bind_method(
+            synapse_type,
+            priority_fn or self._base_priority,
+            "priority",
+        )
+        bound_blacklist = self.bind_method(
+            synapse_type,
+            blacklist_fn or self._base_blacklist,
+            "blacklist",
+        )
+
         self.axon.attach(
-            forward_fn=self.bind(
-                synapse_type,
-                forward_fn or self._base_forward,
-            ),
-            priority_fn=self.bind(
-                synapse_type,
-                self._base_priority,
-            ),
-            blacklist_fn=self.bind(
-                synapse_type,
-                self._base_blacklist,
-            ),
+            forward_fn=bound_forward,
+            priority_fn=bound_priority,
+            blacklist_fn=bound_blacklist,
         )
 
     @abstractmethod
