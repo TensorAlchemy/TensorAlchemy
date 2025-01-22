@@ -34,7 +34,7 @@ async def test_break_down_prompt_success(sample_prompt):
         "elements": [{"description": "lake"}, {"description": "trees"}]
     }
     with patch(
-        "scoring.models.rewards.enhanced_clip.utils.corcel_breakdown",
+        "scoring.models.rewards.enhanced_clip.utils.openai_breakdown",
         AsyncMock(return_value=mock_result),
     ):
         result = await break_down_prompt(sample_prompt)
