@@ -1,6 +1,6 @@
 import asyncio
 import time
-from typing import Optional, Tuple
+from typing import Callable, Optional, Type
 
 import torch
 from diffusers import AutoPipelineForInpainting, DEISMultistepScheduler
@@ -14,8 +14,16 @@ from neurons.utils.image import image_to_base64
 from neurons.utils.nsfw import clean_nsfw_from_prompt
 
 
+def bind(synapse_type: Type, base_method: Callable):
+    async def wrapped(synapse):
+        logger.info(f"Received {synapse_type.__name__}")
+        return await base_method(synapse)
+
+    return wrapped
+
+
 class InpaintMiner(BaseMiner):
-    model: AutoPipelineForInpainting = None
+    model: Optional[AutoPipelineForInpainting] = None
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
@@ -23,45 +31,11 @@ class InpaintMiner(BaseMiner):
     def create_attachments(self) -> None:
         """Return list of forward function tuples for axon"""
 
-        async def isalive(synapse: IsAlive) -> IsAlive:
-            logger.info("Received IsAlive synapse")
-            return synapse
+        # IsAlive synapse (default bound: forward & priority & blacklist)
+        self.attach_synapse(IsAlive)
 
-        async def forward(synapse: ImageGeneration) -> ImageGeneration:
-            logger.info("Received ImageGeneration synapse")
-            return await self.generate_image(synapse)
-
-        async def blacklist(synapse: ImageGeneration) -> Tuple[bool, str]:
-            logger.info("Received ImageGeneration blacklist")
-            return await self._base_blacklist(synapse)
-
-        async def blacklist_isalive(synapse: IsAlive) -> Tuple[bool, str]:
-            logger.info("Received ImageGeneration blacklist")
-            return await self._base_blacklist(synapse)
-
-        async def priority(synapse: ImageGeneration) -> float:
-            logger.info("Received ImageGeneration priority")
-            return await self._base_priority(synapse)
-
-        async def priority_isalive(synapse: IsAlive) -> float:
-            logger.info("Received IsAlive priority")
-            return await self._base_priority(synapse)
-
-        logger.info("Setting up miner Bittensor attachments...")
-
-        # IsAlive synapse
-        self.axon.attach(
-            forward_fn=isalive,
-            priority_fn=priority_isalive,
-            blacklist_fn=blacklist_isalive,
-        )
-
-        # Generate synapse
-        self.axon.attach(
-            forward_fn=forward,
-            priority_fn=priority,
-            blacklist_fn=blacklist,
-        )
+        # IsAlive synapse (default bound: priority & blacklist)
+        self.attach_synapse(ImageGeneration, self.generate_image)
 
     def initialize_implementation(self) -> None:
         """Initialize SDXL model"""

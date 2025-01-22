@@ -31,17 +31,17 @@ def parse_elements(response: str) -> PromptBreakdown:
     """Parse response text into PromptBreakdown format"""
     # First split by newlines and join to handle any inconsistent formatting
     cleaned_response = " ".join(response.split())
-    
+
     # Split by commas and clean up each element
     elements = [
         ElementDict(description=element.strip(), importance=1.0)
         for element in cleaned_response.split(",")
         if element.strip()
     ]
-    
+
     if not elements:
         raise ValueError("No elements found in response")
-        
+
     return PromptBreakdown(elements=elements)
 
 

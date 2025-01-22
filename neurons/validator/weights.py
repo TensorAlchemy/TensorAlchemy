@@ -1,6 +1,7 @@
 import queue
 import traceback
-from multiprocessing import Event, Queue
+from multiprocessing import Queue
+from threading import Event
 from typing import Dict, List, Optional
 
 import bittensor as bt
@@ -27,8 +28,8 @@ class WeightSettingError(Exception):
 class SetWeightsTask(BaseModel):
     epoch: int
     hotkeys: List[str]
-    weights: List[float]  # Changed from torch.Tensor to List[float]
-    tries: Optional[int] = 0
+    weights: List[float]
+    tries: int = 0
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -38,7 +39,7 @@ def tensor_to_list(tensor: torch.Tensor) -> List[float]:
 
 
 async def set_weights_loop(
-    should_quit: Event,
+    _should_quit: Event,
     set_weights_queue: Queue,
 ) -> None:
     # Log empty queue each minute

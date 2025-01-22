@@ -2,8 +2,9 @@ import sys
 import time
 import traceback
 from abc import ABC, abstractmethod
-from multiprocessing import Event, Manager
-from typing import Optional, Tuple
+from threading import Event
+from multiprocessing import Manager
+from typing import Callable, Optional, Tuple, Type
 
 import bittensor as bt
 import torch
@@ -69,6 +70,37 @@ class BaseMiner(ABC):
         self.initialize_metagraph()
         self.loop_until_registered()
         self.start_background_loop()
+
+    @staticmethod
+    def bind(synapse_type: Type, base_method: Callable):
+        """Helper to bind base methods to specific synapse types with logging"""
+
+        async def wrapped(synapse):
+            logger.info(f"Received {synapse_type.__name__}")
+            return await base_method(synapse)
+
+        return wrapped
+
+    def attach_synapse(
+        self,
+        synapse_type: Type,
+        forward_fn: Optional[Callable] = None,
+    ):
+        """Helper to attach common synapse handlers with defaults"""
+        self.axon.attach(
+            forward_fn=self.bind(
+                synapse_type,
+                forward_fn or self._base_forward,
+            ),
+            priority_fn=self.bind(
+                synapse_type,
+                self._base_priority,
+            ),
+            blacklist_fn=self.bind(
+                synapse_type,
+                self._base_blacklist,
+            ),
+        )
 
     @abstractmethod
     def initialize_implementation(self) -> None:
@@ -185,6 +217,9 @@ class BaseMiner(ABC):
     def check_still_registered(self) -> bool:
         """Check if miner is still registered"""
         return self.get_miner_index() is not None
+
+    async def _base_forward(self, synapse: bt.Synapse) -> bt.Synapse:
+        return synapse
 
     async def _base_priority(self, synapse: bt.Synapse) -> float:
         caller_hotkey: str = synapse.dendrite.hotkey
