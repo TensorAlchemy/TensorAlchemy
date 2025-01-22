@@ -6,6 +6,7 @@ from typing import Dict, List, Optional
 
 import bittensor as bt
 import torch
+import numpy as np
 from loguru import logger
 from pydantic import BaseModel, ConfigDict
 
@@ -140,9 +141,9 @@ async def set_weights(
             netuid=config.netuid,
             #
             # Which uids should be updated
-            uids=torch.tensor(valid_uids).cpu(),
-            # Use valid_weights instead of raw_weights
-            weights=torch.tensor(valid_weights).cpu(),
+            uids=torch.tensor(valid_uids).cpu().numpy(),
+            # Use valid_weights instead of raw_weights, convert to numpy
+            weights=torch.tensor(valid_weights).cpu().numpy(),
         )
     except Exception:
         logger.error(
