@@ -1,8 +1,8 @@
 from enum import Enum
 from typing import List
-from pydantic import BaseModel
 
 import torch
+from pydantic import BaseModel
 
 from scoring.types import ScoringResults
 
@@ -33,9 +33,9 @@ class EventSchema(BaseModel):
                 "uids": uids.tolist(),
                 "scores": score.scores[uids].tolist(),
                 "normalized": score.normalized[uids].tolist(),
-                "raw": score.raw[uids].tolist()
-                if score.raw is not None
-                else None,
+                "raw": (
+                    score.raw[uids].tolist() if score.raw is not None else None
+                ),
             }
 
         combined_uids: torch.tensor = self.results.combined_uids
@@ -51,9 +51,9 @@ class EventSchema(BaseModel):
 def convert_enum_keys_to_strings(data):
     if isinstance(data, dict):
         return {
-            k.value
-            if isinstance(k, Enum)
-            else k: convert_enum_keys_to_strings(v)
+            k.value if isinstance(k, Enum) else k: convert_enum_keys_to_strings(
+                v
+            )
             for k, v in data.items()
         }
     elif isinstance(data, list):

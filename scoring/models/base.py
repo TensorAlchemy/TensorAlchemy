@@ -1,24 +1,22 @@
 import inspect
 from abc import abstractmethod
-from typing import Callable, List, TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, List
 
-import torch
 import bittensor as bt
+import torch
 from loguru import logger
-
 
 from neurons.config import get_device, get_metagraph
 
 if TYPE_CHECKING:
-    from scoring.types import ScoringResult
     from scoring.models.types import RewardModelType
+    from scoring.types import ScoringResult
 
 
 class BaseRewardModel:
     @property
     @abstractmethod
-    def name(self) -> "RewardModelType":
-        ...
+    def name(self) -> "RewardModelType": ...
 
     def is_strict_uid_scoring(self) -> float:
         return True

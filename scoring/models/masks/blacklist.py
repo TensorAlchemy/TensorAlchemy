@@ -1,10 +1,9 @@
-import numpy as np
 import bittensor as bt
+import numpy as np
 from loguru import logger
 
-from neurons.utils.log import image_to_str
 from neurons.utils.image import synapse_to_images
-
+from neurons.utils.log import image_to_str
 from scoring.models.base import BaseRewardModel
 from scoring.models.types import RewardModelType
 

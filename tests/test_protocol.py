@@ -1,10 +1,6 @@
 import base64
-import os
-
 
 from neurons.protocol import ImageGeneration
-
-os.environ["USE_TORCH"] = "1"
 
 incoming_synapse_new_base64 = {
     "name": "ImageGeneration",

@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   stableminer:
@@ -15,7 +15,10 @@ services:
       - ~/.bittensor:/root/.bittensor
     ports:
       - "8101:8101"
-    command: ["bash", "-c", "python3.10 /app/neurons/miners/StableMiner/main.py \
+    command: [
+        "bash",
+        "-c",
+        "python3.10 /app/neurons/miners/Inpainter/main.py \
         --wallet.name YOUR_WALLET_NAME \
         --wallet.hotkey YOUR_WALLET_HOTKEY \
         --netuid 25 \
@@ -24,8 +27,8 @@ services:
         --logging.debug \
         --logging.trace \
         --miner.device cuda:0 \
-        --miner.model stabilityai/stable-diffusion-xl-base-1.0 \
-        --refiner.enable false"]
+        --miner.model Lykon/dreamshaper-8-inpainting",
+      ]
     networks:
       - stableminer_network
 
@@ -43,14 +46,18 @@ services:
       - ~/.bittensor:/root/.bittensor
     ports:
       - "8000:8000"
-    command: ["bash", "-c", "python3.10 /app/neurons/validator/main.py \
-      --wallet.name YOUR_WALLET_NAME \
-      --wallet.hotkey YOUR_WALLET_HOTKEY \
-      --netuid 25 \
-      --subtensor.network test \
-      --axon.port 8000 \
-      --logging.debug \
-      --logging.trace"]
+    command: [
+        "bash",
+        "-c",
+        "python3.10 /app/neurons/validator/main.py \
+        --wallet.name YOUR_WALLET_NAME \
+        --wallet.hotkey YOUR_WALLET_HOTKEY \
+        --netuid 25 \
+        --subtensor.network test \
+        --axon.port 8000 \
+        --logging.debug \
+        --logging.trace",
+      ]
     networks:
       - stableminer_network
 

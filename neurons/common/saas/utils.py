@@ -4,13 +4,13 @@ import time
 import urllib.parse
 
 import bittensor as bt
-
 from loguru import logger
 
 from neurons import constants
-from neurons.config import get_config, get_wallet, AlchemyHost
+from neurons.config import AlchemyHost, get_config, get_wallet
 from neurons.config.utils import is_testnet
-from neurons.utils.common import is_validator, show_boxed_message
+from neurons.utils.common import is_validator
+from neurons.utils.log import log_banner
 
 
 def get_dashboard_base_url():
@@ -58,14 +58,12 @@ def saas_generate_dashboard_url(wallet: bt.wallet = get_wallet()):
 
 def saas_show_dashboard_url() -> None:
     try:
-        show_boxed_message(
+        log_banner(
             (
                 "You can access your SaaS dashboard using this URL:\n\n"
                 + saas_generate_dashboard_url()
             ),
-            show_edges=False,
-            message_type="success",
-            header="SAAS DASHBOARD",
+            width=80,
         )
     except Exception as e:
         logger.error(f"Failed to generate saas dashboard url: {e}")

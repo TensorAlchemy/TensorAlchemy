@@ -1,9 +1,10 @@
+from unittest.mock import AsyncMock, patch
+
+import bittensor as bt
 import pytest
 import torch
 from loguru import logger
-from unittest.mock import patch, AsyncMock
 
-import bittensor as bt
 from neurons.protocol import ImageGeneration, ModelType
 from neurons.utils.image import image_tensor_to_base64, image_to_tensor
 from neurons.validator.backend.exceptions import PostMovingAveragesError
@@ -11,7 +12,7 @@ from neurons.validator.forward import update_moving_averages
 from scoring.models import RewardModelType
 from scoring.pipeline import get_scoring_results
 from scoring.types import ScoringResults
-from tests.fixtures import TEST_IMAGES, mock_get_metagraph, mock_get_config
+from tests.fixtures import TEST_IMAGES, mock_get_config, mock_get_metagraph
 
 
 class MockScoringModel:

@@ -1,14 +1,14 @@
 import random
 import time
+import traceback
 from typing import Optional
+
 from loguru import logger
 
-from neurons.config import get_corcel_api_key
-from neurons.validator.services.openai.service import (
-    get_openai_service,
-    OpenAIRequestFailed,
-)
-from .corcel import call_corcel, corcel_parse_response
+from neurons.config import MissingApiKeyError
+from neurons.config.clients import MissingResponseError
+from neurons.validator.utils.corcel import call_corcel
+from neurons.validator.utils.openai import create_completion_request
 
 
 def get_random_creature():
@@ -351,6 +351,169 @@ def get_random_adjective():
     )
 
 
+def get_random_style():
+    return random.choice(
+        [
+            # Portraits
+            "warm portrait",
+            "old man portrait",
+            "kodak portrait",
+            "closeup portrait",
+            "happy portrait",
+            "noir portrait",
+            "vintage 1940s portrait",
+            "sepia-toned portrait",
+            "dreamy soft focus portrait",
+            "ethereal portrait",
+            "surreal fantasy portrait",
+            "chiaroscuro lighting portrait",
+            "high-contrast portrait",
+            "vibrant contemporary portrait",
+            "fashion magazine portrait",
+            "digital oil painting portrait",
+            "film noir-inspired portrait",
+            # Photography styles
+            "long exposure",
+            "double exposure effect",
+            "vaporwave aesthetic",
+            "cyberpunk photoshoot",
+            "luxury product",
+            "glamorous editorial photography",
+            "architectural photography",
+            "macro photography",
+            "tilt-shift photography",
+            "fish-eye lens photography",
+            "cinematic photography",
+            "pastel film photography",
+            "high grain black and white photography",
+            "infrared photography",
+            "halftone photography",
+            "hdr photography",
+            # Color schemes & effects
+            "sepia",
+            "monochrome",
+            "duotone",
+            "split tone",
+            "pastel color palette",
+            "neon color palette",
+            "high contrast",
+            "low contrast",
+            "high saturation",
+            "desaturated tones",
+            "gradient background",
+            "dark moody colors",
+            "soft warm tones",
+            "cold blue hues",
+            "golden hour lighting",
+            "sunset colors",
+            "muted earth tones",
+            # Time periods & movements
+            "1940s",
+            "1950s",
+            "1960s",
+            "1970s",
+            "1980s retro",
+            "1990s grunge",
+            "art deco",
+            "baroque style",
+            "renaissance style",
+            "impressionist style",
+            "surrealist style",
+            "futurist style",
+            "modernism",
+            "postmodernism",
+            "cubism",
+            "abstract expressionism",
+            "minimalism",
+            "pop art",
+            "bauhaus design",
+            "psychedelic",
+            "dada",
+            "gothic style",
+            "victorian style",
+            # Art techniques & effects
+            "watercolor",
+            "oil painting",
+            "charcoal drawing",
+            "ink illustration",
+            "hyperrealistic painting",
+            "surreal digital painting",
+            "impressionistic brush strokes",
+            "line art",
+            "pencil sketch",
+            "crosshatching",
+            "stippling",
+            "collage",
+            "mixed media",
+            "digital painting",
+            "pixel art",
+            "low-poly style",
+            "3d modeling",
+            "flat illustration",
+            "sticker style",
+            "tattoo design",
+            "graffiti style",
+            "comic book style",
+            "graphic novel style",
+            "posterized art",
+            "screen print",
+            # Realism & abstractions
+            "photorealistic rendering",
+            "hyper-realism",
+            "abstract forms",
+            "minimalist abstractions",
+            "cubist abstraction",
+            "geometric design",
+            "organic forms",
+            "fluid dynamics",
+            "fractal patterns",
+            "surreal dreamscapes",
+            "non-representational art",
+            "conceptual art",
+            "expressionist colors",
+            "emotional brush strokes",
+            "visual metaphors",
+            # Special effects & lighting
+            "glitch effect",
+            "lens flare",
+            "halation effect",
+            "bloom lighting",
+            "backlighting",
+            "bokeh background",
+            "soft light diffusion",
+            "harsh spotlight",
+            "gobo lighting",
+            "studio lighting",
+            "cinematic lighting",
+            "high-key lighting",
+            "low-key lighting",
+            "shadow play",
+            "dynamic lighting",
+            "color grading",
+            "gothic shadows",
+            # Human emotions & themes
+            "joyful celebration",
+            "melancholic mood",
+            "tranquil peace",
+            "intense passion",
+            "whimsical daydream",
+            "pensive contemplation",
+            "heroic strength",
+            "subdued melancholy",
+            "yearning desire",
+            "playful innocence",
+            "nostalgic reverie",
+            "empowered determination",
+            "solitary reflection",
+            "humble acceptance",
+            "spiritual enlightenment",
+            "rebellious defiance",
+            "quiet resilience",
+            "enduring perseverance",
+        ]
+    )
+
+
 def get_random_object():
     return random.choice(
         [
@@ -655,11 +818,12 @@ def get_random_background():
 
 def generate_story_prompt() -> str:
     random.seed(int(time.time()))
-    random_creature = get_random_creature()
     random_adjective = get_random_adjective()
-    random_object = get_random_object()
     random_background = get_random_background()
+    random_creature = get_random_creature()
+    random_object = get_random_object()
     random_perspective = get_random_perspective()
+    random_style = get_random_style()
 
     to_return: str = (
         "You are an image prompt generator. "
@@ -685,41 +849,38 @@ def generate_story_prompt() -> str:
     if random.random() > 0.85:
         to_return += f"- Perspective: {random_perspective}\n\n"
 
+    if random.random() > 0.85:
+        to_return += f"- Style: {random_style}\n\n"
+
     to_return += "Do not output the above elements, only the resultant story."
 
     return to_return
 
 
-async def generate_random_prompt_gpt(
+async def generate_random_prompt(
     model: str = "gpt-4",
     prompt: Optional[str] = None,
-):
-    response = None
+) -> Optional[str]:
+    """Generate a random prompt using available services with fallback"""
     if not prompt:
         prompt = generate_story_prompt()
 
-    if get_corcel_api_key():
+    services = [
+        ("openai", lambda p: create_completion_request(model=model, prompt=p)),
+        ("corcel", lambda p: call_corcel(p)),
+    ]
+
+    for name, service in services:
         try:
-            response = call_corcel(prompt)
-            if response:
-                response = corcel_parse_response(response)
-                if response.startswith("{"):
-                    response = None
-        except Exception as e:
-            logger.error(f"An unexpected error occurred calling corcel: {e}")
-            logger.error("Falling back to OpenAI if available...")
+            response = await service(prompt)
+            if response and not response.startswith("{"):
+                return response.replace('"', "").strip()
+        except MissingApiKeyError:
+            logger.debug(f"Skipping {name} due to missing API key")
+        except MissingResponseError:
+            logger.debug(f"Skipping {name} due to no response")
+        except Exception:
+            logger.error(f"Error with {name}: {traceback.format_exc()}")
+            continue
 
-    if not response:
-        try:
-            response = await get_openai_service().create_completion_request(
-                model,
-                prompt,
-            )
-        except OpenAIRequestFailed as e:
-            logger.error(f"error during creation of completion prompt: {e}")
-
-    if response:
-        response = response.replace('"', "")
-        response = response.strip()
-
-    return response
+    return None

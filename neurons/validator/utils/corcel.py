@@ -1,7 +1,14 @@
+import asyncio
 import random
+from typing import Optional
+
 import requests
 from loguru import logger
+
 from neurons.config import get_corcel_api_key
+from neurons.config.clients import MissingResponseError
+
+TIMEOUT: int = 5
 
 
 def corcel_parse_response(text):
@@ -20,7 +27,7 @@ def corcel_parse_response(text):
     return result
 
 
-def call_corcel(prompt):
+async def call_corcel(prompt: str) -> Optional[str]:
     HEADERS = {
         "Content-Type": "application/json",
         "Authorization": f"{get_corcel_api_key()}",
@@ -46,23 +53,46 @@ def call_corcel(prompt):
 
     logger.info(f"Using args: {JSON}")
 
-    response = None
-
     try:
-        response = requests.post(
+        response = await asyncio.to_thread(
+            requests.post,
             "https://api.corcel.io/cortext/text",
             json=JSON,
             headers=HEADERS,
-            timeout=15,
-        )
-        response = response.json()[0]["choices"][0]["delta"]["content"]
-    except requests.exceptions.ReadTimeout as e:
-        logger.info(
-            "Corcel request timed out after 15 seconds..."
-            + " falling back to OpenAI..."
+            timeout=TIMEOUT,
         )
 
-    if response:
-        logger.info(f"Prompt generated with Corcel: {response}")
+        response.raise_for_status()
+        response_json = response.json()
 
-    return response
+        if not isinstance(response_json, list) or not response_json:
+            logger.error(
+                f"Unexpected response format from Corcel: {response_json}"
+            )
+            raise MissingResponseError("Corcel: Invalid response format")
+
+        try:
+            to_return = response_json[0]["choices"][0]["message"]["content"]
+        except (KeyError, IndexError) as e:
+            logger.error(f"Failed to parse Corcel response: {response_json}")
+            logger.error(f"Error: {str(e)}")
+            raise MissingResponseError(
+                f"Corcel: Failed to parse response - {str(e)}"
+            )
+
+        if not to_return:
+            logger.warning("Empty response content from Corcel")
+            raise MissingResponseError("Corcel: Empty response content")
+
+        logger.info(f"Prompt generated with Corcel: {to_return}")
+        return to_return
+
+    except requests.exceptions.ReadTimeout:
+        logger.warning(f"Corcel request timed out after {TIMEOUT} seconds")
+        raise MissingResponseError("Corcel: Request timeout")
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Request to Corcel failed: {str(e)}")
+        raise MissingResponseError(f"Corcel: Request failed - {str(e)}")
+    except Exception as e:
+        logger.error(f"Unexpected error calling Corcel: {str(e)}")
+        raise MissingResponseError(f"Corcel: Unexpected error - {str(e)}")

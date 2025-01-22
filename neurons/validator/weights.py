@@ -1,22 +1,23 @@
 import queue
 import traceback
-from typing import Dict, List, Optional
-from multiprocessing import Event, Queue
+from multiprocessing import Queue
+from threading import Event
+from typing import Dict, List
 
-import torch
 import bittensor as bt
+import torch
 from loguru import logger
 from pydantic import BaseModel, ConfigDict
 
 from neurons.config import (
+    get_backend_client,
     get_config,
-    get_wallet,
     get_metagraph,
     get_subtensor,
-    get_backend_client,
+    get_wallet,
 )
-from neurons.validator.utils import ttl_get_block
 from neurons.validator.backend.exceptions import PostWeightsError
+from neurons.validator.utils import ttl_get_block
 from neurons.validator.utils.version import get_validator_spec_version
 
 
@@ -27,8 +28,8 @@ class WeightSettingError(Exception):
 class SetWeightsTask(BaseModel):
     epoch: int
     hotkeys: List[str]
-    weights: List[float]  # Changed from torch.Tensor to List[float]
-    tries: Optional[int] = 0
+    weights: List[float]
+    tries: int = 0
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -38,7 +39,7 @@ def tensor_to_list(tensor: torch.Tensor) -> List[float]:
 
 
 async def set_weights_loop(
-    should_quit: Event,
+    _should_quit: Event,
     set_weights_queue: Queue,
 ) -> None:
     # Log empty queue each minute
@@ -139,9 +140,9 @@ async def set_weights(
             netuid=config.netuid,
             #
             # Which uids should be updated
-            uids=torch.tensor(valid_uids).cpu(),
-            # Use valid_weights instead of raw_weights
-            weights=torch.tensor(valid_weights).cpu(),
+            uids=torch.tensor(valid_uids).cpu().numpy(),
+            # Use valid_weights instead of raw_weights, convert to numpy
+            weights=torch.tensor(valid_weights).cpu().numpy(),
         )
     except Exception:
         logger.error(

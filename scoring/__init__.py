@@ -5,13 +5,11 @@ import bittensor as bt
 from loguru import logger
 from PIL.Image import Image as PILImage
 
-from neurons.utils.image import image_to_base64
-from neurons.protocol import ImageGeneration, ModelType
-
 from neurons.config import clients
-
-from scoring.types import ScoringResults
+from neurons.protocol import ImageGeneration, ModelType
+from neurons.utils.image import image_to_base64
 from scoring.pipeline import get_scoring_results
+from scoring.types import ScoringResults
 
 
 def generate_synapse(prompt: str, image_base64: str) -> bt.Synapse:

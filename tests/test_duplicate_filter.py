@@ -1,16 +1,15 @@
+import random
+from unittest.mock import MagicMock, patch
+
+import bittensor as bt
+import numpy as np
 import pytest
 import torch
-import bittensor as bt
-from PIL import Image, ImageEnhance
-import numpy as np
-from unittest.mock import MagicMock, patch
-import random
-
 from loguru import logger
+from PIL import Image, ImageEnhance
 
 from scoring.models.masks.duplicate import DuplicateFilter
-
-from tests.fixtures import create_complex_image, TEST_IMAGES
+from tests.fixtures import TEST_IMAGES, create_complex_image
 
 
 @pytest.fixture
@@ -70,7 +69,7 @@ async def test_exact_duplicates(duplicate_filter, mock_metagraph):
         "scoring.models.base.get_metagraph",
         return_value=mock_metagraph,
     ):
-        image = create_complex_image()
+        create_complex_image()
         images1 = [TEST_IMAGES["DUP_A"]]
         images2 = [TEST_IMAGES["DUP_B"]]
         images3 = [

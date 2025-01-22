@@ -1,9 +1,9 @@
 from enum import Enum
 from typing import Callable, Dict, List, Tuple
 
-import torch
 import bittensor as bt
-from pydantic import ConfigDict, BaseModel, Field
+import torch
+from pydantic import BaseModel, ConfigDict, Field
 
 from scoring.models.base import BaseRewardModel
 

@@ -1,9 +1,9 @@
-import torch
 import random
 from unittest.mock import MagicMock
-from PIL import Image, ImageDraw
 
 import bittensor as bt
+import torch
+from PIL import Image, ImageDraw
 
 from neurons.protocol import ImageGeneration, ModelType
 from neurons.utils.image import image_tensor_to_base64, image_to_tensor

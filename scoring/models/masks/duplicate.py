@@ -1,13 +1,14 @@
 from typing import List
-import torch
-import numpy as np
-import imagehash
-from PIL import Image
-import bittensor as bt
-from loguru import logger
 
-from neurons.utils.image import synapse_to_tensors
+import bittensor as bt
+import imagehash
+import numpy as np
+import torch
+from loguru import logger
+from PIL import Image
+
 from neurons.config import get_metagraph
+from neurons.utils.image import synapse_to_tensors
 from scoring.models.base import BaseRewardModel
 from scoring.models.types import RewardModelType
 

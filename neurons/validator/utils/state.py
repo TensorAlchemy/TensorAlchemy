@@ -1,15 +1,11 @@
 import os
-from typing import List
 from datetime import datetime, timedelta
+from typing import List
 
 import torch
 from loguru import logger
 
-from neurons.config import (
-    get_device,
-    get_config,
-    get_metagraph,
-)
+from neurons.config import get_config, get_device, get_metagraph
 
 
 def save_ma_scores(moving_average_scores: torch.Tensor) -> None:

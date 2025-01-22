@@ -1,7 +1,7 @@
 from typing import List, Optional
 
 import torch
-from pydantic import ConfigDict, BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from scoring.models.types import RewardModelType
 

@@ -3,9 +3,9 @@ import time
 from typing import Dict, Optional
 
 import bittensor as bt
+from diffusers import DiffusionPipeline
 from loguru import logger
 
-from diffusers import DiffusionPipeline
 from neurons.config import get_metagraph
 
 
@@ -18,19 +18,6 @@ def get_caller_stake(synapse: bt.Synapse) -> Optional[float]:
     if synapse.dendrite.hotkey in metagraph.hotkeys:
         index = metagraph.hotkeys.index(synapse.dendrite.hotkey)
         return metagraph.S[index].item()
-
-    return None
-
-
-def get_coldkey_for_hotkey(hotkey: str) -> Optional[str]:
-    """
-    Look up the coldkey of the caller.
-    """
-    metagraph: bt.metagraph = get_metagraph()
-
-    if hotkey in metagraph.hotkeys:
-        index = metagraph.hotkeys.index(hotkey)
-        return metagraph.coldkeys[index]
 
     return None
 

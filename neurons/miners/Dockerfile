@@ -3,7 +3,7 @@ FROM python:3.10-slim
 # Environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV USE_TORCH=1
+
 ENV AXON_PORT=8101
 
 RUN apt update && \
@@ -20,4 +20,4 @@ COPY . /app/
 
 RUN echo "import warnings; warnings.simplefilter('ignore')" > /usr/local/lib/python3.10/site-packages/sitecustomize.py
 
-CMD ["python3.10", "/app/neurons/miners/StableMiner/main.py"]
+CMD ["python3.10", "/app/neurons/miners/Inpainter/main.py"]

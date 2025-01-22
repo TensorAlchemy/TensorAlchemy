@@ -1,10 +1,10 @@
 from enum import Enum
-from typing import Optional, List, Union, Any
+from typing import Any, List, Optional, Union
 
 import bittensor as bt
 import numpy as np
 import torch
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ModelType(str, Enum):
@@ -41,7 +41,7 @@ def denormalize_image_model(
 
 def deserialize_incoming_image(inbound_image: Any):
     """Inbound image type is different across different miner versions."""
-    from neurons.utils.image import tensor_to_image, image_to_base64
+    from neurons.utils.image import image_to_base64, tensor_to_image
 
     if isinstance(inbound_image, str):
         # Newest miners already send image as base64 string
@@ -50,14 +50,21 @@ def deserialize_incoming_image(inbound_image: Any):
     if isinstance(inbound_image, dict) and "buffer" in inbound_image:
         # Older miners serializing image as bt.Tensor which is sent as dict
         # { "buffer": "...", "dtype": "torch.uint8", "shape": [3, 1, 1] }
-        inbound = bt.Tensor(**inbound_image).deserialize()
-        return image_to_base64(tensor_to_image(tensor=inbound))
+        try:
+            # Handle torch dtype strings by converting to numpy dtype first
+            if inbound_image["dtype"] == "torch.uint8":
+                inbound_image["dtype"] = "uint8"
+            inbound = bt.Tensor(**inbound_image).deserialize()
+            return image_to_base64(tensor_to_image(tensor=inbound))
+        except TypeError as e:
+            # Log error and return empty base64 string if deserialization fails
+            bt.logging.warning(f"Failed to deserialize image: {str(e)}")
+            return ""
 
     return inbound_image
 
 
 class IsAlive(bt.Synapse):
-    computed_body_hash: str = Field("")
     answer: Optional[str] = None
     completion: str = Field(
         "",
@@ -72,23 +79,14 @@ SupportedImageTypes = Union[str, np.ndarray, torch.tensor, bt.Tensor]
 
 class ImageGeneration(bt.Synapse):
     """
-    A simple dummy protocol representation which uses bt.Synapse
-    as its base.
+    Protocol for image generation requests and responses between miners and validators.
+    Inherits from bt.Synapse to integrate with the bittensor network.
 
-    This protocol helps in handling dummy request and response
-    communication between the miner and the validator.
-
-    Attributes:
-    - dummy_input: An integer value representing the input request
-                   sent by the validator.
-
-    - dummy_output: An optional integer value which, when filled,
-                    represents the response from the miner.
+    This protocol facilitates image generation requests with configurable parameters
+    like prompts, dimensions, and generation settings, and returns base64 encoded images.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    computed_body_hash: str = Field("")
 
     # Each image is base64 encoded image data
     images: List[str] = []

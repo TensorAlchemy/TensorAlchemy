@@ -1,14 +1,10 @@
 import re
-import requests
-
 from typing import List
 
+import requests
 from loguru import logger
 
-from neurons.constants import (
-    NSFW_WORDLIST_DEFAULT,
-    NSFW_WORDLIST_URL,
-)
+from neurons.constants import NSFW_WORDLIST_DEFAULT, NSFW_WORDLIST_URL
 
 
 def load_nsfw_words(url: str) -> List[str]:

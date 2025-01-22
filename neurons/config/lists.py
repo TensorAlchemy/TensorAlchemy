@@ -3,8 +3,8 @@ List management utilities for the Alchemy project.
 """
 
 import traceback
-from typing import Any, Dict, List, Set, Tuple
 from multiprocessing import Manager
+from typing import Any, Dict, List, Set, Tuple
 
 from loguru import logger
 
@@ -15,7 +15,6 @@ from neurons.constants import (
     IA_VALIDATOR_BLACKLIST,
     IA_VALIDATOR_WHITELIST,
 )
-
 
 # Global variables to hold our Manager instance and managed dictionaries
 _manager = None
@@ -114,9 +113,9 @@ async def get_whitelist() -> Tuple[Set[str], Set[str]]:
     )
 
 
-async def get_warninglist() -> Tuple[
-    Dict[str, List[str]], Dict[str, List[str]]
-]:
+async def get_warninglist() -> (
+    Tuple[Dict[str, List[str]], Dict[str, List[str]]]
+):
     """
     Get the current warninglist.
 

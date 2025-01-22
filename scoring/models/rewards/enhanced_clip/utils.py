@@ -1,32 +1,14 @@
-import json
-from typing import (
-    List,
-    Dict,
-    Union,
-    TypedDict,
-    Callable,
-    Awaitable,
-)
+import traceback
+from typing import List, TypedDict
 
-import httpx
 from loguru import logger
-from openai import AsyncOpenAI
-from openai.types.chat import (
-    ChatCompletionToolParam,
-    ChatCompletionUserMessageParam,
-    ChatCompletionSystemMessageParam,
-)
-from openai.types.shared_params import FunctionDefinition
 
-# Configuration functions
-from neurons.config import (
-    get_openai_client,
-    get_corcel_api_key,
-    MissingApiKeyError,
-)
+from neurons.config import MissingApiKeyError
+from neurons.config.clients import MissingResponseError
+from neurons.validator.utils.corcel import call_corcel
+from neurons.validator.utils.openai import create_completion_request
 
 
-# Type definitions
 class ElementDict(TypedDict):
     description: str
     importance: float
@@ -36,146 +18,74 @@ class PromptBreakdown(TypedDict):
     elements: List[ElementDict]
 
 
-BreakdownFunction = Callable[[str], Awaitable[PromptBreakdown]]
-
-
-def get_prompt_breakdown_function() -> ChatCompletionToolParam:
-    return ChatCompletionToolParam(
-        type="function",
-        function=FunctionDefinition(
-            name="break_down_prompt",
-            description="Break down an image prompt into key elements for CLIP",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "elements": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "description": {
-                                    "type": "string",
-                                    "description": "Key element of the image, "
-                                    + "Single Word (for CLIP analysis)",
-                                },
-                            },
-                            "required": ["description"],
-                        },
-                        "description": "Key elements from the prompt",
-                    }
-                },
-                "required": ["elements"],
-            },
-        ),
+def get_breakdown_prompt(prompt: str) -> str:
+    return (
+        "Break down the following image prompt into key elements. "
+        + "Each element should be a single word or short phrase that is concise and evaluatable.\n\n"
+        + f"Prompt: {prompt}\n\n"
+        + "Return elements as a comma-separated list."
     )
 
 
-def get_query_messages(
-    prompt: str,
-) -> List[
-    Union[ChatCompletionSystemMessageParam, ChatCompletionUserMessageParam]
-]:
-    return [
-        ChatCompletionSystemMessageParam(
-            role="system",
-            content="Break down image prompts into key elements."
-            + " Each element should be concise and evaluatable."
-            + " Assign importance based on significance to the image.",
-        ),
-        ChatCompletionUserMessageParam(
-            role="user",
-            content=f"Break down this image prompt: {prompt}",
-        ),
+def parse_elements(response: str) -> PromptBreakdown:
+    """Parse response text into PromptBreakdown format"""
+    # First split by newlines and join to handle any inconsistent formatting
+    cleaned_response = " ".join(response.split())
+
+    # Split by commas and clean up each element
+    elements = [
+        ElementDict(description=element.strip(), importance=1.0)
+        for element in cleaned_response.split(",")
+        if element.strip()
     ]
 
+    if not elements:
+        raise ValueError("No elements found in response")
 
-async def process_api_response(response_data: Dict) -> PromptBreakdown:
-    if "choices" in response_data and response_data["choices"]:
-        choice = response_data["choices"][0]
-
-        if "message" in choice and "tool_calls" in choice["message"]:
-            tool_call = choice["message"]["tool_calls"][0]
-
-            if isinstance(tool_call, dict) and "function" in tool_call:
-                return json.loads(tool_call["function"]["arguments"])
-
-    raise ValueError("Unexpected response structure from API")
+    return PromptBreakdown(elements=elements)
 
 
 async def openai_breakdown(prompt: str) -> PromptBreakdown:
-    client: AsyncOpenAI = get_openai_client()
-    messages = get_query_messages(prompt)
-    tool = get_prompt_breakdown_function()
-
-    response = await client.chat.completions.create(
-        model="gpt-4o-mini",
-        temperature=0,
-        tool_choice={
-            "type": "function",
-            "function": {"name": tool["function"]["name"]},
-        },
-        tools=[tool],
-        messages=messages,
+    response = await create_completion_request(
+        model="gpt-4o-mini", prompt=get_breakdown_prompt(prompt)
     )
 
-    return await process_api_response(response.model_dump())
+    if not response:
+        raise ValueError("No response received from OpenAI")
+
+    return parse_elements(response)
 
 
 async def corcel_breakdown(prompt: str) -> PromptBreakdown:
-    api_key = get_corcel_api_key(required=True)
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_key}",
-    }
+    response = await call_corcel(get_breakdown_prompt(prompt))
 
-    messages = get_query_messages(prompt)
-    tool = get_prompt_breakdown_function()
+    if not response:
+        raise ValueError("No response received from Corcel")
 
-    payload = {
-        "model": "corcel/text-davinci-003",
-        "messages": [
-            {"role": m["role"], "content": m["content"]} for m in messages
-        ],
-        "temperature": 0,
-        "tools": [tool],
-        "tool_choice": {
-            "type": "function",
-            "function": {"name": tool["function"]["name"]},
-        },
-    }
+    # Convert response to string if it's a Response object
+    response_text = str(response)
 
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            "https://api.corcel.io/cortext/text",
-            headers=headers,
-            json=payload,
-        )
-        if response.status_code == 200:
-            result = response.json()
-            return await process_api_response(result)
-        else:
-            raise Exception(
-                f"Corcel API request failed with status {response.status_code}"
-            )
+    return parse_elements(response_text)
 
 
-async def break_down_prompt(
-    prompt: str,
-) -> PromptBreakdown:
-    services: Dict[str, BreakdownFunction] = {
-        "corcel": corcel_breakdown,
-        "openai": openai_breakdown,
-    }
+async def break_down_prompt(prompt: str) -> PromptBreakdown:
+    """Try to break down prompt using available services"""
+    services = [
+        ("openai", openai_breakdown),
+        ("corcel", corcel_breakdown),
+    ]
 
-    for service_method in services.values():
+    for name, service in services:
         try:
-            return await service_method(prompt)
-
+            return await service(prompt)
         except MissingApiKeyError:
-            pass
+            logger.debug(f"Skipping {name} due to missing API key")
+        except MissingResponseError:
+            logger.debug(f"Skipping {name} due to no response")
+        except Exception:
+            logger.error(f"Error with {name}: " + traceback.format_exc())
 
-        except Exception as e:
-            logger.error(e)
-            continue
-
-    raise MissingApiKeyError("Both services had missing API keys")
+        raise MissingApiKeyError(
+            "No service available "
+            + "- all services failed due to missing API keys"
+        )
