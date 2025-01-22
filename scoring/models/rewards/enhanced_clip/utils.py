@@ -85,4 +85,7 @@ async def break_down_prompt(prompt: str) -> PromptBreakdown:
         except Exception:
             logger.error(f"Error with {name}: " + traceback.format_exc())
 
-    raise Exception("All services failed to break down prompt")
+        raise MissingApiKeyError(
+            "No service available "
+            + "- all services failed due to missing API keys"
+        )

@@ -51,8 +51,16 @@ def deserialize_incoming_image(inbound_image: Any):
     if isinstance(inbound_image, dict) and "buffer" in inbound_image:
         # Older miners serializing image as bt.Tensor which is sent as dict
         # { "buffer": "...", "dtype": "torch.uint8", "shape": [3, 1, 1] }
-        inbound = bt.Tensor(**inbound_image).deserialize()
-        return image_to_base64(tensor_to_image(tensor=inbound))
+        try:
+            # Handle torch dtype strings by converting to numpy dtype first
+            if inbound_image["dtype"] == "torch.uint8":
+                inbound_image["dtype"] = "uint8"
+            inbound = bt.Tensor(**inbound_image).deserialize()
+            return image_to_base64(tensor_to_image(tensor=inbound))
+        except TypeError as e:
+            # Log error and return empty base64 string if deserialization fails
+            bt.logging.warning(f"Failed to deserialize image: {str(e)}")
+            return ""
 
     return inbound_image
 
