@@ -3,10 +3,9 @@ import sys
 import time
 import traceback
 from abc import ABC, abstractmethod
-from threading import Event
 from multiprocessing import Manager
+from threading import Event
 from typing import Any, Awaitable, Callable, Optional, Tuple, Type
-from functools import wraps
 
 import bittensor as bt
 import torch

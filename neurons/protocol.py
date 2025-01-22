@@ -4,7 +4,6 @@ from typing import Any, List, Optional, Union
 import bittensor as bt
 import numpy as np
 import torch
-from bittensor import Synapse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 

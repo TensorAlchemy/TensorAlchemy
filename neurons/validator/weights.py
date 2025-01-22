@@ -2,11 +2,10 @@ import queue
 import traceback
 from multiprocessing import Queue
 from threading import Event
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import bittensor as bt
 import torch
-import numpy as np
 from loguru import logger
 from pydantic import BaseModel, ConfigDict
 

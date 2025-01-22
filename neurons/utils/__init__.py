@@ -5,7 +5,7 @@ import sys
 import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
-from threading import Timer, Event
+from threading import Event, Timer
 from typing import Any, Callable, Dict, List, Optional
 
 import bittensor as bt

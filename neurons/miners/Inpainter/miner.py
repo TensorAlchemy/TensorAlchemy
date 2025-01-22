@@ -1,7 +1,6 @@
 import asyncio
 import time
-from typing import Callable, Optional, Type
-import inspect
+from typing import Optional
 
 import torch
 from diffusers import AutoPipelineForInpainting, DEISMultistepScheduler
