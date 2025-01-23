@@ -1,6 +1,6 @@
 import asyncio
 import time
-from typing import Optional
+from typing import Optional, Tuple
 import httpx
 from io import BytesIO
 
@@ -15,6 +15,14 @@ from neurons.miners.base.miner import BaseMiner
 from neurons.protocol import ImageGeneration, ImageInpainting, IsAlive
 from neurons.utils.image import image_to_base64
 from neurons.utils.nsfw import clean_nsfw_from_prompt
+
+
+def empty_image(
+    width: int,
+    height: int,
+    color: Tuple[int, int, int] = (0, 0, 0),
+) -> ImageType:
+    return Image.new("RGB", (width, height), color)
 
 
 async def download_image_from_url(url: str) -> ImageType:
@@ -59,7 +67,14 @@ class InpaintMiner(BaseMiner):
             )
 
             logger.info("Generate image to warm up model")
-            asyncio.run(self.generate("Warming up the pipes", steps=1))
+            asyncio.run(
+                self.generate(
+                    "Warming up the pipes",
+                    steps=1,
+                    image=empty_image(64, 64, (0, 0, 0)),
+                    mask=empty_image(64, 64, (255, 255, 255)),
+                )
+            )
 
         except Exception as e:
             logger.error(f"Failed to initialize models: {e}")
@@ -153,15 +168,15 @@ class InpaintMiner(BaseMiner):
         """Main image generation entrypoint that maintains Synapse protocol"""
         # Create blank image and full white mask for generation
         try:
-            init_image: ImageType = Image.new(
-                "RGB",
-                (synapse.width, synapse.height),
-                (0, 0, 0),
+            init_image: ImageType = empty_image(
+                synapse.width,
+                synapse.height,
+                color=(0, 0, 0),
             )
-            mask: ImageType = Image.new(
-                "RGB",
-                (synapse.width, synapse.height),
-                (255, 255, 255),
+            mask: ImageType = empty_image(
+                synapse.width,
+                synapse.height,
+                color=(255, 255, 255),
             )
 
             result_image: Optional[ImageType] = await self.generate(
