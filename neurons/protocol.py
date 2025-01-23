@@ -11,23 +11,25 @@ class TaskType(str, Enum):
     TEXT_TO_IMAGE = "TEXT_TO_IMAGE"
     INPAINT_IMAGE = "INPAINT_IMAGE"
 
-    def __str__(self):
+    def __repr__(self):
         return self.value
 
-    def to_json(self):
-        return self.value
+    @classmethod
+    def __call__(cls):
+        return cls.TEXT_TO_IMAGE
 
 
 class ModelType(str, Enum):
     SCORING = "SCORING"
     ALCHEMY = "ALCHEMY"
     CUSTOM = "CUSTOM"
-    
-    def __str__(self):
+
+    def __repr__(self):
         return self.value
-        
-    def to_json(self):
-        return self.value
+
+    @classmethod
+    def __call__(cls):
+        return cls.CUSTOM
 
 
 class IsAlive(bt.Synapse):
@@ -74,6 +76,9 @@ class BaseImageModel(bt.Synapse):
     Contains common fields used across different image manipulation tasks.
     """
 
+    def __repr__(self):
+        return str(self.model_dump())
+
     task_id: str
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -90,7 +95,7 @@ class BaseImageModel(bt.Synapse):
     guidance_scale: float = Field(7.5)
     seed: int = Field(-1)
     steps: int = Field(20)
-    model_type: str = Field(ModelType.CUSTOM)
+    model_type: ModelType = Field(ModelType.CUSTOM)
     task_type: TaskType
     compute_count: int = 12
 
@@ -139,7 +144,7 @@ def denormalize_task(
     task_type: TaskType,
     **kwargs,
 ) -> ImageGenerationTask:
-    if type == TaskType.INPAINT_IMAGE:
+    if task_type == TaskType.INPAINT_IMAGE:
         return ImageInpainting(
             task_id=id,
             task_type=task_type,

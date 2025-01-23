@@ -52,8 +52,6 @@ async def query_axons_async(
     """
     metagraph: bt.metagraph = get_metagraph()
 
-    print(synapse)
-
     async def do_call(inbound_axon: bt.AxonInfo) -> Tuple[int, bt.Synapse]:
         uid: int = metagraph.hotkeys.index(inbound_axon.hotkey)
 
@@ -334,7 +332,7 @@ async def run_step(
     # Calculate rewards
     scoring_results: ScoringResults = await get_scoring_results(
         validator.model_type,
-        synapse,
+        task,
         responses,
     )
     # Log CLIP and IMAGE rewards
