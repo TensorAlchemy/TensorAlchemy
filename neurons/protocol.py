@@ -4,7 +4,7 @@ from typing import Any, List, Optional, Union
 import bittensor as bt
 import numpy as np
 import torch
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator
 
 
 class TaskType(str, Enum):
@@ -80,6 +80,7 @@ class BaseImageModel(bt.Synapse):
     steps: int = Field(20)
     model_type: str = Field(ModelType.CUSTOM)
     task_type: TaskType
+    compute_count: int = 12
 
     @field_validator("images", mode="before")
     def images_value(cls, inbound_images_list: List[Any]) -> List[str]:
@@ -116,12 +117,16 @@ class ImageInpainting(BaseImageModel):
     generation_type: TaskType = Field(TaskType.INPAINT_IMAGE)
 
 
+# Combined type for image generation tasks
+ImageGenerationTask = Union[ImageGeneration, ImageInpainting]
+
+
 def denormalize_task(
     id: str,
     image_count: int,
     task_type: TaskType,
     **kwargs,
-) -> ImageGeneration | ImageInpainting:
+) -> ImageGenerationTask:
     if type == TaskType.INPAINT_IMAGE:
         return ImageInpainting(
             task_id=id,

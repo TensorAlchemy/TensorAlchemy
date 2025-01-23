@@ -18,8 +18,8 @@ from neurons.config import (
     get_wallet,
 )
 from neurons.protocol import (
-    ImageGeneration,
-    ImageGenerationTaskModel,
+    ImageGenerationTask,
+    ImageGenerationTask,
     ImageInpainting,
 )
 from neurons.utils.defaults import Stats
@@ -78,7 +78,7 @@ async def query_axons_async(
 
 async def enqueue_upload_scores(
     validator: "StableValidator",
-    task: ImageGenerationTaskModel,
+    task: ImageGenerationTask,
     uids: torch.Tensor,
     scoring_results: ScoringResults,
 ):
@@ -108,7 +108,7 @@ async def enqueue_upload_scores(
 
 async def query_axons_and_process_responses(
     validator: "StableValidator",
-    task: ImageGenerationTaskModel,
+    task: ImageGenerationTask,
     axons: List[AxonInfo],
     synapse: bt.Synapse,
 ) -> List[bt.Synapse]:
@@ -144,7 +144,7 @@ async def query_axons_and_process_responses(
     return responses
 
 
-def log_responses(responses: List[ImageGeneration], prompt: str):
+def log_responses(responses: List[ImageGenerationTask], prompt: str):
     try:
         logger.info(
             #
@@ -285,7 +285,7 @@ def get_uids(responses: List[bt.Synapse]) -> torch.Tensor:
 
 async def run_step(
     validator: "StableValidator",
-    task: ImageGenerationTaskModel | ImageInpainting,
+    task: ImageGenerationTask | ImageInpainting,
     axons: List[AxonInfo],
     uids: torch.LongTensor,
     model_type: str,
@@ -367,6 +367,7 @@ async def run_step(
         event = EventSchema(
             task_type=task_type,
             model_type=model_type,
+            compute_count=task.compute_count,
             block=ttl_get_block(),
             uids=uids,
             hotkeys=[response.axon.hotkey for response in responses],

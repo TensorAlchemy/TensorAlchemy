@@ -899,7 +899,10 @@ class StableValidator:
 
     async def mid_step(self):
         try:
-            selected_uids: torch.Tensor = await select_uids(count=12)
+            selected_uids: torch.Tensor = await select_uids(
+                count=self.task.compute_count + 1,
+            )
+
             if selected_uids.numel() == 0:
                 logger.info("No active miners found, retrying in 20 seconds...")
                 await asyncio.sleep(20)

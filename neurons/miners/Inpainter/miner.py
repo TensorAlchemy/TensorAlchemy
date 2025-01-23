@@ -1,9 +1,9 @@
 import asyncio
 import time
-from typing import Optional, Tuple
-import httpx
 from io import BytesIO
+from typing import Optional, Tuple
 
+import httpx
 import torch
 from diffusers import AutoPipelineForInpainting, DEISMultistepScheduler
 from loguru import logger

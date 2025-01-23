@@ -16,6 +16,8 @@ class EventSchema(BaseModel):
     prompt: str
     step_length: float
     model_type: str
+    task_type: str
+    compute_count: compute_count
     results: ScoringResults
     stake: float
     rank: float

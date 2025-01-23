@@ -14,7 +14,7 @@ from neurons.config import AlchemyHost, get_config
 from neurons.config.utils import is_testnet
 from neurons.constants import DEVELOP_URL, MAINNET_URL, TESTNET_URL
 from neurons.exceptions import StakeBelowThreshold
-from neurons.protocol import ImageGenerationTaskModel, denormalize_image_model
+from neurons.protocol import ImageGenerationTaskModel
 from neurons.validator.backend.exceptions import (
     GetTaskError,
     GetVotesError,
