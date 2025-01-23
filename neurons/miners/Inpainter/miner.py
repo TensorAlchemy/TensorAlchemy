@@ -75,8 +75,24 @@ class InpaintMiner(BaseMiner):
         height: int = 512,
         seed: Optional[int] = None,
         negative_prompt: Optional[str] = "",
-    ) -> ImageType:
-        """Shared generation logic used by both generate and inpaint methods."""
+        max_retries: int = 3,
+    ) -> Optional[ImageType]:
+        """Shared generation logic used by both generate and inpaint methods.
+
+        Args:
+            prompt: The text prompt for generation
+            image: The input image to modify
+            mask: The mask indicating areas to modify
+            steps: Number of inference steps
+            width: Output image width
+            height: Output image height
+            seed: Random seed for generation
+            negative_prompt: Text prompt for what to avoid
+            max_retries: Maximum number of retry attempts on failure
+
+        Returns:
+            The generated image or None if all retries failed
+        """
         assert self.model is not None, "Model not loaded, cannot continue"
 
         if seed is None or seed < 0:
@@ -84,38 +100,28 @@ class InpaintMiner(BaseMiner):
 
         generator = torch.Generator(device=get_device()).manual_seed(seed)
 
-        with torch.inference_mode():
-            result = self.model(
-                prompt=clean_nsfw_from_prompt(prompt),
-                width=width,
-                height=height,
-                image=image,
-                mask_image=mask,
-                generator=generator,
-                num_inference_steps=steps,
-                negative_prompt=negative_prompt,
-            )
-            return result.images[0]
-
-    async def inpaint(
-        self,
-        image: ImageType,
-        mask: ImageType,
-        prompt: str,
-        steps: int = 32,
-        seed: Optional[int] = None,
-        negative_prompt: Optional[str] = "",
-        **_kwargs,
-    ) -> ImageType:
-        """Inpaint an existing image using a mask."""
-        return await self.generate(
-            prompt=prompt,
-            image=image,
-            mask=mask,
-            steps=steps,
-            seed=seed,
-            negative_prompt=negative_prompt,
-        )
+        for attempt in range(max_retries):
+            try:
+                with torch.inference_mode():
+                    result = self.model(
+                        prompt=clean_nsfw_from_prompt(prompt),
+                        width=width,
+                        height=height,
+                        image=image,
+                        mask_image=mask,
+                        generator=generator,
+                        num_inference_steps=steps,
+                        negative_prompt=negative_prompt,
+                    )
+                    return result.images[0]
+            except Exception as e:
+                logger.error(f"Generation attempt {attempt + 1} failed: {e}")
+                if attempt == max_retries - 1:
+                    logger.error(
+                        f"Failed all {max_retries} generation attempts"
+                    )
+                    return None
+                continue
 
     async def inpaint_image(self, synapse: ImageInpainting) -> ImageInpainting:
         """Handle image inpainting requests"""
@@ -126,7 +132,7 @@ class InpaintMiner(BaseMiner):
                 download_image_from_url(synapse.mask_image),
             )
 
-            result_image: ImageType = await self.inpaint(
+            result_image: Optional[ImageType] = await self.generate(
                 image=input_image,
                 mask=mask_image,
                 negative_prompt=synapse.negative_prompt,
@@ -145,8 +151,8 @@ class InpaintMiner(BaseMiner):
 
     async def generate_image(self, synapse: ImageGeneration) -> ImageGeneration:
         """Main image generation entrypoint that maintains Synapse protocol"""
+        # Create blank image and full white mask for generation
         try:
-            # Create blank image and full white mask for generation
             init_image: ImageType = Image.new(
                 "RGB",
                 (synapse.width, synapse.height),
@@ -158,29 +164,19 @@ class InpaintMiner(BaseMiner):
                 (255, 255, 255),
             )
 
-            result_image = None
-            for attempt in range(3):
-                try:
-                    result_image = await self.generate(
-                        prompt=synapse.prompt,
-                        steps=synapse.steps,
-                        seed=synapse.seed,
-                        negative_prompt=synapse.negative_prompt,
-                        height=synapse.height,
-                        width=synapse.width,
-                        init_image=init_image,
-                        mask=mask,
-                    )
-                    break
-                except Exception as e:
-                    logger.error(
-                        f"Generation attempt {attempt + 1} failed: {e}"
-                    )
+            result_image: Optional[ImageType] = await self.generate(
+                height=synapse.height,
+                image=init_image,
+                mask=mask,
+                negative_prompt=synapse.negative_prompt,
+                prompt=synapse.prompt,
+                seed=synapse.seed,
+                steps=synapse.steps,
+                width=synapse.width,
+            )
 
             if result_image:
                 synapse.images = [image_to_base64(result_image)]
-            else:
-                logger.info(f"Failed to generate any images after 3 attempts.")
 
         except Exception as e:
             logger.error(f"Error in image generation: {e}")
