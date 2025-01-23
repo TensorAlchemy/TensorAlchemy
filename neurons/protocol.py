@@ -11,11 +11,23 @@ class TaskType(str, Enum):
     TEXT_TO_IMAGE = "TEXT_TO_IMAGE"
     INPAINT_IMAGE = "INPAINT_IMAGE"
 
+    def __str__(self):
+        return self.value
+
+    def to_json(self):
+        return self.value
+
 
 class ModelType(str, Enum):
     SCORING = "SCORING"
     ALCHEMY = "ALCHEMY"
     CUSTOM = "CUSTOM"
+    
+    def __str__(self):
+        return self.value
+        
+    def to_json(self):
+        return self.value
 
 
 class IsAlive(bt.Synapse):
