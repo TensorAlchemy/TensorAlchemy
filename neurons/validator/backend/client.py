@@ -113,7 +113,7 @@ class TensorAlchemyBackendClient:
         if response.status_code == 200:
             logger.info(f"[get_task] task={task}")
             try:
-                return denormalize_image_model(**task)
+                return denormalize_task(**task)
             except Exception as e:
                 logger.error(f"[get_task] failed to parse task response: {e}")
                 return None

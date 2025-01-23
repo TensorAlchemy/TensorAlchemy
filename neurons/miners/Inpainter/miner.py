@@ -6,10 +6,11 @@ import torch
 from diffusers import AutoPipelineForInpainting, DEISMultistepScheduler
 from loguru import logger
 from PIL import Image
+from PIL.Image import Image as ImageType
 
 from neurons.config import get_config, get_device
 from neurons.miners.base.miner import BaseMiner
-from neurons.protocol import ImageGeneration, IsAlive
+from neurons.protocol import ImageGeneration, ImageInpainting, IsAlive
 from neurons.utils.image import image_to_base64
 from neurons.utils.nsfw import clean_nsfw_from_prompt
 
@@ -23,11 +24,14 @@ class InpaintMiner(BaseMiner):
     def create_attachments(self) -> None:
         """Return list of forward function tuples for axon"""
 
-        # IsAlive synapse (default bound: forward & priority & blacklist)
+        # IsAlive synapse (default bound)
         self.attach_synapse(IsAlive)
 
-        # IsAlive synapse (default bound: priority & blacklist)
+        # ImageGeneration synapse
         self.attach_synapse(ImageGeneration, self.generate_image)
+
+        # ImageInpainting synapse
+        self.attach_synapse(ImageInpainting, self.inpaint_image)
 
     def initialize_implementation(self) -> None:
         """Initialize SDXL model"""
@@ -59,7 +63,7 @@ class InpaintMiner(BaseMiner):
         negative_prompt: Optional[str] = "",
         height: int = 1024,
         width: int = 1024,
-    ) -> Image.Image:
+    ) -> ImageType:
         """Generate a new image from scratch using inpainting model."""
         if seed is None:
             seed = int(time.time())
@@ -82,14 +86,14 @@ class InpaintMiner(BaseMiner):
 
     async def inpaint(
         self,
-        image: Image.Image,
-        mask: Image.Image,
+        image: ImageType,
+        mask: ImageType,
         prompt: str,
         steps: int = 32,
         seed: Optional[int] = None,
-        negative_prompt: str = "",
+        negative_prompt: Optional[str] = "",
         **_kwargs,
-    ) -> ImageGeneration:
+    ) -> ImageType:
         """Inpaint an existing image using a mask."""
         if seed is None:
             seed = int(time.time())
@@ -106,6 +110,26 @@ class InpaintMiner(BaseMiner):
                 negative_prompt=negative_prompt,
             )
             return result.images[0]
+
+    async def inpaint_image(self, synapse: ImageInpainting) -> ImageInpainting:
+        """Handle image inpainting requests"""
+        try:
+            result_image: ImageType = await self.inpaint(
+                image=synapse.input_image,
+                mask=synapse.mask_image,
+                prompt=synapse.prompt,
+                steps=synapse.steps,
+                seed=synapse.seed,
+                negative_prompt=synapse.negative_prompt,
+            )
+
+            if result_image:
+                synapse.images = [image_to_base64(result_image)]
+
+        except Exception as e:
+            logger.error(f"Error in image inpainting: {e}")
+
+        return synapse
 
     async def generate_image(self, synapse: ImageGeneration) -> ImageGeneration:
         """Main image generation entrypoint that maintains Synapse protocol"""

@@ -17,7 +17,11 @@ from neurons.config import (
     get_metagraph,
     get_wallet,
 )
-from neurons.protocol import ImageGeneration, ImageGenerationTaskModel
+from neurons.protocol import (
+    ImageGeneration,
+    ImageGenerationTaskModel,
+    ImageInpainting,
+)
 from neurons.utils.defaults import Stats
 from neurons.utils.image import synapse_to_base64
 from neurons.utils.log import image_to_str
@@ -281,7 +285,7 @@ def get_uids(responses: List[bt.Synapse]) -> torch.Tensor:
 
 async def run_step(
     validator: "StableValidator",
-    task: ImageGenerationTaskModel,
+    task: ImageGenerationTaskModel | ImageInpainting,
     axons: List[AxonInfo],
     uids: torch.LongTensor,
     model_type: str,
@@ -294,27 +298,11 @@ async def run_step(
     # Output some information about run
     display_run_info(stats, task_type, prompt)
 
-    # Set seed to -1 so miners will use a random seed by default
-    task_type_for_miner = task_type.lower()
-    synapse = ImageGeneration(
-        prompt=prompt,
-        negative_prompt=task.negative_prompt,
-        generation_type=task_type_for_miner,
-        prompt_image=task.images,
-        seed=task.seed,
-        guidance_scale=task.guidance_scale,
-        steps=task.steps,
-        num_images_per_prompt=1,
-        width=task.width,
-        height=task.height,
-        model_type=model_type,
-    )
-
     responses = await query_axons_and_process_responses(
         validator,
         task,
         axons,
-        synapse,
+        task,
     )
 
     uids = get_uids(responses)

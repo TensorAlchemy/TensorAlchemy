@@ -138,7 +138,7 @@ class BaseMiner(ABC):
         forward_fn: Optional[
             Callable[[bt.Synapse], bt.Synapse | Awaitable[bt.Synapse]]
         ] = None,
-        priority_fn: Optional[Callable[[bt.Synapse], float]] = None,
+        priority_fn: Optional[Callable[[bt.Synapse], float],] = None,
         blacklist_fn: Optional[Callable[[bt.Synapse], Tuple[bool, str]]] = None,
     ) -> None:
         """
