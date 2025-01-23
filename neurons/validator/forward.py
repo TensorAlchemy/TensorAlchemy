@@ -52,6 +52,8 @@ async def query_axons_async(
     """
     metagraph: bt.metagraph = get_metagraph()
 
+    print(synapse)
+
     async def do_call(inbound_axon: bt.AxonInfo) -> Tuple[int, bt.Synapse]:
         uid: int = metagraph.hotkeys.index(inbound_axon.hotkey)
 
