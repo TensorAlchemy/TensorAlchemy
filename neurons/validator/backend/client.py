@@ -14,7 +14,7 @@ from neurons.config import AlchemyHost, get_config
 from neurons.config.utils import is_testnet
 from neurons.constants import DEVELOP_URL, MAINNET_URL, TESTNET_URL
 from neurons.exceptions import StakeBelowThreshold
-from neurons.protocol import ImageGenerationTaskModel
+from neurons.protocol import ImageGenerationTask, denormalize_task
 from neurons.validator.backend.exceptions import (
     GetTaskError,
     GetVotesError,
@@ -87,9 +87,7 @@ class TensorAlchemyBackendClient:
 
         return await _poll_task_with_retry()
 
-    async def get_task(
-        self, timeout: int = 3
-    ) -> ImageGenerationTaskModel | None:
+    async def get_task(self, timeout: int = 3) -> ImageGenerationTask | None:
         """Fetch new task from backend.
 
         Returns task or None if there is no pending task

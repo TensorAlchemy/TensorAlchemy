@@ -31,9 +31,9 @@ from neurons.config import (
 )
 from neurons.exceptions import StakeBelowThreshold
 from neurons.protocol import (
-    ImageGenerationTaskModel,
+    ImageGenerationTask,
     ModelType,
-    denormalize_image_model,
+    denormalize_task,
 )
 from neurons.update_checker import safely_check_for_updates
 from neurons.utils import BackgroundTimer, MultiprocessTimer, background_loop
@@ -211,9 +211,9 @@ async def handle_task_rejection(
         )
 
 
-def create_synthetic_task(prompt: str) -> ImageGenerationTaskModel:
+def create_synthetic_task(prompt: str) -> ImageGenerationTask:
     """Create a synthetic image generation task"""
-    return denormalize_image_model(
+    return denormalize_task(
         id=str(uuid.uuid4()),
         image_count=1,
         task_type="TEXT_TO_IMAGE",
@@ -679,7 +679,7 @@ class StableValidator:
     async def get_image_generation_task(
         self,
         timeout: int = 30,
-    ) -> ImageGenerationTaskModel | None:
+    ) -> ImageGenerationTask | None:
         """
         Fetch new image generation task from backend or generate new one
         Returns task or None if task cannot be generated
@@ -687,7 +687,7 @@ class StableValidator:
         # NOTE: Will wait for around 60 seconds
         #       trying to get a task from the user
         # before going on and creating a synthetic task
-        task: Optional[ImageGenerationTaskModel] = None
+        task: Optional[ImageGenerationTask] = None
         try:
             task = await self.backend_client.poll_task(timeout=timeout)
         # Allow validator to just skip this step if they like

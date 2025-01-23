@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 import bittensor as bt
 import torch
 
-from neurons.protocol import ImageGenerationTaskModel
+from neurons.protocol import ImageGenerationTask
 from neurons.validator.backend.client import TensorAlchemyBackendClient
 from neurons.validator.backend.exceptions import (
     GetTaskError,
@@ -43,7 +43,7 @@ class TestTensorAlchemyBackendClient(unittest.IsolatedAsyncioTestCase):
         mock_get.return_value = mock_response
 
         result = await self.client.get_task()
-        self.assertIsInstance(result, ImageGenerationTaskModel)
+        self.assertIsInstance(result, ImageGenerationTask)
         self.assertEqual(result.task_id, task_data["id"])
 
     @patch("httpx.AsyncClient.get")
