@@ -1,6 +1,8 @@
 import asyncio
 import time
 from typing import Optional
+import httpx
+from io import BytesIO
 
 import torch
 from diffusers import AutoPipelineForInpainting, DEISMultistepScheduler
@@ -13,6 +15,14 @@ from neurons.miners.base.miner import BaseMiner
 from neurons.protocol import ImageGeneration, ImageInpainting, IsAlive
 from neurons.utils.image import image_to_base64
 from neurons.utils.nsfw import clean_nsfw_from_prompt
+
+
+async def download_image_from_url(url: str) -> ImageType:
+    """Download an image from a URL and convert to PIL Image asynchronously using httpx"""
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url)
+        response.raise_for_status()
+        return Image.open(BytesIO(response.content))
 
 
 class InpaintMiner(BaseMiner):
@@ -58,25 +68,28 @@ class InpaintMiner(BaseMiner):
     async def generate(
         self,
         prompt: str,
+        image: ImageType,
+        mask: ImageType,
         steps: int = 32,
+        width: int = 512,
+        height: int = 512,
         seed: Optional[int] = None,
         negative_prompt: Optional[str] = "",
-        height: int = 1024,
-        width: int = 1024,
     ) -> ImageType:
-        """Generate a new image from scratch using inpainting model."""
-        if seed is None:
+        """Shared generation logic used by both generate and inpaint methods."""
+        assert self.model is not None, "Model not loaded, cannot continue"
+
+        if seed is None or seed < 0:
             seed = int(time.time())
 
-        # Create blank image and full white mask for generation
-        init_image = Image.new("RGB", (width, height), (0, 0, 0))
-        mask = Image.new("RGB", (width, height), (255, 255, 255))
         generator = torch.Generator(device=get_device()).manual_seed(seed)
 
         with torch.inference_mode():
             result = self.model(
                 prompt=clean_nsfw_from_prompt(prompt),
-                image=init_image,
+                width=width,
+                height=height,
+                image=image,
                 mask_image=mask,
                 generator=generator,
                 num_inference_steps=steps,
@@ -95,32 +108,31 @@ class InpaintMiner(BaseMiner):
         **_kwargs,
     ) -> ImageType:
         """Inpaint an existing image using a mask."""
-        if seed is None:
-            seed = int(time.time())
-
-        generator = torch.Generator(device=get_device()).manual_seed(seed)
-
-        with torch.inference_mode():
-            result = self.model(
-                prompt=clean_nsfw_from_prompt(prompt),
-                image=image,
-                mask_image=mask,
-                generator=generator,
-                num_inference_steps=steps,
-                negative_prompt=negative_prompt,
-            )
-            return result.images[0]
+        return await self.generate(
+            prompt=prompt,
+            image=image,
+            mask=mask,
+            steps=steps,
+            seed=seed,
+            negative_prompt=negative_prompt,
+        )
 
     async def inpaint_image(self, synapse: ImageInpainting) -> ImageInpainting:
         """Handle image inpainting requests"""
         try:
+            # Download and convert input images from URLs asynchronously
+            input_image, mask_image = await asyncio.gather(
+                download_image_from_url(synapse.input_image),
+                download_image_from_url(synapse.mask_image),
+            )
+
             result_image: ImageType = await self.inpaint(
-                image=synapse.input_image,
-                mask=synapse.mask_image,
-                prompt=synapse.prompt,
-                steps=synapse.steps,
-                seed=synapse.seed,
+                image=input_image,
+                mask=mask_image,
                 negative_prompt=synapse.negative_prompt,
+                prompt=synapse.prompt,
+                seed=synapse.seed,
+                steps=synapse.steps,
             )
 
             if result_image:
@@ -134,6 +146,18 @@ class InpaintMiner(BaseMiner):
     async def generate_image(self, synapse: ImageGeneration) -> ImageGeneration:
         """Main image generation entrypoint that maintains Synapse protocol"""
         try:
+            # Create blank image and full white mask for generation
+            init_image: ImageType = Image.new(
+                "RGB",
+                (synapse.width, synapse.height),
+                (0, 0, 0),
+            )
+            mask: ImageType = Image.new(
+                "RGB",
+                (synapse.width, synapse.height),
+                (255, 255, 255),
+            )
+
             result_image = None
             for attempt in range(3):
                 try:
@@ -144,6 +168,8 @@ class InpaintMiner(BaseMiner):
                         negative_prompt=synapse.negative_prompt,
                         height=synapse.height,
                         width=synapse.width,
+                        init_image=init_image,
+                        mask=mask,
                     )
                     break
                 except Exception as e:
