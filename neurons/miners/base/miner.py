@@ -148,6 +148,8 @@ class BaseMiner(ABC):
 
         # Create wrapper to handle async forward functions
         async def async_wrapper(synapse: bt.Synapse) -> bt.Synapse:
+            logger.info(f"Inbound {synapse_type.__class__.__name__}")
+
             if forward_fn is None:
                 return await self._base_forward(synapse)
 
