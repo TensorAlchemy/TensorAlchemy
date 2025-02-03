@@ -3,6 +3,7 @@ from typing import Callable, List
 import bittensor as bt
 
 from neurons.protocol import BaseTask, ModelType, TaskType
+from scoring.models.rewards.image_reward import ImageRewardModel
 from scoring.models.types import (
     ModelStorage,
     PackedRewardModel,
@@ -151,7 +152,7 @@ def get_reward_functions(
     ]
 
 
-def get_masking_functions(_task_type: ModelType) -> List[PackedRewardModel]:
+def get_masking_functions(_task_type: TaskType) -> List[PackedRewardModel]:
     return [
         get_function(get_masking_models(), RewardModelType.NSFW),
         get_function(get_masking_models(), RewardModelType.BLACKLIST),

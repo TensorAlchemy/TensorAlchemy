@@ -129,7 +129,7 @@ async def apply_reward_functions(
 
     return await apply_functions(
         initial_seed,
-        get_reward_functions(model_type),
+        get_reward_functions(synapse.task_type),
         synapse,
         responses,
         combine=lambda results, rewards: results * rewards,
@@ -149,7 +149,7 @@ async def apply_masking_functions(
 
     return await apply_functions(
         initial_seed,
-        get_masking_functions(model_type),
+        get_masking_functions(synapse.task_type),
         synapse,
         responses,
         combine=torch.maximum,
@@ -174,15 +174,12 @@ async def get_scoring_results(
     """
     # Apply reward functions (including human voting)
     rewards: ScoringResults = await apply_reward_functions(
-        model_type,
-        synapse.task_type,
         synapse,
         responses,
     )
 
     # Apply masking functions
     masks: ScoringResults = await apply_masking_functions(
-        model_type,
         synapse,
         responses,
     )
