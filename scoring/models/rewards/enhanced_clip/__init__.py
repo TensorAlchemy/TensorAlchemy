@@ -159,7 +159,7 @@ class EnhancedClipRewardModel(BaseRewardModel):
             synapse.prompt
         )
 
-        def get_reward(response: BaseTask) -> float:
+        async def get_reward(response: BaseTask) -> float:
             return self.compute_clip_score(prompt_elements, response)
 
         rewards: torch.Tensor = await super().build_rewards_tensor(

@@ -19,7 +19,7 @@ class BlacklistFilter(BaseRewardModel):
         self.answer_blacklist = []
         self.question_blacklist = []
 
-    def get_reward(self, response: BaseTask) -> float:
+    async def get_reward(self, response: BaseTask) -> float:
         # Check the number of returned images in the response
         if len(response.images) != response.num_images_per_prompt:
             return 1.0

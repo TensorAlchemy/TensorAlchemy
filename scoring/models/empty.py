@@ -9,5 +9,5 @@ class EmptyScoreRewardModel(BaseRewardModel):
     def name(self) -> RewardModelType:
         return RewardModelType.EMPTY
 
-    def get_reward(self, _response: BaseTask) -> float:
+    async def get_reward(self, _response: BaseTask) -> float:
         return 0.0

@@ -48,7 +48,7 @@ class BaseRewardModel:
         _synapse: BaseTask,
         responses: List[BaseTask],
     ) -> torch.Tensor:
-        if not callable(method):
+        if not callable(method):  # type: ignore[redundant-condition]
             raise NotImplementedError(f"{method.__name__} is not callable!")
 
         rewards = self.zeros()
@@ -78,7 +78,7 @@ class BaseRewardModel:
             responses,
         )
 
-    def get_reward(self, _response: BaseTask) -> float:
+    async def get_reward(self, _response: BaseTask) -> float:
         return 0.0
 
     def normalize_rewards(self, rewards: torch.Tensor) -> torch.Tensor:

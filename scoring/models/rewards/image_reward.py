@@ -21,7 +21,7 @@ class ImageRewardModel(BaseRewardModel):
         super().__init__()
         self.scoring_model = RM.load("ImageReward-v1.0", device=get_device())
 
-    def get_reward(self, response: BaseTask) -> float:
+    async def get_reward(self, response: BaseTask) -> float:
         with torch.no_grad():
             try:
                 images: List[ImageType] = synapse_to_images(response)
