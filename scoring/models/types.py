@@ -5,26 +5,29 @@ import bittensor as bt
 import torch
 from pydantic import BaseModel, ConfigDict, Field
 
+from neurons.protocol import BaseTask
 from scoring.models.base import BaseRewardModel
 
 
 class RewardModelType(str, Enum):
-    # Masking models
-    # TODO: Maybe move these out
     NSFW = "NSFW"
     DUPLICATE = "DUPLICATE"
     BLACKLIST = "BLACKLIST"
-
-    # Reward models
     EMPTY = "EMPTY"
     HUMAN = "HUMAN"
     IMAGE = "IMAGE"
     ENHANCED_CLIP = "ENHANCED_CLIP"
 
+    # Inpainting-specific models
+    BOUNDARY_COHERENCE = "BOUNDARY_COHERENCE"
+    MASK_ADHERENCE = "MASK_ADHERENCE"
+    STRUCTURE_CONSISTENCY = "STRUCTURE_CONSISTENCY"
+    SEMANTIC_CONSISTENCY = "SEMANTIC_CONSISTENCY"
+
 
 def default_should_apply(
-    _synapse: bt.Synapse,
-    _responses: List[bt.Synapse],
+    _synapse: BaseTask,
+    _responses: List[BaseTask],
 ) -> bool:
     return True
 
@@ -34,7 +37,7 @@ class PackedRewardModel(BaseModel):
     model: BaseRewardModel
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    should_apply: Callable[[bt.Synapse, List[bt.Synapse]], bool] = Field(
+    should_apply: Callable[[BaseTask, List[BaseTask]], bool] = Field(
         default=default_should_apply
     )
 

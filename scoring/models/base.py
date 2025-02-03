@@ -7,6 +7,7 @@ import torch
 from loguru import logger
 
 from neurons.config import get_device, get_metagraph
+from neurons.protocol import BaseTask
 
 if TYPE_CHECKING:
     from scoring.models.types import RewardModelType
@@ -44,8 +45,8 @@ class BaseRewardModel:
     async def build_rewards_tensor(
         self,
         method: Callable,
-        _synapse: bt.Synapse,
-        responses: List[bt.Synapse],
+        _synapse: BaseTask,
+        responses: List[BaseTask],
     ) -> torch.Tensor:
         if not callable(method):
             raise NotImplementedError(f"{method.__name__} is not callable!")
@@ -68,8 +69,8 @@ class BaseRewardModel:
 
     async def get_rewards(
         self,
-        synapse: bt.Synapse,
-        responses: List[bt.Synapse],
+        synapse: BaseTask,
+        responses: List[BaseTask],
     ) -> torch.Tensor:
         return await self.build_rewards_tensor(
             self.get_reward,
@@ -77,7 +78,7 @@ class BaseRewardModel:
             responses,
         )
 
-    def get_reward(self, _response: bt.Synapse) -> float:
+    def get_reward(self, _response: BaseTask) -> float:
         return 0.0
 
     def normalize_rewards(self, rewards: torch.Tensor) -> torch.Tensor:
@@ -94,8 +95,8 @@ class BaseRewardModel:
 
     async def apply(
         self,
-        synapse: bt.Synapse,
-        responses: List[bt.Synapse],
+        synapse: BaseTask,
+        responses: List[BaseTask],
     ) -> "ScoringResult":
         # Get rewards for the responses
         if inspect.iscoroutinefunction(self.get_rewards):
@@ -130,7 +131,7 @@ class BaseRewardModel:
         )
 
 
-def get_uids(responses: List[bt.Synapse]) -> torch.Tensor:
+def get_uids(responses: List[BaseTask]) -> torch.Tensor:
     metagraph: bt.metagraph = get_metagraph()
 
     return torch.tensor(

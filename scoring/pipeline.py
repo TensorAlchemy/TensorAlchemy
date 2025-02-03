@@ -1,11 +1,10 @@
 from typing import Callable, List
 
-import bittensor as bt
 import torch
 from loguru import logger
 
 from neurons.config import get_device, get_metagraph
-from neurons.protocol import ModelType
+from neurons.protocol import BaseTask
 from neurons.utils.log import summarize_rewards
 from scoring.models import get_masking_functions, get_reward_functions
 from scoring.models.types import PackedRewardModel
@@ -17,8 +16,8 @@ ResultCombiner = Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
 async def apply_function(
     initial_seed: torch.Tensor,
     function: PackedRewardModel,
-    synapse: bt.Synapse,
-    responses: List[bt.Synapse],
+    synapse: BaseTask,
+    responses: List[BaseTask],
 ) -> ScoringResult:
     """
     Apply a single reward or masking function and log its results.
@@ -75,8 +74,8 @@ async def apply_function(
 async def apply_functions(
     initial_seed: torch.Tensor,
     functions: List[PackedRewardModel],
-    synapse: bt.Synapse,
-    responses: List[bt.Synapse],
+    synapse: BaseTask,
+    responses: List[BaseTask],
     combine: ResultCombiner,
 ) -> ScoringResults:
     """
@@ -118,9 +117,8 @@ async def apply_functions(
 
 
 async def apply_reward_functions(
-    model_type: ModelType,
-    synapse: bt.Synapse,
-    responses: List[bt.Synapse],
+    synapse: BaseTask,
+    responses: List[BaseTask],
 ) -> ScoringResults:
     """
     Apply all relevant reward functions for a given model type.
@@ -139,9 +137,8 @@ async def apply_reward_functions(
 
 
 async def apply_masking_functions(
-    model_type: ModelType,
-    synapse: bt.Synapse,
-    responses: List[bt.Synapse],
+    synapse: BaseTask,
+    responses: List[BaseTask],
 ) -> ScoringResults:
     """
     Apply all relevant masking functions for a given model type.
@@ -160,9 +157,8 @@ async def apply_masking_functions(
 
 
 async def get_scoring_results(
-    model_type: ModelType,
-    synapse: bt.Synapse,
-    responses: List[bt.Synapse],
+    synapse: BaseTask,
+    responses: List[BaseTask],
 ) -> ScoringResults:
     """
     Calculate the final automated rewards for a set of responses.
@@ -179,6 +175,7 @@ async def get_scoring_results(
     # Apply reward functions (including human voting)
     rewards: ScoringResults = await apply_reward_functions(
         model_type,
+        synapse.task_type,
         synapse,
         responses,
     )

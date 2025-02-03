@@ -6,6 +6,7 @@ import torch
 from PIL.Image import Image as ImageType
 
 from neurons.config import get_device
+from neurons.protocol import BaseTask
 from neurons.utils.image import synapse_to_images
 from scoring.models.base import BaseRewardModel
 from scoring.models.types import RewardModelType
@@ -20,7 +21,7 @@ class ImageRewardModel(BaseRewardModel):
         super().__init__()
         self.scoring_model = RM.load("ImageReward-v1.0", device=get_device())
 
-    def get_reward(self, response: bt.Synapse) -> float:
+    def get_reward(self, response: BaseTask) -> float:
         with torch.no_grad():
             try:
                 images: List[ImageType] = synapse_to_images(response)

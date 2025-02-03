@@ -47,8 +47,8 @@ class DuplicateFilter(BaseRewardModel):
 
     async def get_rewards(
         self,
-        _synapse: bt.Synapse,
-        responses: List[bt.Synapse],
+        _synapse: BaseTask,
+        responses: List[BaseTask],
     ) -> torch.Tensor:
         logger.info(f"Checking {len(responses)} responses for duplicates...")
 

@@ -27,6 +27,7 @@ from loguru import logger
 from transformers import CLIPModel, CLIPProcessor
 
 from neurons.config import get_device
+from neurons.protocol import BaseTask
 from neurons.utils.image import synapse_to_image
 from scoring.models.base import BaseRewardModel
 from scoring.models.rewards.enhanced_clip.utils import (
@@ -70,7 +71,7 @@ class EnhancedClipRewardModel(BaseRewardModel):
     def compute_clip_score(
         self,
         prompt_elements: PromptBreakdown,
-        response: bt.Synapse,
+        response: BaseTask,
     ) -> float:
         """
         Compute the enhanced CLIP score for a given prompt and image response.
@@ -79,7 +80,7 @@ class EnhancedClipRewardModel(BaseRewardModel):
             prompt_elements (PromptBreakdown): Breakdown of the prompt
                                                into individual elements.
 
-            response (bt.Synapse): The response containing
+            response (BaseTask): The response containing
                                    the image to be evaluated.
 
         Returns:
@@ -141,15 +142,15 @@ class EnhancedClipRewardModel(BaseRewardModel):
 
     async def get_rewards(
         self,
-        synapse: bt.Synapse,
-        responses: List[bt.Synapse],
+        synapse: BaseTask,
+        responses: List[BaseTask],
     ) -> torch.Tensor:
         """
         Compute rewards for a list of responses based on their similarity to the given prompt.
 
         Args:
-            synapse (bt.Synapse): The original synapse containing the prompt.
-            responses (List[bt.Synapse]): List of responses to be evaluated.
+            synapse (BaseTask): The original synapse containing the prompt.
+            responses (List[BaseTask]): List of responses to be evaluated.
 
         Returns:
             torch.Tensor: A tensor of computed rewards for each response.
@@ -158,7 +159,7 @@ class EnhancedClipRewardModel(BaseRewardModel):
             synapse.prompt
         )
 
-        def get_reward(response: bt.Synapse) -> float:
+        def get_reward(response: BaseTask) -> float:
             return self.compute_clip_score(prompt_elements, response)
 
         rewards: torch.Tensor = await super().build_rewards_tensor(

@@ -21,7 +21,6 @@ class TaskType(str, Enum):
 
 class ModelType(str, Enum):
     SCORING = "SCORING"
-    ALCHEMY = "ALCHEMY"
     CUSTOM = "CUSTOM"
 
     def __repr__(self):
@@ -70,7 +69,7 @@ def deserialize_incoming_image(inbound_image: Any):
     return inbound_image
 
 
-class BaseImageModel(bt.Synapse):
+class BaseTask(bt.Synapse):
     """
     Base protocol for image-related requests between miners and validators.
     Contains common fields used across different image manipulation tasks.
@@ -95,7 +94,6 @@ class BaseImageModel(bt.Synapse):
     guidance_scale: float = Field(7.5)
     seed: int = Field(-1)
     steps: int = Field(20)
-    model_type: ModelType = Field(ModelType.CUSTOM)
     task_type: TaskType
     compute_count: int = 12
 
@@ -109,10 +107,10 @@ class BaseImageModel(bt.Synapse):
         ]
 
 
-class ImageGeneration(BaseImageModel):
+class ImageGeneration(BaseTask):
     """
     Protocol for text-to-image generation requests.
-    Extends BaseImageModel with generation-specific fields.
+    Extends BaseTask with generation-specific fields.
     """
 
     # Optional input reference image
@@ -120,10 +118,10 @@ class ImageGeneration(BaseImageModel):
     generation_type: TaskType = Field(TaskType.TEXT_TO_IMAGE)
 
 
-class ImageInpainting(BaseImageModel):
+class ImageInpainting(BaseTask):
     """
     Protocol for image inpainting requests.
-    Extends BaseImageModel with inpainting-specific fields.
+    Extends BaseTask with inpainting-specific fields.
     """
 
     # Required input image that needs inpainting
