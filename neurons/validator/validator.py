@@ -45,15 +45,15 @@ from neurons.validator.backend.models import TaskState
 from neurons.validator.config import update_validator_settings
 from neurons.validator.forward import run_step
 from neurons.validator.schemas import Batch, ScoresUploadRequest
-from neurons.validator.utils import (
+from neurons.utils.validator import (
     generate_random_prompt,
     is_hotkey_registered,
     select_uids,
     ttl_get_block,
 )
-from neurons.validator.utils.openai import check_prompt_for_nsfw
-from neurons.validator.utils.state import load_ma_scores, save_ma_scores
-from neurons.validator.utils.version import get_validator_version
+from neurons.utils.validator.openai import check_prompt_for_nsfw
+from neurons.utils.validator.state import load_ma_scores, save_ma_scores
+from neurons.utils.validator.version import get_validator_version
 from neurons.validator.weights import (
     SetWeightsTask,
     set_weights_loop,
@@ -850,7 +850,9 @@ class StableValidator:
     def serve_axon(self):
         """Serve axon to enable external connections."""
         self.axon = serve_network_axon(
-            wallet=self.wallet, config=self.config, subtensor=self.subtensor
+            wallet=self.wallet,
+            config=self.config,
+            subtensor=self.subtensor,
         )
 
     async def run(self):

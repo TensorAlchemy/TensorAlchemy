@@ -28,7 +28,7 @@ from neurons.utils.log import image_to_str
 from neurons.validator.averages import update_moving_averages
 from neurons.validator.event import EventSchema
 from neurons.validator.schemas import Batch, ScoresUploadRequest
-from neurons.validator.utils import ttl_get_block
+from neurons.utils.validator import ttl_get_block
 from scoring.models.types import RewardModelType
 from scoring.pipeline import apply_masking_functions, get_scoring_results
 from scoring.types import ScoringResult, ScoringResults

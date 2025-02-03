@@ -17,8 +17,8 @@ from neurons.config import (
     get_wallet,
 )
 from neurons.validator.backend.exceptions import PostWeightsError
-from neurons.validator.utils import ttl_get_block
-from neurons.validator.utils.version import get_validator_spec_version
+from neurons.utils.validator import ttl_get_block
+from neurons.utils.validator.version import get_validator_spec_version
 
 
 class WeightSettingError(Exception):
