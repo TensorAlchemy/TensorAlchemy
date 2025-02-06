@@ -162,8 +162,6 @@ async def get_active_uids(limit: int = -1) -> List[int]:
     Returns:
         List[int]: List of all active UIDs.
     """
-    logger.info(f"Fetching active UIDs {limit=}")
-
     available_uids = await filter_available_uids()
 
     # Shuffle to avoid always checking the same UIDs first
@@ -187,6 +185,8 @@ async def get_active_uids(limit: int = -1) -> List[int]:
 
 async def select_uids(count: int = 12) -> torch.tensor:
     active_uids = await get_active_uids(limit=count)
+
+    logger.info(active_uids)
 
     if len(active_uids) < 1:
         return torch.tensor([]).to(get_device())
