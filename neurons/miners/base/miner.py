@@ -179,12 +179,10 @@ class BaseMiner(ABC):
             "blacklist",
         )
 
-        print(
-            self.axon.attach(
-                forward_fn=bound_forward,
-                priority_fn=bound_priority,
-                blacklist_fn=bound_blacklist,
-            )
+        self.axon.attach(
+            forward_fn=bound_forward,
+            priority_fn=bound_priority,
+            blacklist_fn=bound_blacklist,
         )
 
     @abstractmethod
