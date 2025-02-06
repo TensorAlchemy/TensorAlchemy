@@ -2,6 +2,7 @@ from loguru import logger
 from transformers import CLIPImageProcessor
 
 from neurons.config import get_device
+from neurons.protocol import BaseTask
 from neurons.utils.image import synapse_to_tensors
 from scoring.models.base import BaseRewardModel
 from scoring.models.safety import StableDiffusionSafetyChecker

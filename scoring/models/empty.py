@@ -1,3 +1,4 @@
+from neurons.protocol import BaseTask
 from scoring.models.base import BaseRewardModel
 from scoring.models.types import RewardModelType
 

@@ -484,6 +484,8 @@ class BaseMiner(ABC):
         if miner_index is None:
             return
 
+        print(metagraph.S[miner_index])
+
         log = "\n".join(
             [
                 f"Step: {self.state.metrics.step}",
