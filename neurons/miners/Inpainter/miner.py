@@ -53,6 +53,9 @@ class InpaintMiner(BaseMiner):
         # ImageInpainting synapse
         self.attach_synapse(ImageInpainting, self.inpaint_image)
 
+        # Verify attachments
+        logger.debug(f"Final attachments: {self.axon}")
+
     def initialize_implementation(self) -> None:
         """Initialize SDXL model"""
         try:

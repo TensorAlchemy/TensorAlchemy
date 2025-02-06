@@ -307,8 +307,8 @@ async def run_step(
 
     validator_info = validator.get_validator_info()
     logger.info(
-        f"Stats -> Block: {validator_info['block']} "
-        f"| Stake: {validator_info['stake']:.4f} "
+        f"Stats -> Block: {int(validator_info['block'])} "
+        f"| Stake: {float(validator_info['stake']):.4f} "
         f"| Rank: {validator_info['rank']:.4f} "
         f"| VTrust: {validator_info['vtrust']:.4f} "
         f"| Dividends: {validator_info['dividends']:.4f} "

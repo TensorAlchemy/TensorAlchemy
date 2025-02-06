@@ -40,11 +40,13 @@ class BaseMiner(ABC):
     """
 
     state: MinerState
+    manager: Manager
     should_quit: Event
 
     def __init__(self, **kwargs) -> None:
         # Core state management
-        self.should_quit = Manager().Event()
+        self.manager = Manager()
+        self.should_quit = self.manager.Event()
 
         self.state = MinerState()
 
@@ -150,22 +152,10 @@ class BaseMiner(ABC):
         Supports both sync and async forward functions.
         """
 
-        # Create wrapper to handle async forward functions
-        async def async_wrapper(synapse: bt.Synapse) -> bt.Synapse:
-            logger.info("In wrapper")
-            if forward_fn is None:
-                return await self._base_forward(synapse)
-
-            result: bt.Synapse | Awaitable[bt.Synapse] = forward_fn(synapse)
-            if inspect.iscoroutine(result):
-                result = await result
-
-            return result  # type: ignore
-
         # Bind the provided functions or use defaults
         bound_forward = self.bind_method(
             synapse_type,
-            async_wrapper,
+            forward_fn or self._base_forward,
             "forward",
         )
         bound_priority = self.bind_method(
@@ -451,14 +441,13 @@ class BaseMiner(ABC):
         while not self.should_quit.is_set():
             try:
                 # Check for updates
-                self.state.metrics.step += 1
-                logger.debug(f"Main loop step {self.state.metrics.step}")
+                logger.info(f"Main loop step {self.state.metrics.step}")
                 self.update_check()
 
                 # Check registration
                 is_registered: bool = self.check_still_registered()
                 if not is_registered:
-                    logger.info("Miner not registered")
+                    logger.warning("Miner not registered")
                     time.sleep(120)
                     get_metagraph().sync(subtensor=get_subtensor())
                     continue
