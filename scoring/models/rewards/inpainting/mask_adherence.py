@@ -1,14 +1,13 @@
-import torch
 import numpy as np
-from neurons.protocol import BaseTask
+import torch
 from skimage.metrics import structural_similarity as ssim
 
+from neurons.protocol import BaseTask
 from neurons.utils.image import synapse_to_images
 from scoring.models.base import BaseRewardModel
+from scoring.models.rewards.inpainting.base import BaseInpaintingModel
 from scoring.models.types import RewardModelType
 
-
-from scoring.models.rewards.inpainting.base import BaseInpaintingModel
 
 class MaskAdherenceModel(BaseInpaintingModel):
     @property
@@ -23,10 +22,9 @@ class MaskAdherenceModel(BaseInpaintingModel):
     async def compute_score(
         self,
         input_image: torch.Tensor,
-        mask_image: torch.Tensor, 
-        generated_image: torch.Tensor
+        mask_image: torch.Tensor,
+        generated_image: torch.Tensor,
     ) -> float:
-        try:
         # Convert tensors to numpy arrays for SSIM
         original = input_image.numpy()
         generated = generated_image.numpy()

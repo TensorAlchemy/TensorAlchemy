@@ -1,6 +1,5 @@
 from typing import List
 
-import bittensor as bt
 import ImageReward as RM
 import torch
 from PIL.Image import Image as ImageType

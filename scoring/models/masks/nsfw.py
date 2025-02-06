@@ -1,4 +1,3 @@
-import bittensor as bt
 from loguru import logger
 from transformers import CLIPImageProcessor
 

@@ -6,10 +6,9 @@ from torchvision.models import vgg16
 from neurons.protocol import BaseTask
 from neurons.utils.image import synapse_to_tensors
 from scoring.models.base import BaseRewardModel
+from scoring.models.rewards.inpainting.base import BaseInpaintingModel
 from scoring.models.types import RewardModelType
 
-
-from scoring.models.rewards.inpainting.base import BaseInpaintingModel
 
 class StructureConsistencyModel(BaseInpaintingModel):
     @property
@@ -34,21 +33,20 @@ class StructureConsistencyModel(BaseInpaintingModel):
     async def compute_score(
         self,
         input_image: torch.Tensor,
-        mask_image: torch.Tensor, 
-        generated_image: torch.Tensor
+        mask_image: torch.Tensor,
+        generated_image: torch.Tensor,
     ) -> float:
 
-        try:
-            # Extract deep features
-            original_features = self.extract_features(input_image.unsqueeze(0))
-            generated_features = self.extract_features(generated_image.unsqueeze(0))
-            
-            # Upsample mask to match feature dimensions
-            mask_resized = F.interpolate(
-                mask_image.unsqueeze(0), 
-                size=original_features.shape[2:],
-                mode='nearest'
-            )
+        # Extract deep features
+        original_features = self.extract_features(input_image.unsqueeze(0))
+        generated_features = self.extract_features(generated_image.unsqueeze(0))
+
+        # Upsample mask to match feature dimensions
+        mask_resized = F.interpolate(
+            mask_image.unsqueeze(0),
+            size=original_features.shape[2:],
+            mode="nearest",
+        )
 
         # Calculate feature consistency in and around masked region
         feature_diff = torch.abs(original_features - generated_features)

@@ -30,21 +30,12 @@ from neurons.config import (
     validator_run_id,
 )
 from neurons.exceptions import StakeBelowThreshold
-from neurons.protocol import (
-    ImageGenerationTask,
-    ModelType,
-    denormalize_task,
-)
+from neurons.protocol import ImageGenerationTask, denormalize_task
 from neurons.update_checker import safely_check_for_updates
 from neurons.utils import BackgroundTimer, MultiprocessTimer, background_loop
 from neurons.utils.common import log_dependencies
 from neurons.utils.defaults import get_defaults
 from neurons.utils.log import configure_logging
-from neurons.validator.backend.client import TensorAlchemyBackendClient
-from neurons.validator.backend.models import TaskState
-from neurons.validator.config import update_validator_settings
-from neurons.validator.forward import run_step
-from neurons.validator.schemas import Batch, ScoresUploadRequest
 from neurons.utils.validator import (
     generate_random_prompt,
     is_hotkey_registered,
@@ -54,6 +45,11 @@ from neurons.utils.validator import (
 from neurons.utils.validator.openai import check_prompt_for_nsfw
 from neurons.utils.validator.state import load_ma_scores, save_ma_scores
 from neurons.utils.validator.version import get_validator_version
+from neurons.validator.backend.client import TensorAlchemyBackendClient
+from neurons.validator.backend.models import TaskState
+from neurons.validator.config import update_validator_settings
+from neurons.validator.forward import run_step
+from neurons.validator.schemas import Batch, ScoresUploadRequest
 from neurons.validator.weights import (
     SetWeightsTask,
     set_weights_loop,
@@ -332,9 +328,11 @@ async def execute_post_step_methods(
 def drain_queue(q: Queue) -> None:
     """Safely drain a queue"""
     try:
-        while not q.empty():
+        while True:
             try:
                 q.get_nowait()
+                if q.empty():
+                    break
             except:
                 break
     except Exception as e:
@@ -575,8 +573,6 @@ class StableValidator:
         self.batches_upload_queue = queues["batches"]
         self.scores_upload_queue = queues["scores"]
 
-        self.model_type = ModelType.CUSTOM
-
         self.background_loop: Optional[BackgroundTimer] = None
         self.set_weights_process: Optional[MultiprocessTimer] = None
         self.upload_images_process: Optional[MultiprocessTimer] = None
@@ -696,7 +692,6 @@ class StableValidator:
 
         # No organic task found
         if task is None:
-            self.model_type = ModelType.CUSTOM
             prompt = await generate_random_prompt()
             if not prompt:
                 logger.error("failed to generate prompt for synthetic task")
@@ -917,7 +912,6 @@ class StableValidator:
                 task=self.task,
                 axons=axons,
                 uids=selected_uids,
-                model_type=self.model_type,
                 stats=self.stats,
             )
             return True

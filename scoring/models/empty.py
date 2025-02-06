@@ -1,5 +1,3 @@
-import bittensor as bt
-
 from scoring.models.base import BaseRewardModel
 from scoring.models.types import RewardModelType
 

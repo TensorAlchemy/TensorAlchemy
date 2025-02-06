@@ -15,17 +15,13 @@ class BoundaryCoherenceModel(BaseInpaintingModel):
     def __init__(self):
         super().__init__()
         # Create horizontal and vertical Sobel kernels
-        self.kernel_x = torch.tensor([
-            [-1, 0, 1],
-            [-2, 0, 2],
-            [-1, 0, 1]
-        ], dtype=torch.float32).view(1, 1, 3, 3)
+        self.kernel_x = torch.tensor(
+            [[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]], dtype=torch.float32
+        ).view(1, 1, 3, 3)
 
-        self.kernel_y = torch.tensor([
-            [-1, -2, -1],
-            [0, 0, 0],
-            [1, 2, 1]
-        ], dtype=torch.float32).view(1, 1, 3, 3)
+        self.kernel_y = torch.tensor(
+            [[-1, -2, -1], [0, 0, 0], [1, 2, 1]], dtype=torch.float32
+        ).view(1, 1, 3, 3)
 
         # Kernel for finding boundaries
         self.boundary_kernel = torch.ones(1, 1, 5, 5)
@@ -56,17 +52,18 @@ class BoundaryCoherenceModel(BaseInpaintingModel):
         """
         # Dilate mask
         dilated = F.conv2d(
-            mask.unsqueeze(0),
-            self.boundary_kernel.to(mask.device),
-            padding=2
+            mask.unsqueeze(0), self.boundary_kernel.to(mask.device), padding=2
         )
 
         # Erode mask
-        eroded = F.conv2d(
-            mask.unsqueeze(0),
-            self.boundary_kernel.to(mask.device),
-            padding=2
-        ) >= 25  # All 25 pixels must be 1 for erosion
+        eroded = (
+            F.conv2d(
+                mask.unsqueeze(0),
+                self.boundary_kernel.to(mask.device),
+                padding=2,
+            )
+            >= 25
+        )  # All 25 pixels must be 1 for erosion
 
         # Boundary is the difference between dilated and eroded
         # This gives us just the transition region
@@ -81,14 +78,15 @@ class BoundaryCoherenceModel(BaseInpaintingModel):
     async def compute_score(
         self,
         input_image: torch.Tensor,
-        mask_image: torch.Tensor, 
-        generated_image: torch.Tensor
+        mask_image: torch.Tensor,
+        generated_image: torch.Tensor,
     ) -> float:
 
+        try:
             # Detect edges in both images
             original_edges = self.detect_edges(input_image)
             generated_edges = self.detect_edges(generated_image)
-            
+
             # Get just the boundary region mask
             boundary_mask = self.get_boundary_mask(mask_image)
 
@@ -101,9 +99,9 @@ class BoundaryCoherenceModel(BaseInpaintingModel):
             # Calculate score based on boundary regions only
             # Add small epsilon to avoid division by zero
             total_boundary_pixels = torch.sum(boundary_mask) + 1e-6
-            boundary_score = 1.0 - (
-                torch.sum(masked_diff) / total_boundary_pixels
-            ).item()
+            boundary_score = (
+                1.0 - (torch.sum(masked_diff) / total_boundary_pixels).item()
+            )
 
             logger.info(f"Boundary coherence score: {boundary_score:.4f}")
             return boundary_score

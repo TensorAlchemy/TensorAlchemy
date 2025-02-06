@@ -1,6 +1,5 @@
 from typing import List
 
-import bittensor as bt
 import imagehash
 import numpy as np
 import torch

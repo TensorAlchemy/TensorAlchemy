@@ -1,4 +1,3 @@
-import bittensor as bt
 import numpy as np
 from loguru import logger
 

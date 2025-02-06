@@ -5,10 +5,9 @@ from transformers import CLIPModel, CLIPProcessor
 from neurons.protocol import BaseTask
 from neurons.utils.image import synapse_to_images
 from scoring.models.base import BaseRewardModel
+from scoring.models.rewards.inpainting.base import BaseInpaintingModel
 from scoring.models.types import RewardModelType
 
-
-from scoring.models.rewards.inpainting.base import BaseInpaintingModel
 
 class SemanticConsistencyModel(BaseInpaintingModel):
     @property
@@ -25,16 +24,14 @@ class SemanticConsistencyModel(BaseInpaintingModel):
     async def compute_score(
         self,
         input_image: torch.Tensor,
-        mask_image: torch.Tensor, 
-        generated_image: torch.Tensor
+        mask_image: torch.Tensor,
+        generated_image: torch.Tensor,
     ) -> float:
 
-        try:
-            # Process images through CLIP
-            inputs = self.processor(
-                images=[input_image, generated_image], 
-                return_tensors="pt"
-            ).to(input_image.device)
+        # Process images through CLIP
+        inputs = self.processor(
+            images=[input_image, generated_image], return_tensors="pt"
+        ).to(input_image.device)
 
         # Get image embeddings
         image_features = self.clip.get_image_features(**inputs)

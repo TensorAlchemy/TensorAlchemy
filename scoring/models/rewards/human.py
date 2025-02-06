@@ -1,6 +1,5 @@
 from typing import Dict, List
 
-import bittensor as bt
 import torch
 from loguru import logger
 

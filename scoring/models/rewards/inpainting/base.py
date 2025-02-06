@@ -1,7 +1,8 @@
-import httpx
-from loguru import logger
-import torch
 from abc import abstractmethod
+
+import httpx
+import torch
+from loguru import logger
 
 from neurons.protocol import BaseTask
 from neurons.utils.image import base64_to_tensor
@@ -54,7 +55,6 @@ class BaseInpaintingModel(BaseRewardModel):
         generated_image: torch.Tensor,
     ) -> float:
         """Compute the actual score for the model"""
-        pass
 
     async def get_reward(self, response: BaseTask) -> float:
         if not response.images:

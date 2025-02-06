@@ -21,7 +21,6 @@ Date: July 30, 2024
 import traceback
 from typing import Dict, List
 
-import bittensor as bt
 import torch
 from loguru import logger
 from transformers import CLIPModel, CLIPProcessor

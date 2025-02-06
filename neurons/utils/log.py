@@ -105,11 +105,11 @@ def get_subtensor_network_from_netuid(netuid: int) -> str:
 
 def configure_loki_logger():
     from neurons.config import get_config, validator_run_id
+    from neurons.utils.common import is_validator
     from neurons.utils.miner.version import (
         get_miner_spec_version,
         get_miner_version,
     )
-    from neurons.utils.common import is_validator
     from neurons.utils.validator.version import (
         get_validator_spec_version,
         get_validator_version,

@@ -1,8 +1,6 @@
 from typing import Callable, List
 
-import bittensor as bt
-
-from neurons.protocol import BaseTask, ModelType, TaskType
+from neurons.protocol import BaseTask, TaskType
 from scoring.models.rewards.image_reward import ImageRewardModel
 from scoring.models.types import (
     ModelStorage,
@@ -22,11 +20,11 @@ def get_inpainting_models() -> ModelStorage:
     from scoring.models.rewards.inpainting.mask_adherence import (
         MaskAdherenceModel,
     )
-    from scoring.models.rewards.inpainting.structure_consistency import (
-        StructureConsistencyModel,
-    )
     from scoring.models.rewards.inpainting.semantic_consistency import (
         SemanticConsistencyModel,
+    )
+    from scoring.models.rewards.inpainting.structure_consistency import (
+        StructureConsistencyModel,
     )
 
     global INPAINTING_MODELS

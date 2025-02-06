@@ -10,12 +10,12 @@ Models:
 
 from .boundary_coherence import BoundaryCoherenceModel
 from .mask_adherence import MaskAdherenceModel
-from .structure_consistency import StructureConsistencyModel
 from .semantic_consistency import SemanticConsistencyModel
+from .structure_consistency import StructureConsistencyModel
 
 __all__ = [
-    'BoundaryCoherenceModel',
-    'MaskAdherenceModel', 
-    'StructureConsistencyModel',
-    'SemanticConsistencyModel'
+    "BoundaryCoherenceModel",
+    "MaskAdherenceModel",
+    "StructureConsistencyModel",
+    "SemanticConsistencyModel",
 ]

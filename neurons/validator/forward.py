@@ -17,18 +17,14 @@ from neurons.config import (
     get_metagraph,
     get_wallet,
 )
-from neurons.protocol import (
-    ImageGenerationTask,
-    ImageGenerationTask,
-    ImageInpainting,
-)
+from neurons.protocol import ImageGenerationTask, ImageInpainting
 from neurons.utils.defaults import Stats
 from neurons.utils.image import synapse_to_base64
 from neurons.utils.log import image_to_str
+from neurons.utils.validator import ttl_get_block
 from neurons.validator.averages import update_moving_averages
 from neurons.validator.event import EventSchema
 from neurons.validator.schemas import Batch, ScoresUploadRequest
-from neurons.utils.validator import ttl_get_block
 from scoring.models.types import RewardModelType
 from scoring.pipeline import apply_masking_functions, get_scoring_results
 from scoring.types import ScoringResult, ScoringResults
@@ -196,7 +192,6 @@ async def create_batch_for_upload(
     logger.info("Preparing batch for upload...")
 
     masked_rewards: ScoringResults = await apply_masking_functions(
-        validator.model_type,
         synapse,
         responses=responses,
     )
@@ -288,7 +283,6 @@ async def run_step(
     task: ImageGenerationTask | ImageInpainting,
     axons: List[AxonInfo],
     uids: torch.LongTensor,
-    model_type: str,
     stats: Stats,
 ):
     # Get Arguments
@@ -331,7 +325,6 @@ async def run_step(
 
     # Calculate rewards
     scoring_results: ScoringResults = await get_scoring_results(
-        validator.model_type,
         task,
         responses,
     )
@@ -366,7 +359,6 @@ async def run_step(
     try:
         event = EventSchema(
             task_type=task_type,
-            model_type=model_type,
             compute_count=task.compute_count,
             block=ttl_get_block(),
             uids=uids,
