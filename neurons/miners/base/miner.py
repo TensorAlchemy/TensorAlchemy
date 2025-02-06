@@ -148,7 +148,7 @@ class BaseMiner(ABC):
 
         # Create wrapper to handle async forward functions
         async def async_wrapper(synapse: bt.Synapse) -> bt.Synapse:
-            logger.info(f"Inbound {synapse_type.__class__.__name__}")
+            logger.info(f"Inbound {synapse_type}")
 
             if forward_fn is None:
                 return await self._base_forward(synapse)
@@ -484,13 +484,11 @@ class BaseMiner(ABC):
         if miner_index is None:
             return
 
-        print(metagraph.S[miner_index])
-
         log = "\n".join(
             [
                 f"Step: {self.state.metrics.step}",
                 f"Block: {metagraph.block.item():.2f}",
-                f"Stake: {metagraph.S[miner_index]:.2f}",
+                f"Stake: {float(metagraph.S[miner_index]):.2f}",
                 f"Rank: {metagraph.R[miner_index]:.2f}",
                 f"Trust: {metagraph.T[miner_index]:.2f}",
                 f"Consensus: {metagraph.C[miner_index]:.2f}",
