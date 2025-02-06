@@ -32,13 +32,7 @@ class ModelType(str, Enum):
 
 
 class IsAlive(bt.Synapse):
-    answer: Optional[str] = None
-    completion: str = Field(
-        "",
-        title="Completion",
-        description="Completion status of the current ImageGeneration object."
-        + " This attribute is mutable and can be updated.",
-    )
+    pass
 
 
 SupportedImageTypes = Union[str, np.ndarray, torch.tensor, bt.Tensor]

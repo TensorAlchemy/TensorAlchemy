@@ -27,6 +27,11 @@ from neurons.utils import (
 )
 from neurons.utils.log import sh
 
+# Define complex types at the top
+ForwardFnType = Callable[[bt.Synapse], bt.Synapse | Awaitable[bt.Synapse]]
+PriorityFnType = Callable[[bt.Synapse], float]
+BlacklistFnType = Callable[[bt.Synapse], Tuple[bool, str]]
+
 
 class BaseMiner(ABC):
     """
@@ -136,11 +141,9 @@ class BaseMiner(ABC):
     def attach_synapse(
         self,
         synapse_type: Type[bt.Synapse],
-        forward_fn: Optional[
-            Callable[[bt.Synapse], bt.Synapse | Awaitable[bt.Synapse]]
-        ] = None,
-        priority_fn: Optional[Callable[[bt.Synapse], float]] = None,
-        blacklist_fn: Optional[Callable[[bt.Synapse], Tuple[bool, str]]] = None,
+        forward_fn: Optional[ForwardFnType] = None,
+        priority_fn: Optional[PriorityFnType] = None,
+        blacklist_fn: Optional[BlacklistFnType] = None,
     ) -> None:
         """
         Attach synapse handlers with optional overrides for any combination of handlers.
@@ -149,6 +152,7 @@ class BaseMiner(ABC):
 
         # Create wrapper to handle async forward functions
         async def async_wrapper(synapse: bt.Synapse) -> bt.Synapse:
+            logger.info("In wrapper")
             if forward_fn is None:
                 return await self._base_forward(synapse)
 
@@ -156,12 +160,7 @@ class BaseMiner(ABC):
             if inspect.iscoroutine(result):
                 result = await result
 
-            assert isinstance(
-                result, bt.Synapse
-            ), "Result of attachment could not be resolved"
-            resolved: bt.Synapse = result
-
-            return resolved
+            return result  # type: ignore
 
         # Bind the provided functions or use defaults
         bound_forward = self.bind_method(
@@ -180,10 +179,12 @@ class BaseMiner(ABC):
             "blacklist",
         )
 
-        self.axon.attach(
-            forward_fn=bound_forward,
-            priority_fn=bound_priority,
-            blacklist_fn=bound_blacklist,
+        print(
+            self.axon.attach(
+                forward_fn=bound_forward,
+                priority_fn=bound_priority,
+                blacklist_fn=bound_blacklist,
+            )
         )
 
     @abstractmethod

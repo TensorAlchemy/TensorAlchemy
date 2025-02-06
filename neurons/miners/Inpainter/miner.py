@@ -42,6 +42,7 @@ class InpaintMiner(BaseMiner):
     def create_attachments(self) -> None:
         """Return list of forward function tuples for axon"""
 
+        print("Attaching synapses")
         # IsAlive synapse (default bound)
         self.attach_synapse(IsAlive)
 
