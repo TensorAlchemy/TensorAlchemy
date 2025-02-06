@@ -374,7 +374,7 @@ async def run_step(
                 for response in responses
             ],
             results=scoring_results,
-            stake=validator_info["stake"].item(),
+            stake=float(validator_info["stake"]),
             rank=validator_info["rank"].item(),
             vtrust=validator_info["vtrust"].item(),
             dividends=validator_info["dividends"].item(),

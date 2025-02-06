@@ -44,7 +44,10 @@ class HumanValidationRewardModel(BaseRewardModel):
             logger.error(f"Error while getting votes: {e}")
             return super().zeros()
 
-        async def get_reward(response: Image) -> float:
+        async def get_reward(response: BaseTask) -> float:
+            if not (response.axon and response.axon.hotkey):
+                return 0.0
+
             return voting_scores.get(
                 response.axon.hotkey,
                 0.0,

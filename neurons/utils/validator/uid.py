@@ -94,7 +94,9 @@ def is_uid_available(uid: int, vpermit_tao_limit: int) -> bool:
 
     if metagraph.validator_permit[uid]:
         if metagraph.S[uid] > vpermit_tao_limit:
-            return False
+            # TODO
+            return True
+            # return False
 
     return True
 
@@ -154,7 +156,6 @@ async def check_uids_alive(uids: List[int]) -> Tuple[List[int], List[float]]:
     return alive_uids, response_times
 
 
-@memoize_with_expiration(20)
 async def get_active_uids(limit: int = -1) -> List[int]:
     """
     Fetch all active (alive) UIDs. Results are memoized for 20 seconds.
@@ -167,24 +168,41 @@ async def get_active_uids(limit: int = -1) -> List[int]:
     # Shuffle to avoid always checking the same UIDs first
     random.shuffle(available_uids)
 
-    all_active_uids = []
+    logger.info(f"Found {len(available_uids)} uids available")
+
+    checked: int = 0
+    all_active_uids: List[int] = []
     for i in range(0, len(available_uids), N_NEURONS_TO_QUERY):
         batch = available_uids[i : i + N_NEURONS_TO_QUERY]
         active_uids, _ = await check_uids_alive(batch)
+
+        checked += len(batch)
+        logger.info(f"Checking {batch}")
         all_active_uids.extend(active_uids)
 
         if limit > 0:
             if len(all_active_uids) >= limit:
                 break
 
-    logger.info(f"Found {len(all_active_uids)} active UIDs")
+    logger.info(
+        #
+        f"Found {len(all_active_uids)} active UIDs "
+        + f"(checked {checked} / {len(available_uids)})"
+    )
     logger.info(f"Active miners: {all_active_uids}")
 
     return all_active_uids
 
 
 async def select_uids(count: int = 12) -> torch.tensor:
-    active_uids = await get_active_uids(limit=count)
+    try:
+        active_uids = await get_active_uids(limit=count)
+    except Exception:
+        logger.error(
+            #
+            "Could not fetch active UIDs: "
+            + traceback.format_exc(),
+        )
 
     logger.info(active_uids)
 
