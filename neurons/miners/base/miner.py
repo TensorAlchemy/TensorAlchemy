@@ -112,6 +112,7 @@ class BaseMiner(ABC):
             synapse_type: The synapse type to bind for
             forward_fn: Optional custom forward function to bind
         """
+
         bound_forward = self.bind_method(
             synapse_type,
             forward_fn or self._base_forward,
@@ -148,8 +149,6 @@ class BaseMiner(ABC):
 
         # Create wrapper to handle async forward functions
         async def async_wrapper(synapse: bt.Synapse) -> bt.Synapse:
-            logger.info(f"Inbound {synapse_type}")
-
             if forward_fn is None:
                 return await self._base_forward(synapse)
 
@@ -304,9 +303,15 @@ class BaseMiner(ABC):
         return self.get_miner_index() is not None
 
     async def _base_forward(self, synapse: bt.Synapse) -> bt.Synapse:
+        logger.debug(f"Inbound {synapse}")
         return synapse
 
     async def _base_priority(self, synapse: bt.Synapse) -> float:
+        logger.debug(
+            f"Running priority checks for synapse type "
+            + type(synapse).__name__
+        )
+
         caller_hotkey: str = synapse.dendrite.hotkey
 
         try:
@@ -347,7 +352,8 @@ class BaseMiner(ABC):
     async def _base_blacklist(self, synapse: bt.Synapse) -> Tuple[bool, str]:
         """Base blacklist implementation that can be used by child classes"""
         logger.debug(
-            f"Running blacklist checks for synapse type {type(synapse).__name__}..."
+            f"Running blacklist checks for synapse type "
+            + type(synapse).__name__
         )
         vpermit_tao_limit: float = VPERMIT_TAO
         if is_testnet():
