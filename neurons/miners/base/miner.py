@@ -441,13 +441,13 @@ class BaseMiner(ABC):
     def loop(self) -> None:
         """Main miner loop"""
         logger.info("Starting miner loop.")
-        step = 0
+        self.state.metrics.step = 0
 
         while not self.should_quit.is_set():
             try:
                 # Check for updates
-                step += 1
-                logger.debug(f"Main loop step {step}")
+                self.state.metrics.step += 1
+                logger.debug(f"Main loop step {self.state.metrics.step}")
                 self.update_check()
 
                 # Check registration
@@ -484,15 +484,17 @@ class BaseMiner(ABC):
         if miner_index is None:
             return
 
-        log = (
-            f"Step: {self.state.metrics.step} | "
-            f"Block: {metagraph.block.item()} | "
-            f"Stake: {metagraph.S[miner_index]:.2f} | "
-            f"Rank: {metagraph.R[miner_index]:.2f} | "
-            f"Trust: {metagraph.T[miner_index]:.2f} | "
-            f"Consensus: {metagraph.C[miner_index]:.2f} | "
-            f"Incentive: {metagraph.I[miner_index]:.2f} | "
-            f"Emission: {metagraph.E[miner_index]:.2f}"
+        log = "\n".join(
+            [
+                f"Step: {self.state.metrics.step}",
+                f"Block: {metagraph.block.item():.2f}",
+                f"Stake: {metagraph.S[miner_index]:.2f}",
+                f"Rank: {metagraph.R[miner_index]:.2f}",
+                f"Trust: {metagraph.T[miner_index]:.2f}",
+                f"Consensus: {metagraph.C[miner_index]:.2f}",
+                f"Incentive: {metagraph.I[miner_index]:.2f}",
+                f"Emission: {metagraph.E[miner_index]:.2f}",
+            ]
         )
         logger.info(log, color="green")
 
