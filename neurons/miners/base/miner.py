@@ -473,6 +473,7 @@ class BaseMiner(ABC):
 
             except Exception:
                 logger.error(f"Error in miner loop: {traceback.format_exc()}")
+                time.sleep(10)
                 continue
 
     def _log_metrics(self) -> None:
