@@ -5,7 +5,7 @@ import pytest
 import torch
 from loguru import logger
 
-from neurons.protocol import ImageGeneration, ModelType
+from neurons.protocol import ImageGeneration
 from neurons.utils.image import image_tensor_to_base64, image_to_tensor
 from neurons.validator.backend.exceptions import PostMovingAveragesError
 from neurons.validator.forward import update_moving_averages

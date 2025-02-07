@@ -10,7 +10,7 @@ from loguru import logger
 from PIL import Image
 
 from neurons.constants import IS_CI_ENV
-from neurons.protocol import ImageGeneration, ModelType
+from neurons.protocol import ImageGeneration
 from neurons.utils.image import (
     bytesio_to_base64,
     image_tensor_to_base64,

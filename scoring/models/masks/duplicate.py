@@ -6,9 +6,8 @@ import torch
 from loguru import logger
 from PIL import Image
 
-from neurons.protocol import BaseTask
-
 from neurons.config import get_metagraph
+from neurons.protocol import BaseTask
 from neurons.utils.image import synapse_to_tensors
 from scoring.models.base import BaseRewardModel
 from scoring.models.types import RewardModelType

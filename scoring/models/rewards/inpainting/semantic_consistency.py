@@ -2,9 +2,6 @@ import torch
 import torch.nn.functional as F
 from transformers import CLIPModel, CLIPProcessor
 
-from neurons.protocol import BaseTask
-from neurons.utils.image import synapse_to_images
-from scoring.models.base import BaseRewardModel
 from scoring.models.rewards.inpainting.base import BaseInpaintingModel
 from scoring.models.types import RewardModelType
 

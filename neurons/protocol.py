@@ -1,6 +1,6 @@
+import uuid
 from enum import Enum
 from typing import Any, List, Optional, Union
-import uuid
 
 import bittensor as bt
 import numpy as np

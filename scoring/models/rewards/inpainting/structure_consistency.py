@@ -3,9 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision.models import vgg16
 
-from neurons.protocol import BaseTask
-from neurons.utils.image import synapse_to_tensors
-from scoring.models.base import BaseRewardModel
 from scoring.models.rewards.inpainting.base import BaseInpaintingModel
 from scoring.models.types import RewardModelType
 
