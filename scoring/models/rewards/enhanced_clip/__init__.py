@@ -109,10 +109,12 @@ class EnhancedClipRewardModel(BaseRewardModel):
             with torch.no_grad():
                 outputs = self.model(**inputs)
 
-            logits_per_image: torch.Tensor = outputs.logits_per_image.squeeze()
-            similarities: torch.Tensor = (
-                logits_per_image - logits_per_image.min()
-            ) / (logits_per_image.max() - logits_per_image.min())
+            logits_per_image: torch.Tensor = outputs.logits_per_image
+            if len(descriptions) == 1:
+                logits_per_image = logits_per_image.unsqueeze(1)
+            
+            logits_per_image = logits_per_image.squeeze(0)
+            similarities: torch.Tensor = (logits_per_image - logits_per_image.min()) / (logits_per_image.max() - logits_per_image.min())
 
             adjusted_similarities: torch.Tensor = torch.where(
                 similarities > self.threshold_min,
@@ -122,9 +124,9 @@ class EnhancedClipRewardModel(BaseRewardModel):
 
             final_result: float = (adjusted_similarities + 1).prod().item() - 1
 
-            for i, desc in enumerate(descriptions):
+            for i in range(len(descriptions)):
                 logger.info(
-                    f"Element: {desc}, "
+                    f"Element: {descriptions[i]}, "
                     f"Similarity: {similarities[i].item():.4f}, "
                     f"Adjusted: {adjusted_similarities[i].item():.4f}"
                 )

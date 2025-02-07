@@ -1,5 +1,5 @@
 import traceback
-from typing import List, TypedDict
+from typing import List, Optional, TypedDict
 
 from loguru import logger
 
@@ -84,8 +84,9 @@ async def break_down_prompt(prompt: str) -> PromptBreakdown:
             logger.debug(f"Skipping {name} due to no response")
         except Exception:
             logger.error(f"Error with {name}: " + traceback.format_exc())
+            continue
 
-        raise MissingApiKeyError(
-            "No service available "
-            + "- all services failed due to missing API keys"
-        )
+    raise MissingApiKeyError(
+        "No service available "
+        + "- all services failed due to missing API keys"
+    )
