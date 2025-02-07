@@ -164,7 +164,6 @@ async def run_pipeline_test():
     assert len(responses) == len(image_types), "Incorrect synapse builder"
 
     results: ScoringResults = await get_scoring_results(
-        ModelType.CUSTOM,
         responses[0],
         responses,
     )

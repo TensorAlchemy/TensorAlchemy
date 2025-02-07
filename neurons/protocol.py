@@ -40,7 +40,7 @@ class IsAlive(bt.Synapse):
 SupportedImageTypes = Union[str, np.ndarray, torch.tensor, bt.Tensor]
 
 
-def deserialize_incoming_image(inbound_image: Any):
+def deserialize_incoming_image(inbound_image: Any) -> str:
     """Inbound image type is different across different miner versions."""
     from neurons.utils.image import image_to_base64, tensor_to_image
 
@@ -62,7 +62,7 @@ def deserialize_incoming_image(inbound_image: Any):
             bt.logging.warning(f"Failed to deserialize image: {str(e)}")
             return ""
 
-    return inbound_image
+    return str(inbound_image)
 
 
 class BaseTask(bt.Synapse):
@@ -109,6 +109,8 @@ class ImageGeneration(BaseTask):
     Extends BaseTask with generation-specific fields.
     """
 
+    task_type: TaskType = TaskType.TEXT_TO_IMAGE
+
     # Optional input reference image
     prompt_image: Optional[bt.Tensor] = Field(None)
     generation_type: TaskType = Field(TaskType.TEXT_TO_IMAGE)
@@ -119,6 +121,8 @@ class ImageInpainting(BaseTask):
     Protocol for image inpainting requests.
     Extends BaseTask with inpainting-specific fields.
     """
+
+    task_type: TaskType = TaskType.TEXT_TO_IMAGE
 
     # Required input image that needs inpainting
     input_image: str = Field(...)
