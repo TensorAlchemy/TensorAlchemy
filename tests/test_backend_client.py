@@ -28,7 +28,7 @@ class TestTensorAlchemyBackendClient(unittest.IsolatedAsyncioTestCase):
     async def test_get_task_success(self, mock_get):
         task_data = {
             "id": "1111",
-            "image_count": 1,
+            "compute_count": 1,
             "prompt": "test",
             "height": 64,
             "width": 64,

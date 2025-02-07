@@ -156,7 +156,7 @@ def log_responses(responses: List[ImageGenerationTask], prompt: str):
                         "axon_hotkey": response.axon.hotkey,
                         "negative_prompt": response.negative_prompt,
                         "prompt_image": response.prompt_image,
-                        "num_images_per_prompt": response.num_images_per_prompt,
+                        "compute_count": response.compute_count,
                         "height": response.height,
                         "width": response.width,
                         "seed": response.seed,

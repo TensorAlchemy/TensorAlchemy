@@ -39,7 +39,7 @@ incoming_synapse_new_base64 = {
     "images": [
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z/C/HgAGgwJ/lK3Q6wAAAABJRU5ErkJggg=="
     ],
-    "num_images_per_prompt": 1,
+    "compute_count": 1,
     "height": 64,
     "width": 64,
     "generation_type": "text_to_image",
@@ -90,7 +90,7 @@ incoming_synapse_old = {
             "shape": [3, 1, 1],
         }
     ],
-    "num_images_per_prompt": 1,
+    "compute_count": 1,
     "height": 64,
     "width": 64,
     "generation_type": "text_to_image",

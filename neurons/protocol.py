@@ -82,7 +82,7 @@ class BaseTask(bt.Synapse):
     # Common parameters
     prompt: str = Field("Bird in the sky")
     negative_prompt: Optional[str] = Field(None)
-    num_images_per_prompt: int = Field(1)
+    compute_count: int = Field(1)
     height: int = Field(512)
     width: int = Field(512)
     guidance_scale: float = Field(7.5)
@@ -132,7 +132,7 @@ ImageGenerationTask = Union[ImageGeneration, ImageInpainting]
 
 def denormalize_task(
     id: str,
-    image_count: int,
+    compute_count: int,
     task_type: TaskType,
     **kwargs,
 ) -> ImageGenerationTask:
@@ -140,13 +140,13 @@ def denormalize_task(
         return ImageInpainting(
             task_id=id,
             task_type=task_type,
-            num_images_per_prompt=image_count,
+            compute_count=compute_count,
             **kwargs,
         )
 
     return ImageGeneration(
         task_id=id,
         task_type=task_type,
-        num_images_per_prompt=image_count,
+        compute_count=compute_count,
         **kwargs,
     )

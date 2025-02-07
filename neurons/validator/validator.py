@@ -211,7 +211,7 @@ def create_synthetic_task(prompt: str) -> ImageGenerationTask:
     """Create a synthetic image generation task"""
     return denormalize_task(
         id=str(uuid.uuid4()),
-        image_count=1,
+        compute_count=1,
         task_type="TEXT_TO_IMAGE",
         guidance_scale=7.5,
         negative_prompt=None,
