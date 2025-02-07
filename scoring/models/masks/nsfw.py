@@ -1,8 +1,8 @@
-import bittensor as bt
 from loguru import logger
 from transformers import CLIPImageProcessor
 
 from neurons.config import get_device
+from neurons.protocol import BaseTask
 from neurons.utils.image import synapse_to_tensors
 from scoring.models.base import BaseRewardModel
 from scoring.models.safety import StableDiffusionSafetyChecker
@@ -21,7 +21,7 @@ class NSFWRewardModel(BaseRewardModel):
         ).to(get_device())
         self.processor = CLIPImageProcessor()
 
-    def get_reward(self, response: bt.Synapse) -> float:
+    async def get_reward(self, response: BaseTask) -> float:
         if not response.images:
             return 1.0
 

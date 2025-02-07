@@ -1,8 +1,7 @@
-from typing import List
+from typing import Callable, List
 
-import bittensor as bt
-
-from neurons.protocol import ModelType
+from neurons.protocol import BaseTask, TaskType
+from scoring.models.rewards.image_reward import ImageRewardModel
 from scoring.models.types import (
     ModelStorage,
     PackedRewardModel,
@@ -12,6 +11,47 @@ from scoring.models.types import (
 # Init Reward Models
 REWARD_MODELS: ModelStorage = None
 MASKING_MODELS: ModelStorage = None
+
+
+def get_inpainting_models() -> ModelStorage:
+    from scoring.models.rewards.inpainting.boundary_coherence import (
+        BoundaryCoherenceModel,
+    )
+    from scoring.models.rewards.inpainting.mask_adherence import (
+        MaskAdherenceModel,
+    )
+    from scoring.models.rewards.inpainting.semantic_consistency import (
+        SemanticConsistencyModel,
+    )
+    from scoring.models.rewards.inpainting.structure_consistency import (
+        StructureConsistencyModel,
+    )
+
+    global INPAINTING_MODELS
+    if not INPAINTING_MODELS:
+        INPAINTING_MODELS = {
+            RewardModelType.BOUNDARY_COHERENCE: PackedRewardModel(
+                weight=0.25,
+                model=BoundaryCoherenceModel(),
+            ),
+            RewardModelType.MASK_ADHERENCE: PackedRewardModel(
+                weight=0.25,
+                model=MaskAdherenceModel(),
+            ),
+            RewardModelType.STRUCTURE_CONSISTENCY: PackedRewardModel(
+                weight=0.25,
+                model=StructureConsistencyModel(),
+            ),
+            RewardModelType.SEMANTIC_CONSISTENCY: PackedRewardModel(
+                weight=0.15,
+                model=SemanticConsistencyModel(),
+            ),
+            RewardModelType.IMAGE: PackedRewardModel(
+                weight=0.10,
+                model=ImageRewardModel(),
+            ),
+        }
+    return INPAINTING_MODELS
 
 
 def get_reward_models() -> ModelStorage:
@@ -45,8 +85,8 @@ def get_reward_models() -> ModelStorage:
 
 
 def should_check_duplicates(
-    synapse: bt.Synapse,
-    responses: List[bt.Synapse],
+    synapse: BaseTask,
+    responses: List[BaseTask],
 ) -> bool:
     if synapse.seed > -1:
         return False
@@ -88,30 +128,29 @@ def get_function(
     return models[reward_type]
 
 
-def get_reward_functions(model_type: ModelType) -> List[PackedRewardModel]:
-    if model_type == ModelType.ALCHEMY:
-        raise NotImplementedError("Alchemy model not yet imlepmented")
+def get_reward_functions(
+    task_type: TaskType = TaskType.TEXT_TO_IMAGE,
+) -> List[PackedRewardModel]:
+    if task_type == TaskType.INPAINT_IMAGE:
+        get_func: Callable = lambda x: get_function(get_inpainting_models(), x)
 
-    if model_type == ModelType.SCORING:
         return [
-            get_function(get_reward_models(), RewardModelType.ENHANCED_CLIP),
-            get_function(get_reward_models(), RewardModelType.IMAGE),
+            get_func(RewardModelType.BOUNDARY_COHERENCE),
+            get_func(RewardModelType.MASK_ADHERENCE),
+            get_func(RewardModelType.STRUCTURE_CONSISTENCY),
+            get_func(RewardModelType.SEMANTIC_CONSISTENCY),
+            get_func(RewardModelType.IMAGE),
         ]
 
+    get_func: Callable = lambda x: get_function(get_reward_models(), x)
     return [
-        get_function(get_reward_models(), RewardModelType.ENHANCED_CLIP),
-        get_function(get_reward_models(), RewardModelType.IMAGE),
-        get_function(get_reward_models(), RewardModelType.HUMAN),
+        get_func(RewardModelType.ENHANCED_CLIP),
+        get_func(RewardModelType.IMAGE),
+        get_func(RewardModelType.HUMAN),
     ]
 
 
-def get_masking_functions(model_type: ModelType) -> List[PackedRewardModel]:
-    if model_type == ModelType.ALCHEMY:
-        raise NotImplementedError("Alchemy model not yet imlepmented")
-
-    if model_type == ModelType.SCORING:
-        return []
-
+def get_masking_functions(_task_type: TaskType) -> List[PackedRewardModel]:
     return [
         get_function(get_masking_models(), RewardModelType.NSFW),
         get_function(get_masking_models(), RewardModelType.BLACKLIST),

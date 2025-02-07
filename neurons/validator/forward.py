@@ -17,14 +17,14 @@ from neurons.config import (
     get_metagraph,
     get_wallet,
 )
-from neurons.protocol import ImageGeneration, ImageGenerationTaskModel
+from neurons.protocol import ImageGenerationTask, ImageInpainting
 from neurons.utils.defaults import Stats
 from neurons.utils.image import synapse_to_base64
 from neurons.utils.log import image_to_str
+from neurons.utils.validator import ttl_get_block
 from neurons.validator.averages import update_moving_averages
 from neurons.validator.event import EventSchema
 from neurons.validator.schemas import Batch, ScoresUploadRequest
-from neurons.validator.utils import ttl_get_block
 from scoring.models.types import RewardModelType
 from scoring.pipeline import apply_masking_functions, get_scoring_results
 from scoring.types import ScoringResult, ScoringResults
@@ -74,7 +74,7 @@ async def query_axons_async(
 
 async def enqueue_upload_scores(
     validator: "StableValidator",
-    task: ImageGenerationTaskModel,
+    task: ImageGenerationTask,
     uids: torch.Tensor,
     scoring_results: ScoringResults,
 ):
@@ -104,7 +104,7 @@ async def enqueue_upload_scores(
 
 async def query_axons_and_process_responses(
     validator: "StableValidator",
-    task: ImageGenerationTaskModel,
+    task: ImageGenerationTask,
     axons: List[AxonInfo],
     synapse: bt.Synapse,
 ) -> List[bt.Synapse]:
@@ -140,7 +140,7 @@ async def query_axons_and_process_responses(
     return responses
 
 
-def log_responses(responses: List[ImageGeneration], prompt: str):
+def log_responses(responses: List[ImageGenerationTask], prompt: str):
     try:
         logger.info(
             #
@@ -156,7 +156,7 @@ def log_responses(responses: List[ImageGeneration], prompt: str):
                         "axon_hotkey": response.axon.hotkey,
                         "negative_prompt": response.negative_prompt,
                         "prompt_image": response.prompt_image,
-                        "num_images_per_prompt": response.num_images_per_prompt,
+                        "compute_count": response.compute_count,
                         "height": response.height,
                         "width": response.width,
                         "seed": response.seed,
@@ -192,7 +192,6 @@ async def create_batch_for_upload(
     logger.info("Preparing batch for upload...")
 
     masked_rewards: ScoringResults = await apply_masking_functions(
-        validator.model_type,
         synapse,
         responses=responses,
     )
@@ -281,10 +280,9 @@ def get_uids(responses: List[bt.Synapse]) -> torch.Tensor:
 
 async def run_step(
     validator: "StableValidator",
-    task: ImageGenerationTaskModel,
+    task: ImageGenerationTask | ImageInpainting,
     axons: List[AxonInfo],
     uids: torch.LongTensor,
-    model_type: str,
     stats: Stats,
 ):
     # Get Arguments
@@ -294,27 +292,11 @@ async def run_step(
     # Output some information about run
     display_run_info(stats, task_type, prompt)
 
-    # Set seed to -1 so miners will use a random seed by default
-    task_type_for_miner = task_type.lower()
-    synapse = ImageGeneration(
-        prompt=prompt,
-        negative_prompt=task.negative_prompt,
-        generation_type=task_type_for_miner,
-        prompt_image=task.images,
-        seed=task.seed,
-        guidance_scale=task.guidance_scale,
-        steps=task.steps,
-        num_images_per_prompt=1,
-        width=task.width,
-        height=task.height,
-        model_type=model_type,
-    )
-
     responses = await query_axons_and_process_responses(
         validator,
         task,
         axons,
-        synapse,
+        task,
     )
 
     uids = get_uids(responses)
@@ -325,8 +307,8 @@ async def run_step(
 
     validator_info = validator.get_validator_info()
     logger.info(
-        f"Stats -> Block: {validator_info['block']} "
-        f"| Stake: {validator_info['stake']:.4f} "
+        f"Stats -> Block: {int(validator_info['block'])} "
+        f"| Stake: {float(validator_info['stake']):.4f} "
         f"| Rank: {validator_info['rank']:.4f} "
         f"| VTrust: {validator_info['vtrust']:.4f} "
         f"| Dividends: {validator_info['dividends']:.4f} "
@@ -343,8 +325,7 @@ async def run_step(
 
     # Calculate rewards
     scoring_results: ScoringResults = await get_scoring_results(
-        validator.model_type,
-        synapse,
+        task,
         responses,
     )
     # Log CLIP and IMAGE rewards
@@ -378,11 +359,11 @@ async def run_step(
     try:
         event = EventSchema(
             task_type=task_type,
-            model_type=model_type,
+            compute_count=task.compute_count,
             block=ttl_get_block(),
             uids=uids,
             hotkeys=[response.axon.hotkey for response in responses],
-            prompt=prompt if task_type == "TEXT_TO_IMAGE" else None,
+            prompt=prompt,
             step_length=time.time() - start_time,
             images=[
                 (
@@ -393,7 +374,7 @@ async def run_step(
                 for response in responses
             ],
             results=scoring_results,
-            stake=validator_info["stake"].item(),
+            stake=float(validator_info["stake"]),
             rank=validator_info["rank"].item(),
             vtrust=validator_info["vtrust"].item(),
             dividends=validator_info["dividends"].item(),

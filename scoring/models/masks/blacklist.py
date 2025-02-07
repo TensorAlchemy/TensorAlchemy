@@ -1,7 +1,7 @@
-import bittensor as bt
 import numpy as np
 from loguru import logger
 
+from neurons.protocol import BaseTask
 from neurons.utils.image import synapse_to_images
 from neurons.utils.log import image_to_str
 from scoring.models.base import BaseRewardModel
@@ -18,9 +18,9 @@ class BlacklistFilter(BaseRewardModel):
         self.answer_blacklist = []
         self.question_blacklist = []
 
-    def get_reward(self, response: bt.Synapse) -> float:
+    async def get_reward(self, response: BaseTask) -> float:
         # Check the number of returned images in the response
-        if len(response.images) != response.num_images_per_prompt:
+        if len(response.images) != response.compute_count:
             return 1.0
 
         # If any images in the response fail

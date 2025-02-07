@@ -5,7 +5,7 @@ import pytest
 import torch
 from loguru import logger
 
-from neurons.protocol import ImageGeneration, ModelType
+from neurons.protocol import ImageGeneration
 from neurons.utils.image import image_tensor_to_base64, image_to_tensor
 from neurons.validator.backend.exceptions import PostMovingAveragesError
 from neurons.validator.forward import update_moving_averages
@@ -132,7 +132,6 @@ def generate_synapse(hotkey: str, image_content: torch.Tensor) -> bt.Synapse:
         height=64,
         prompt="lion sitting in jungle",
         generation_type="TEXT_TO_IMAGE",
-        model_type=ModelType.ALCHEMY.value,
         images=[image_tensor_to_base64(image_content)],
     )
     synapse.axon = bt.TerminalInfo(hotkey=hotkey)
@@ -165,7 +164,6 @@ async def run_pipeline_test():
     assert len(responses) == len(image_types), "Incorrect synapse builder"
 
     results: ScoringResults = await get_scoring_results(
-        ModelType.CUSTOM,
         responses[0],
         responses,
     )

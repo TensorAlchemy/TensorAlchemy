@@ -14,7 +14,7 @@ from neurons.config import AlchemyHost, get_config
 from neurons.config.utils import is_testnet
 from neurons.constants import DEVELOP_URL, MAINNET_URL, TESTNET_URL
 from neurons.exceptions import StakeBelowThreshold
-from neurons.protocol import ImageGenerationTaskModel, denormalize_image_model
+from neurons.protocol import ImageGenerationTask, denormalize_task
 from neurons.validator.backend.exceptions import (
     GetTaskError,
     GetVotesError,
@@ -87,9 +87,7 @@ class TensorAlchemyBackendClient:
 
         return await _poll_task_with_retry()
 
-    async def get_task(
-        self, timeout: int = 3
-    ) -> ImageGenerationTaskModel | None:
+    async def get_task(self, timeout: int = 3) -> ImageGenerationTask | None:
         """Fetch new task from backend.
 
         Returns task or None if there is no pending task
@@ -108,12 +106,12 @@ class TensorAlchemyBackendClient:
         try:
             task: Dict = response.json()
         except Exception:
-            pass
+            return None
 
         if response.status_code == 200:
             logger.info(f"[get_task] task={task}")
             try:
-                return denormalize_image_model(**task)
+                return denormalize_task(**task)
             except Exception as e:
                 logger.error(f"[get_task] failed to parse task response: {e}")
                 return None
@@ -343,7 +341,7 @@ class TensorAlchemyBackendClient:
     async def _include_validator_version(self, request: httpx.Request):
         """Put validator's version in request headers"""
         try:
-            from neurons.validator.utils.version import get_validator_version
+            from neurons.utils.validator.version import get_validator_version
 
             request.headers.update(
                 {"X-Validator-Version": get_validator_version()}

@@ -5,7 +5,7 @@ from typing import Any, Callable
 from loguru import logger
 
 from neurons.config import get_subtensor
-from neurons.validator.utils.cache import ttl_cache
+from neurons.utils.validator.cache import ttl_cache
 
 
 def get_subtensor_method(method: str) -> Callable:

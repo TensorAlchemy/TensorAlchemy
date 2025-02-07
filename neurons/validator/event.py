@@ -15,7 +15,8 @@ class EventSchema(BaseModel):
     hotkeys: List[str]
     prompt: str
     step_length: float
-    model_type: str
+    task_type: str
+    compute_count: int
     results: ScoringResults
     stake: float
     rank: float

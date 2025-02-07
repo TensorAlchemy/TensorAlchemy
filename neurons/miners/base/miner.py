@@ -27,6 +27,11 @@ from neurons.utils import (
 )
 from neurons.utils.log import sh
 
+# Define complex types at the top
+ForwardFnType = Callable[[bt.Synapse], bt.Synapse | Awaitable[bt.Synapse]]
+PriorityFnType = Callable[[bt.Synapse], float]
+BlacklistFnType = Callable[[bt.Synapse], Tuple[bool, str]]
+
 
 class BaseMiner(ABC):
     """
@@ -35,11 +40,13 @@ class BaseMiner(ABC):
     """
 
     state: MinerState
+    manager: Manager
     should_quit: Event
 
     def __init__(self, **kwargs) -> None:
         # Core state management
-        self.should_quit = Manager().Event()
+        self.manager = Manager()
+        self.should_quit = self.manager.Event()
 
         self.state = MinerState()
 
@@ -112,6 +119,7 @@ class BaseMiner(ABC):
             synapse_type: The synapse type to bind for
             forward_fn: Optional custom forward function to bind
         """
+
         bound_forward = self.bind_method(
             synapse_type,
             forward_fn or self._base_forward,
@@ -135,37 +143,19 @@ class BaseMiner(ABC):
     def attach_synapse(
         self,
         synapse_type: Type[bt.Synapse],
-        forward_fn: Optional[
-            Callable[[bt.Synapse], bt.Synapse | Awaitable[bt.Synapse]]
-        ] = None,
-        priority_fn: Optional[Callable[[bt.Synapse], float]] = None,
-        blacklist_fn: Optional[Callable[[bt.Synapse], Tuple[bool, str]]] = None,
+        forward_fn: Optional[ForwardFnType] = None,
+        priority_fn: Optional[PriorityFnType] = None,
+        blacklist_fn: Optional[BlacklistFnType] = None,
     ) -> None:
         """
         Attach synapse handlers with optional overrides for any combination of handlers.
         Supports both sync and async forward functions.
         """
 
-        # Create wrapper to handle async forward functions
-        async def async_wrapper(synapse: bt.Synapse) -> bt.Synapse:
-            if forward_fn is None:
-                return await self._base_forward(synapse)
-
-            result: bt.Synapse | Awaitable[bt.Synapse] = forward_fn(synapse)
-            if inspect.iscoroutine(result):
-                result = await result
-
-            assert isinstance(
-                result, bt.Synapse
-            ), "Result of attachment could not be resolved"
-            resolved: bt.Synapse = result
-
-            return resolved
-
         # Bind the provided functions or use defaults
         bound_forward = self.bind_method(
             synapse_type,
-            async_wrapper,
+            forward_fn or self._base_forward,
             "forward",
         )
         bound_priority = self.bind_method(
@@ -302,9 +292,15 @@ class BaseMiner(ABC):
         return self.get_miner_index() is not None
 
     async def _base_forward(self, synapse: bt.Synapse) -> bt.Synapse:
+        logger.debug(f"Inbound {synapse}")
         return synapse
 
     async def _base_priority(self, synapse: bt.Synapse) -> float:
+        logger.debug(
+            f"Running priority checks for synapse type "
+            + type(synapse).__name__
+        )
+
         caller_hotkey: str = synapse.dendrite.hotkey
 
         try:
@@ -345,7 +341,8 @@ class BaseMiner(ABC):
     async def _base_blacklist(self, synapse: bt.Synapse) -> Tuple[bool, str]:
         """Base blacklist implementation that can be used by child classes"""
         logger.debug(
-            f"Running blacklist checks for synapse type {type(synapse).__name__}..."
+            f"Running blacklist checks for synapse type "
+            + type(synapse).__name__
         )
         vpermit_tao_limit: float = VPERMIT_TAO
         if is_testnet():
@@ -439,19 +436,18 @@ class BaseMiner(ABC):
     def loop(self) -> None:
         """Main miner loop"""
         logger.info("Starting miner loop.")
-        step = 0
+        self.state.metrics.step = 0
 
         while not self.should_quit.is_set():
             try:
                 # Check for updates
-                step += 1
-                logger.debug(f"Main loop step {step}")
+                logger.info(f"Main loop step {self.state.metrics.step}")
                 self.update_check()
 
                 # Check registration
                 is_registered: bool = self.check_still_registered()
                 if not is_registered:
-                    logger.info("Miner not registered")
+                    logger.warning("Miner not registered")
                     time.sleep(120)
                     get_metagraph().sync(subtensor=get_subtensor())
                     continue
@@ -471,6 +467,7 @@ class BaseMiner(ABC):
 
             except Exception:
                 logger.error(f"Error in miner loop: {traceback.format_exc()}")
+                time.sleep(10)
                 continue
 
     def _log_metrics(self) -> None:
@@ -481,15 +478,17 @@ class BaseMiner(ABC):
         if miner_index is None:
             return
 
-        log = (
-            f"Step: {self.state.metrics.step} | "
-            f"Block: {metagraph.block.item()} | "
-            f"Stake: {metagraph.S[miner_index]:.2f} | "
-            f"Rank: {metagraph.R[miner_index]:.2f} | "
-            f"Trust: {metagraph.T[miner_index]:.2f} | "
-            f"Consensus: {metagraph.C[miner_index]:.2f} | "
-            f"Incentive: {metagraph.I[miner_index]:.2f} | "
-            f"Emission: {metagraph.E[miner_index]:.2f}"
+        log = "\n".join(
+            [
+                f"Step: {self.state.metrics.step}",
+                f"Block: {metagraph.block.item():.2f}",
+                f"Stake: {float(metagraph.S[miner_index]):.2f}",
+                f"Rank: {metagraph.R[miner_index]:.2f}",
+                f"Trust: {metagraph.T[miner_index]:.2f}",
+                f"Consensus: {metagraph.C[miner_index]:.2f}",
+                f"Incentive: {metagraph.I[miner_index]:.2f}",
+                f"Emission: {metagraph.E[miner_index]:.2f}",
+            ]
         )
         logger.info(log, color="green")
 

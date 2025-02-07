@@ -1,6 +1,5 @@
 from typing import List
 
-import bittensor as bt
 import imagehash
 import numpy as np
 import torch
@@ -8,6 +7,7 @@ from loguru import logger
 from PIL import Image
 
 from neurons.config import get_metagraph
+from neurons.protocol import BaseTask
 from neurons.utils.image import synapse_to_tensors
 from scoring.models.base import BaseRewardModel
 from scoring.models.types import RewardModelType
@@ -47,8 +47,8 @@ class DuplicateFilter(BaseRewardModel):
 
     async def get_rewards(
         self,
-        _synapse: bt.Synapse,
-        responses: List[bt.Synapse],
+        _synapse: BaseTask,
+        responses: List[BaseTask],
     ) -> torch.Tensor:
         logger.info(f"Checking {len(responses)} responses for duplicates...")
 

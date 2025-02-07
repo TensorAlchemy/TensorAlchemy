@@ -1,10 +1,10 @@
 from typing import Dict, List
 
-import bittensor as bt
 import torch
 from loguru import logger
 
 from neurons.config import get_backend_client
+from neurons.protocol import BaseTask
 from scoring.models.base import BaseRewardModel
 from scoring.models.types import RewardModelType
 
@@ -30,8 +30,8 @@ class HumanValidationRewardModel(BaseRewardModel):
 
     async def get_rewards(
         self,
-        synapse: bt.Synapse,
-        responses: List[bt.Synapse],
+        synapse: BaseTask,
+        responses: List[BaseTask],
     ) -> torch.Tensor:
         logger.info("Extracting human votes...")
 
@@ -44,7 +44,10 @@ class HumanValidationRewardModel(BaseRewardModel):
             logger.error(f"Error while getting votes: {e}")
             return super().zeros()
 
-        def get_reward(response: bt.Synapse) -> float:
+        async def get_reward(response: BaseTask) -> float:
+            if not (response.axon and response.axon.hotkey):
+                return 0.0
+
             return voting_scores.get(
                 response.axon.hotkey,
                 0.0,

@@ -6,7 +6,7 @@ from loguru import logger
 from PIL.Image import Image as PILImage
 
 from neurons.config import clients
-from neurons.protocol import ImageGeneration, ModelType
+from neurons.protocol import ImageGeneration
 from neurons.utils.image import image_to_base64
 from scoring.pipeline import get_scoring_results
 from scoring.types import ScoringResults
@@ -22,7 +22,6 @@ def generate_synapse(prompt: str, image_base64: str) -> bt.Synapse:
             prompt=prompt,
             images=[image_base64],
             generation_type="TEXT_TO_IMAGE",
-            model_type=ModelType.CUSTOM.value,
         )
         synapse.axon = bt.TerminalInfo(hotkey=hotkey)
         logger.success("Successfully generated synapse")
@@ -40,7 +39,6 @@ async def score_images(synapses: List[bt.Synapse]) -> ScoringResults:
             # automatically skipping human validation etc
             #
             # see scoring.models.__init__.py
-            ModelType.SCORING,
             synapses[0],
             synapses,
         )

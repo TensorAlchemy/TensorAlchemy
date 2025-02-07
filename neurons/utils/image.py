@@ -130,9 +130,6 @@ def multi_to_tensor(inbound: SupportedImageTypes) -> torch.Tensor:
     Returns:
         torch.Tensor: The converted PyTorch Tensor.
     """
-    if isinstance(inbound, dict):
-        print(inbound.keys())
-
     if isinstance(inbound, str):
         return image_to_tensor(base64_to_image(inbound))
 

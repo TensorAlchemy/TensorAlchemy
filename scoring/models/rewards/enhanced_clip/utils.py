@@ -1,12 +1,12 @@
 import traceback
-from typing import List, TypedDict
+from typing import List, Optional, TypedDict
 
 from loguru import logger
 
 from neurons.config import MissingApiKeyError
 from neurons.config.clients import MissingResponseError
-from neurons.validator.utils.corcel import call_corcel
-from neurons.validator.utils.openai import create_completion_request
+from neurons.utils.validator.corcel import call_corcel
+from neurons.utils.validator.openai import create_completion_request
 
 
 class ElementDict(TypedDict):
@@ -84,8 +84,9 @@ async def break_down_prompt(prompt: str) -> PromptBreakdown:
             logger.debug(f"Skipping {name} due to no response")
         except Exception:
             logger.error(f"Error with {name}: " + traceback.format_exc())
+            continue
 
-        raise MissingApiKeyError(
-            "No service available "
-            + "- all services failed due to missing API keys"
-        )
+    raise MissingApiKeyError(
+        "No service available "
+        + "- all services failed due to missing API keys"
+    )

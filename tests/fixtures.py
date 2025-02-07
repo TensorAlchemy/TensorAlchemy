@@ -5,7 +5,7 @@ import bittensor as bt
 import torch
 from PIL import Image, ImageDraw
 
-from neurons.protocol import ImageGeneration, ModelType
+from neurons.protocol import ImageGeneration
 from neurons.utils.image import image_tensor_to_base64, image_to_tensor
 
 
@@ -48,7 +48,6 @@ def generate_synapse(
         height=64,
         prompt=prompt,
         generation_type="TEXT_TO_IMAGE",
-        model_type=ModelType.ALCHEMY.value,
         images=[image_tensor_to_base64(image_content)],
         **kwargs,
     )

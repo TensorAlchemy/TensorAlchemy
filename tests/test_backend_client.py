@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 import bittensor as bt
 import torch
 
-from neurons.protocol import ImageGenerationTaskModel
+from neurons.protocol import ImageGenerationTask
 from neurons.validator.backend.client import TensorAlchemyBackendClient
 from neurons.validator.backend.exceptions import (
     GetTaskError,
@@ -28,7 +28,7 @@ class TestTensorAlchemyBackendClient(unittest.IsolatedAsyncioTestCase):
     async def test_get_task_success(self, mock_get):
         task_data = {
             "id": "1111",
-            "image_count": 1,
+            "compute_count": 1,
             "prompt": "test",
             "height": 64,
             "width": 64,
@@ -43,7 +43,7 @@ class TestTensorAlchemyBackendClient(unittest.IsolatedAsyncioTestCase):
         mock_get.return_value = mock_response
 
         result = await self.client.get_task()
-        self.assertIsInstance(result, ImageGenerationTaskModel)
+        self.assertIsInstance(result, ImageGenerationTask)
         self.assertEqual(result.task_id, task_data["id"])
 
     @patch("httpx.AsyncClient.get")
@@ -60,7 +60,8 @@ class TestTensorAlchemyBackendClient(unittest.IsolatedAsyncioTestCase):
     async def test_get_task_error(self, mock_get):
         mock_response = AsyncMock()
         mock_response.status_code = 500
-        mock_response.text = "Internal Server Error"
+        mock_response.text = AsyncMock(return_value="Internal Server Error")
+        mock_response.json = AsyncMock(side_effect=Exception("JSON Error"))
         mock_get.return_value = mock_response
 
         with self.assertRaises(GetTaskError):
@@ -168,6 +169,7 @@ class TestTensorAlchemyBackendClient(unittest.IsolatedAsyncioTestCase):
     async def test_post_batch_success(self, mock_post):
         mock_response = AsyncMock()
         mock_response.status_code = 200
+        mock_response.json = AsyncMock(return_value={})
         mock_post.return_value = mock_response
 
         batch = Batch(
@@ -184,3 +186,4 @@ class TestTensorAlchemyBackendClient(unittest.IsolatedAsyncioTestCase):
 
         await self.client.post_batch(batch)
         mock_post.assert_called_once()
+        assert mock_response.json.called

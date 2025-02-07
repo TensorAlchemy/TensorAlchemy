@@ -167,12 +167,11 @@ async def test_apply_human_voting_weight(*args):
 
 
 def generate_synapse() -> bt.Synapse:
-    from neurons.protocol import ImageGeneration, ModelType
+    from neurons.protocol import ImageGeneration
 
     return ImageGeneration(
         generation_type="TEXT_TO_IMAGE",
         seed=-1,
-        model_type=ModelType.ALCHEMY.value,
         images=[
             image_tensor_to_base64(TEST_IMAGES["REAL_IMAGE_LOW_INFERENCE"])
         ],

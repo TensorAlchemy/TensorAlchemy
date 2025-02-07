@@ -2,11 +2,8 @@ from datetime import datetime
 
 from loguru import logger
 
-from neurons.miners.Inpainter.utils import (
-    get_caller_stake,
-    get_coldkey_for_hotkey,
-)
 from neurons.utils.log import sh
+from neurons.utils.miner import get_caller_stake, get_coldkey_for_hotkey
 
 
 def do_logs(self, synapse, local_args):

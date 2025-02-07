@@ -30,30 +30,26 @@ from neurons.config import (
     validator_run_id,
 )
 from neurons.exceptions import StakeBelowThreshold
-from neurons.protocol import (
-    ImageGenerationTaskModel,
-    ModelType,
-    denormalize_image_model,
-)
+from neurons.protocol import ImageGenerationTask, TaskType, denormalize_task
 from neurons.update_checker import safely_check_for_updates
 from neurons.utils import BackgroundTimer, MultiprocessTimer, background_loop
 from neurons.utils.common import log_dependencies
 from neurons.utils.defaults import get_defaults
 from neurons.utils.log import configure_logging
-from neurons.validator.backend.client import TensorAlchemyBackendClient
-from neurons.validator.backend.models import TaskState
-from neurons.validator.config import update_validator_settings
-from neurons.validator.forward import run_step
-from neurons.validator.schemas import Batch, ScoresUploadRequest
-from neurons.validator.utils import (
+from neurons.utils.validator import (
     generate_random_prompt,
     is_hotkey_registered,
     select_uids,
     ttl_get_block,
 )
-from neurons.validator.utils.openai import check_prompt_for_nsfw
-from neurons.validator.utils.state import load_ma_scores, save_ma_scores
-from neurons.validator.utils.version import get_validator_version
+from neurons.utils.validator.openai import check_prompt_for_nsfw
+from neurons.utils.validator.state import load_ma_scores, save_ma_scores
+from neurons.utils.validator.version import get_validator_version
+from neurons.validator.backend.client import TensorAlchemyBackendClient
+from neurons.validator.backend.models import TaskState
+from neurons.validator.config import update_validator_settings
+from neurons.validator.forward import run_step
+from neurons.validator.schemas import Batch, ScoresUploadRequest
 from neurons.validator.weights import (
     SetWeightsTask,
     set_weights_loop,
@@ -211,12 +207,12 @@ async def handle_task_rejection(
         )
 
 
-def create_synthetic_task(prompt: str) -> ImageGenerationTaskModel:
+def create_synthetic_task(prompt: str) -> ImageGenerationTask:
     """Create a synthetic image generation task"""
-    return denormalize_image_model(
+    return denormalize_task(
         id=str(uuid.uuid4()),
-        image_count=1,
-        task_type="TEXT_TO_IMAGE",
+        compute_count=1,
+        task_type=TaskType.TEXT_TO_IMAGE,
         guidance_scale=7.5,
         negative_prompt=None,
         prompt=prompt,
@@ -332,9 +328,11 @@ async def execute_post_step_methods(
 def drain_queue(q: Queue) -> None:
     """Safely drain a queue"""
     try:
-        while not q.empty():
+        while True:
             try:
                 q.get_nowait()
+                if q.empty():
+                    break
             except:
                 break
     except Exception as e:
@@ -575,8 +573,6 @@ class StableValidator:
         self.batches_upload_queue = queues["batches"]
         self.scores_upload_queue = queues["scores"]
 
-        self.model_type = ModelType.CUSTOM
-
         self.background_loop: Optional[BackgroundTimer] = None
         self.set_weights_process: Optional[MultiprocessTimer] = None
         self.upload_images_process: Optional[MultiprocessTimer] = None
@@ -679,7 +675,7 @@ class StableValidator:
     async def get_image_generation_task(
         self,
         timeout: int = 30,
-    ) -> ImageGenerationTaskModel | None:
+    ) -> ImageGenerationTask | None:
         """
         Fetch new image generation task from backend or generate new one
         Returns task or None if task cannot be generated
@@ -687,7 +683,7 @@ class StableValidator:
         # NOTE: Will wait for around 60 seconds
         #       trying to get a task from the user
         # before going on and creating a synthetic task
-        task: Optional[ImageGenerationTaskModel] = None
+        task: Optional[ImageGenerationTask] = None
         try:
             task = await self.backend_client.poll_task(timeout=timeout)
         # Allow validator to just skip this step if they like
@@ -696,7 +692,6 @@ class StableValidator:
 
         # No organic task found
         if task is None:
-            self.model_type = ModelType.CUSTOM
             prompt = await generate_random_prompt()
             if not prompt:
                 logger.error("failed to generate prompt for synthetic task")
@@ -850,7 +845,9 @@ class StableValidator:
     def serve_axon(self):
         """Serve axon to enable external connections."""
         self.axon = serve_network_axon(
-            wallet=self.wallet, config=self.config, subtensor=self.subtensor
+            wallet=self.wallet,
+            config=self.config,
+            subtensor=self.subtensor,
         )
 
     async def run(self):
@@ -899,7 +896,10 @@ class StableValidator:
 
     async def mid_step(self):
         try:
-            selected_uids: torch.Tensor = await select_uids(count=12)
+            selected_uids: torch.Tensor = await select_uids(
+                count=self.task.compute_count + 1,
+            )
+
             if selected_uids.numel() == 0:
                 logger.info("No active miners found, retrying in 20 seconds...")
                 await asyncio.sleep(20)
@@ -912,7 +912,6 @@ class StableValidator:
                 task=self.task,
                 axons=axons,
                 uids=selected_uids,
-                model_type=self.model_type,
                 stats=self.stats,
             )
             return True

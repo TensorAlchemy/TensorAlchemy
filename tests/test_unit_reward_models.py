@@ -10,7 +10,7 @@ from loguru import logger
 from PIL import Image
 
 from neurons.constants import IS_CI_ENV
-from neurons.protocol import ImageGeneration, ModelType
+from neurons.protocol import ImageGeneration
 from neurons.utils.image import (
     bytesio_to_base64,
     image_tensor_to_base64,
@@ -57,8 +57,7 @@ def create_mock_synapse(images, height, width, hotkey):
         images=images,
         height=height,
         generation_type="TEXT_TO_IMAGE",
-        model_type=ModelType.ALCHEMY.value,
-        num_images_per_prompt=len(images),
+        compute_count=len(images),
     )
     synapse.axon = bt.TerminalInfo(hotkey=hotkey)
     return synapse

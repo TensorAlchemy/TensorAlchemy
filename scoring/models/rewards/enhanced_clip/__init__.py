@@ -21,12 +21,12 @@ Date: July 30, 2024
 import traceback
 from typing import Dict, List
 
-import bittensor as bt
 import torch
 from loguru import logger
 from transformers import CLIPModel, CLIPProcessor
 
 from neurons.config import get_device
+from neurons.protocol import BaseTask
 from neurons.utils.image import synapse_to_image
 from scoring.models.base import BaseRewardModel
 from scoring.models.rewards.enhanced_clip.utils import (
@@ -70,7 +70,7 @@ class EnhancedClipRewardModel(BaseRewardModel):
     def compute_clip_score(
         self,
         prompt_elements: PromptBreakdown,
-        response: bt.Synapse,
+        response: BaseTask,
     ) -> float:
         """
         Compute the enhanced CLIP score for a given prompt and image response.
@@ -79,7 +79,7 @@ class EnhancedClipRewardModel(BaseRewardModel):
             prompt_elements (PromptBreakdown): Breakdown of the prompt
                                                into individual elements.
 
-            response (bt.Synapse): The response containing
+            response (BaseTask): The response containing
                                    the image to be evaluated.
 
         Returns:
@@ -109,10 +109,12 @@ class EnhancedClipRewardModel(BaseRewardModel):
             with torch.no_grad():
                 outputs = self.model(**inputs)
 
-            logits_per_image: torch.Tensor = outputs.logits_per_image.squeeze()
-            similarities: torch.Tensor = (
-                logits_per_image - logits_per_image.min()
-            ) / (logits_per_image.max() - logits_per_image.min())
+            logits_per_image: torch.Tensor = outputs.logits_per_image
+            if len(descriptions) == 1:
+                logits_per_image = logits_per_image.unsqueeze(1)
+            
+            logits_per_image = logits_per_image.squeeze(0)
+            similarities: torch.Tensor = (logits_per_image - logits_per_image.min()) / (logits_per_image.max() - logits_per_image.min())
 
             adjusted_similarities: torch.Tensor = torch.where(
                 similarities > self.threshold_min,
@@ -122,9 +124,9 @@ class EnhancedClipRewardModel(BaseRewardModel):
 
             final_result: float = (adjusted_similarities + 1).prod().item() - 1
 
-            for i, desc in enumerate(descriptions):
+            for i in range(len(descriptions)):
                 logger.info(
-                    f"Element: {desc}, "
+                    f"Element: {descriptions[i]}, "
                     f"Similarity: {similarities[i].item():.4f}, "
                     f"Adjusted: {adjusted_similarities[i].item():.4f}"
                 )
@@ -141,15 +143,15 @@ class EnhancedClipRewardModel(BaseRewardModel):
 
     async def get_rewards(
         self,
-        synapse: bt.Synapse,
-        responses: List[bt.Synapse],
+        synapse: BaseTask,
+        responses: List[BaseTask],
     ) -> torch.Tensor:
         """
         Compute rewards for a list of responses based on their similarity to the given prompt.
 
         Args:
-            synapse (bt.Synapse): The original synapse containing the prompt.
-            responses (List[bt.Synapse]): List of responses to be evaluated.
+            synapse (BaseTask): The original synapse containing the prompt.
+            responses (List[BaseTask]): List of responses to be evaluated.
 
         Returns:
             torch.Tensor: A tensor of computed rewards for each response.
@@ -158,7 +160,7 @@ class EnhancedClipRewardModel(BaseRewardModel):
             synapse.prompt
         )
 
-        def get_reward(response: bt.Synapse) -> float:
+        async def get_reward(response: BaseTask) -> float:
             return self.compute_clip_score(prompt_elements, response)
 
         rewards: torch.Tensor = await super().build_rewards_tensor(

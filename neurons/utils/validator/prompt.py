@@ -7,8 +7,8 @@ from loguru import logger
 
 from neurons.config import MissingApiKeyError
 from neurons.config.clients import MissingResponseError
-from neurons.validator.utils.corcel import call_corcel
-from neurons.validator.utils.openai import create_completion_request
+from neurons.utils.validator.corcel import call_corcel
+from neurons.utils.validator.openai import create_completion_request
 
 
 def get_random_creature():

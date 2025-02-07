@@ -1,45 +1,46 @@
+import uuid
 from enum import Enum
 from typing import Any, List, Optional, Union
 
 import bittensor as bt
 import numpy as np
 import torch
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator
+
+
+class TaskType(str, Enum):
+    TEXT_TO_IMAGE = "TEXT_TO_IMAGE"
+    INPAINT_IMAGE = "INPAINT_IMAGE"
+    EXPANSION_CELL = "EXPANSION_CELL"
+
+    def __repr__(self):
+        return self.value
+
+    @classmethod
+    def __call__(cls):
+        return cls.TEXT_TO_IMAGE
 
 
 class ModelType(str, Enum):
     SCORING = "SCORING"
-    ALCHEMY = "ALCHEMY"
     CUSTOM = "CUSTOM"
 
+    def __repr__(self):
+        return self.value
 
-class ImageGenerationTaskModel(BaseModel):
-    task_id: str
-    prompt: str
-    negative_prompt: Optional[str] = None
-    prompt_image: Optional[bt.Tensor] = None
-    images: Optional[List[bt.Tensor]] = None
-    num_images_per_prompt: int
-    height: int
-    width: int
-    guidance_scale: float
-    seed: int
-    steps: int
-    task_type: str
-    model_type: Optional[str] = None
+    @classmethod
+    def __call__(cls):
+        return cls.CUSTOM
 
 
-def denormalize_image_model(
-    id: str, image_count: int, **kwargs
-) -> ImageGenerationTaskModel:
-    return ImageGenerationTaskModel(
-        task_id=id,
-        num_images_per_prompt=image_count,
-        **kwargs,
-    )
+class IsAlive(bt.Synapse):
+    pass
 
 
-def deserialize_incoming_image(inbound_image: Any):
+SupportedImageTypes = Union[str, np.ndarray, torch.tensor, bt.Tensor]
+
+
+def deserialize_incoming_image(inbound_image: Any) -> str:
     """Inbound image type is different across different miner versions."""
     from neurons.utils.image import image_to_base64, tensor_to_image
 
@@ -61,75 +62,92 @@ def deserialize_incoming_image(inbound_image: Any):
             bt.logging.warning(f"Failed to deserialize image: {str(e)}")
             return ""
 
-    return inbound_image
+    return str(inbound_image)
 
 
-class IsAlive(bt.Synapse):
-    answer: Optional[str] = None
-    completion: str = Field(
-        "",
-        title="Completion",
-        description="Completion status of the current ImageGeneration object."
-        + " This attribute is mutable and can be updated.",
-    )
-
-
-SupportedImageTypes = Union[str, np.ndarray, torch.tensor, bt.Tensor]
-
-
-class ImageGeneration(bt.Synapse):
+class BaseTask(bt.Synapse):
     """
-    Protocol for image generation requests and responses between miners and validators.
-    Inherits from bt.Synapse to integrate with the bittensor network.
-
-    This protocol facilitates image generation requests with configurable parameters
-    like prompts, dimensions, and generation settings, and returns base64 encoded images.
+    Base protocol for image-related requests between miners and validators.
+    Contains common fields used across different image manipulation tasks.
     """
+
+    def __repr__(self):
+        return str(self.model_dump())
+
+    task_id: str = str(uuid.uuid4())
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    # Each image is base64 encoded image data
+    # Base64 encoded output images
     images: List[str] = []
 
-    prompt_image: Optional[bt.Tensor] = Field(
-        None,
-    )
-    # Required request input, filled by sending dendrite caller.
-    prompt: str = Field(
-        "Bird in the sky",
-    )
-    negative_prompt: Optional[str] = Field(
-        None,
-    )
-    num_images_per_prompt: int = Field(
-        1,
-    )
-    height: int = Field(
-        1024,
-    )
-    width: int = Field(
-        1024,
-    )
-    generation_type: str = Field(
-        "TEXT_TO_IMAGE",
-    )
-    guidance_scale: float = Field(
-        7.5,
-    )
-    seed: int = Field(
-        -1,
-    )
-    steps: int = Field(
-        20,
-    )
-    model_type: str = Field(
-        ModelType.CUSTOM,
-    )
+    # Common parameters
+    prompt: str = Field("Bird in the sky")
+    negative_prompt: Optional[str] = Field(None)
+    compute_count: int = Field(1)
+    height: int = Field(512)
+    width: int = Field(512)
+    guidance_scale: float = Field(7.5)
+    seed: int = Field(-1)
+    steps: int = Field(20)
+    task_type: TaskType
+    compute_count: int = 12
 
     @field_validator("images", mode="before")
     def images_value(cls, inbound_images_list: List[Any]) -> List[str]:
         return [
-            #
-            deserialize_incoming_image(image)
+            deserialize_incoming_image(
+                image,
+            )
             for image in inbound_images_list
         ]
+
+
+class ImageGeneration(BaseTask):
+    """
+    Protocol for text-to-image generation requests.
+    Extends BaseTask with generation-specific fields.
+    """
+
+    task_type: TaskType = TaskType.TEXT_TO_IMAGE
+
+    # Optional input reference image
+    prompt_image: Optional[bt.Tensor] = Field(None)
+    generation_type: TaskType = Field(TaskType.TEXT_TO_IMAGE)
+
+
+class ImageInpainting(BaseTask):
+    """
+    Protocol for image inpainting requests.
+    Extends BaseTask with inpainting-specific fields.
+    """
+
+    task_type: TaskType = TaskType.TEXT_TO_IMAGE
+
+    # Required input image that needs inpainting
+    input_image: str = Field(...)
+    # Required mask indicating areas to inpaint
+    mask_image: str = Field(...)
+
+    generation_type: TaskType = Field(TaskType.INPAINT_IMAGE)
+
+
+# Combined type for image generation tasks
+ImageGenerationTask = Union[ImageGeneration, ImageInpainting]
+
+
+def denormalize_task(
+    id: str,
+    task_type: TaskType,
+    **kwargs,
+) -> ImageGenerationTask:
+    if task_type == TaskType.INPAINT_IMAGE:
+        return ImageInpainting(
+            task_id=id,
+            **kwargs,
+        )
+
+    return ImageGeneration(
+        task_id=id,
+        **kwargs,
+    )
