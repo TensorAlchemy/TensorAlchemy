@@ -10,6 +10,7 @@ from pydantic import ConfigDict, Field, field_validator
 class TaskType(str, Enum):
     TEXT_TO_IMAGE = "TEXT_TO_IMAGE"
     INPAINT_IMAGE = "INPAINT_IMAGE"
+    EXPANSION_CELL = "EXPANSION_CELL"
 
     def __repr__(self):
         return self.value
