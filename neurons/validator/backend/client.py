@@ -106,7 +106,7 @@ class TensorAlchemyBackendClient:
         try:
             task: Dict = response.json()
         except Exception:
-            pass
+            return None
 
         if response.status_code == 200:
             logger.info(f"[get_task] task={task}")

@@ -1,5 +1,6 @@
 from enum import Enum
 from typing import Any, List, Optional, Union
+import uuid
 
 import bittensor as bt
 import numpy as np
@@ -73,7 +74,7 @@ class BaseTask(bt.Synapse):
     def __repr__(self):
         return str(self.model_dump())
 
-    task_id: str
+    task_id: str = str(uuid.uuid4())
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -133,21 +134,16 @@ ImageGenerationTask = Union[ImageGeneration, ImageInpainting]
 
 def denormalize_task(
     id: str,
-    compute_count: int,
     task_type: TaskType,
     **kwargs,
 ) -> ImageGenerationTask:
     if task_type == TaskType.INPAINT_IMAGE:
         return ImageInpainting(
             task_id=id,
-            task_type=task_type,
-            compute_count=compute_count,
             **kwargs,
         )
 
     return ImageGeneration(
         task_id=id,
-        task_type=task_type,
-        compute_count=compute_count,
         **kwargs,
     )

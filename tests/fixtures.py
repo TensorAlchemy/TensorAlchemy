@@ -48,7 +48,6 @@ def generate_synapse(
         height=64,
         prompt=prompt,
         generation_type="TEXT_TO_IMAGE",
-        model_type=ModelType.ALCHEMY.value,
         images=[image_tensor_to_base64(image_content)],
         **kwargs,
     )

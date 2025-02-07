@@ -132,7 +132,6 @@ def generate_synapse(hotkey: str, image_content: torch.Tensor) -> bt.Synapse:
         height=64,
         prompt="lion sitting in jungle",
         generation_type="TEXT_TO_IMAGE",
-        model_type=ModelType.ALCHEMY.value,
         images=[image_tensor_to_base64(image_content)],
     )
     synapse.axon = bt.TerminalInfo(hotkey=hotkey)

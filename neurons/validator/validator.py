@@ -30,7 +30,7 @@ from neurons.config import (
     validator_run_id,
 )
 from neurons.exceptions import StakeBelowThreshold
-from neurons.protocol import ImageGenerationTask, denormalize_task
+from neurons.protocol import ImageGenerationTask, TaskType, denormalize_task
 from neurons.update_checker import safely_check_for_updates
 from neurons.utils import BackgroundTimer, MultiprocessTimer, background_loop
 from neurons.utils.common import log_dependencies
@@ -212,7 +212,7 @@ def create_synthetic_task(prompt: str) -> ImageGenerationTask:
     return denormalize_task(
         id=str(uuid.uuid4()),
         compute_count=1,
-        task_type="TEXT_TO_IMAGE",
+        task_type=TaskType.TEXT_TO_IMAGE,
         guidance_scale=7.5,
         negative_prompt=None,
         prompt=prompt,

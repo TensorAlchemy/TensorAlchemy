@@ -57,7 +57,6 @@ def create_mock_synapse(images, height, width, hotkey):
         images=images,
         height=height,
         generation_type="TEXT_TO_IMAGE",
-        model_type=ModelType.ALCHEMY.value,
         compute_count=len(images),
     )
     synapse.axon = bt.TerminalInfo(hotkey=hotkey)
