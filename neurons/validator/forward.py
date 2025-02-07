@@ -363,7 +363,7 @@ async def run_step(
             block=ttl_get_block(),
             uids=uids,
             hotkeys=[response.axon.hotkey for response in responses],
-            prompt=prompt if task_type == "TEXT_TO_IMAGE" else None,
+            prompt=prompt,
             step_length=time.time() - start_time,
             images=[
                 (
